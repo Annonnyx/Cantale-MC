@@ -19,6 +19,10 @@ public class DatabaseManager {
     public void init() {
         this.databaseType = plugin.getConfigManager().getDatabaseType();
         connect();
+        if (this.connection == null) {
+            plugin.getLogger().severe("Impossible de démarrer la base de données : connexion non établie.");
+            return;
+        }
         createTables();
     }
 
@@ -58,6 +62,10 @@ public class DatabaseManager {
     }
 
     private void createTables() {
+        if (this.connection == null) {
+            plugin.getLogger().severe("Impossible de créer les tables car la connexion est nulle.");
+            return;
+        }
         try (Statement stmt = connection.createStatement()) {
             // Joueurs (vies, économie)
             stmt.execute("""

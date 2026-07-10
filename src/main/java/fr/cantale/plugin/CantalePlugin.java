@@ -253,6 +253,7 @@ public class CantalePlugin extends JavaPlugin {
         getCommand("ec").setExecutor(new EnderChestCommand(this));
         getCommand("pc2").setExecutor(new Pc2Command(this));
         getCommand("day").setExecutor(new DayCommand(this));
+        getCommand("daily").setExecutor(new fr.cantale.plugin.commands.DailyCommand(this));
         getCommand("profile").setExecutor(new ProfileCommand(this));
         getCommand("listemorts").setExecutor(new ListCommand(this));
         getCommand("vote").setExecutor(new fr.cantale.plugin.commands.VoteCommand(this));

@@ -122,11 +122,8 @@ public class PlayerListener implements Listener {
             player.setResourcePack(packUrl, packHash);
         }
 
-        // Daily Cantox bonus for VIP/Chevre
-        int bonus = plugin.getRankManager().grantDailyCantox(player);
-        if (bonus > 0) {
-            player.sendMessage("§8[§6Cantale§8] §aBonus journalier : §e" + bonus + " Cantox §a!");
-        }
+        // Daily reward is now collectable via /daily or /journalier
+        player.sendMessage("§8[§6Cantale§8] §7Utilisez §e/daily §7ou §e/journalier §7pour réclamer votre récompense quotidienne.");
 
         // Monthly VIE items for Aventurier/Héros
         int livesGiven = plugin.getRankManager().grantMonthlyLives(player);

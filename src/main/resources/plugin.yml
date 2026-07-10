@@ -132,6 +132,10 @@ commands:
   day:
     description: Afficher le jour et l'heure Minecraft
     usage: /day
+  daily:
+    description: Réclame ta récompense quotidienne
+    usage: /daily
+    aliases: [journalier]
   listemorts:
     description: Afficher la liste des joueurs morts définitivement
     usage: /listemorts

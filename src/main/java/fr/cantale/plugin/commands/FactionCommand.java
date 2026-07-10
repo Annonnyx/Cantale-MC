@@ -468,8 +468,11 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
             if (!rs.next()) { player.sendMessage(formatMessage("&cWarp introuvable.")); return; }
             org.bukkit.World w = Bukkit.getWorld(rs.getString("world"));
             if (w == null) { player.sendMessage(formatMessage("&cMonde inexistant.")); return; }
-            player.teleport(new org.bukkit.Location(w, rs.getDouble("x"), rs.getDouble("y"), rs.getDouble("z")));
-            player.sendMessage(formatMessage("&aTéléporté au warp &e" + args[1] + "&a."));
+            org.bukkit.Location destination = new org.bukkit.Location(w, rs.getDouble("x"), rs.getDouble("y"), rs.getDouble("z"));
+            plugin.getTeleportDelayManager().delayTeleport(player, () -> {
+                player.teleport(destination);
+                player.sendMessage(formatMessage("&aTéléporté au warp &e" + args[1] + "&a."));
+            });
         } catch (java.sql.SQLException ex) { player.sendMessage(formatMessage("&cErreur DB.")); }
     }
 
@@ -551,8 +554,11 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
             } else if (rs.next()) {
                 org.bukkit.World w = Bukkit.getWorld(rs.getString("world"));
                 if (w == null) { player.sendMessage(formatMessage("&cMonde inexistant.")); return; }
-                player.teleport(new org.bukkit.Location(w, rs.getDouble("x"), rs.getDouble("y"), rs.getDouble("z")));
-                player.sendMessage(formatMessage("&aTéléporté à votre home &e" + args[1] + "&a."));
+                org.bukkit.Location destination = new org.bukkit.Location(w, rs.getDouble("x"), rs.getDouble("y"), rs.getDouble("z"));
+                plugin.getTeleportDelayManager().delayTeleport(player, () -> {
+                    player.teleport(destination);
+                    player.sendMessage(formatMessage("&aTéléporté à votre home &e" + args[1] + "&a."));
+                });
             } else {
                 player.sendMessage(formatMessage("&cHome introuvable."));
             }

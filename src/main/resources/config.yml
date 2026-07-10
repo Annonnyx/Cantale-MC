@@ -13,8 +13,8 @@ database:
   mysql:
     host: 82.66.173.236
     port: 3306
-    database: s116_Cantale
-    username: u116_vm9rF8BvkC
+    database: s115_Cantale
+    username: u115_Omsepgncez
     password: dO@Z9p1qSisBZNjUy9g+MQW^
     pool-size: 10
 
