@@ -1,0 +1,18 @@
+{
+  "parent": "item/handheld",
+  "textures": { "layer0": "minecraft:item/diamond_pickaxe" },
+  "overrides": [
+    {"predicate":{"custom_model_data":1001},"model":"cantale:item/pickantaxe_iron_1x1"},
+    {"predicate":{"custom_model_data":1002},"model":"cantale:item/pickantaxe_iron_3x3"},
+    {"predicate":{"custom_model_data":1003},"model":"cantale:item/pickantaxe_iron_5x5"},
+    {"predicate":{"custom_model_data":1004},"model":"cantale:item/pickantaxe_iron_7x7"},
+    {"predicate":{"custom_model_data":1011},"model":"cantale:item/pickantaxe_diamond_1x1"},
+    {"predicate":{"custom_model_data":1012},"model":"cantale:item/pickantaxe_diamond_3x3"},
+    {"predicate":{"custom_model_data":1013},"model":"cantale:item/pickantaxe_diamond_5x5"},
+    {"predicate":{"custom_model_data":1014},"model":"cantale:item/pickantaxe_diamond_7x7"},
+    {"predicate":{"custom_model_data":3001},"model":"cantale:item/multicantool_iron_1x1"},
+    {"predicate":{"custom_model_data":3002},"model":"cantale:item/multicantool_iron_3x3"},
+    {"predicate":{"custom_model_data":3011},"model":"cantale:item/multicantool_diamond_1x1"},
+    {"predicate":{"custom_model_data":3012},"model":"cantale:item/multicantool_diamond_3x3"}
+  ]
+}

@@ -1,0 +1,169 @@
+name: CantalePlugin
+version: 1.0.0
+main: fr.cantale.plugin.CantalePlugin
+api-version: 1.20
+author: Cantale
+description: Plugin Minecraft complet avec factions, économie, vies hardcore, et plus encore
+softdepend:
+  - Votifier
+  - NuVotifier
+
+# Plugin message channels pour JourneyMap et Xaero's Minimap
+plugin-message-channels:
+  - journeymap:waypoint
+  - journeymap:region
+  - xaerominimap:waypoint
+  - xaerominimap:region
+
+commands:
+  cantale:
+    description: Affiche les informations du serveur et les commandes utiles
+    usage: /cantale
+  admin:
+    description: Liste toutes les commandes admin et modérateur
+    usage: /admin
+    permission: cantale.admin
+  dropvie:
+    description: Sacrifier une vie
+    usage: /dropvie
+  givevie:
+    description: Donner une vie à un joueur
+    usage: /givevie <joueur>
+    permission: cantale.givevie
+  addlife:
+    description: Ajouter des vies à un joueur (admin)
+    usage: /addlife <joueur> <nombre>
+    permission: cantale.admin
+  removelife:
+    description: Retirer des vies à un joueur (admin)
+    usage: /removelife <joueur> <nombre>
+    permission: cantale.admin
+  f:
+    description: Commandes de faction
+    usage: /f <subcommand>
+    aliases: [faction]
+  profile:
+    description: Affiche le profil du joueur
+    usage: /profile
+  link:
+    description: Génère un code pour lier son compte Discord
+    usage: /link
+  pay:
+    description: Payer un joueur en Cantox
+    usage: /pay <joueur> <montant>
+  balance:
+    description: Afficher son solde Cantox
+    usage: /balance [joueur]
+    aliases: [bal, money]
+  ah:
+    description: Hôtel des ventes
+    usage: /ah <subcommand>
+    aliases: [auction]
+  trade:
+    description: Échanger avec un joueur
+    usage: /trade <joueur|accept|decline>
+    aliases: [trades]
+  customitem:
+    description: Donner un item custom (admin)
+    usage: /customitem <type>
+    permission: cantale.admin
+  home:
+    description: Gérer ses homes personnels
+    usage: /home [set|delete|del] [nom]
+  warp:
+    description: Téléportation aux warps publics
+    usage: /warp [nom|set|delete|toggle]
+  spawn:
+    description: Téléportation au spawn
+    usage: /spawn
+  rtp:
+    description: Téléportation aléatoire
+    usage: /rtp
+  moderation:
+    description: Outils de modération
+    usage: /moderation <kick|mute|unmute|tp|tphere|vanish>
+    permission: cantale.admin
+  vanish:
+    description: Activer/désactiver le vanish
+    usage: /vanish
+    permission: cantale.admin
+  modhelp:
+    description: Aide pour les commandes de modération
+    usage: /modhelp
+    permission: cantale.admin
+  wanted:
+    description: Système de primes
+    usage: /wanted [add|list]
+    aliases: [prime, primes]
+  pc:
+    description: Coffre privé virtuel
+    usage: /pc
+  pasdic:
+    description: Activer/désactiver le mode PASDIC sur un chunk
+    usage: /pasdic set <true|false>
+    permission: cantale.admin
+  perm:
+    description: Gérer les permissions des joueurs
+    usage: /perm <set|remove|check|list>
+  unbanip:
+    description: Débannir une IP
+    usage: /unbanip <ip>
+  leaderboard:
+    description: Afficher les classements
+    usage: /leaderboard <type> [limite]
+    aliases: [top, lb, leaderboards, classement, classements]
+  lastdeath:
+    description: Afficher les infos de la dernière mort
+    usage: /lastdeath [joueur]
+  optimize:
+    description: Optimisation du serveur (admin)
+    usage: /optimize [stats|cleanup|clearall|save|chunks|villagers|gc|on|off|reload]
+    permission: cantale.admin
+  ec:
+    description: Ouvrir l'Ender Chest
+    usage: /ec
+  pc2:
+    description: 2ème coffre privé (grade Chèvre)
+    usage: /pc2
+  rank:
+    description: Gérer les grades des joueurs (admin)
+    usage: /rank <set|remove|info> <joueur> [AVENTURIER|VIP|CHEVRE|NONE]
+    permission: cantale.admin
+  day:
+    description: Afficher le jour et l'heure Minecraft
+    usage: /day
+  listemorts:
+    description: Afficher la liste des joueurs morts définitivement
+    usage: /listemorts
+    aliases: [list, morts, bans]
+  events:
+    description: Liste les événements actifs et permet de s'y téléporter
+    usage: /events
+  vote:
+    description: Liste des sites de vote et récompenses
+    usage: /vote [claim|stats|top|help]
+  web:
+    description: Lier son compte Minecraft au site Cantale
+    usage: /web link <code>
+    aliases: [website, site]
+  tag:
+    description: Gérer les tags des joueurs
+    usage: /tag <create|delete|add|remove|list>
+    permission: cantale.moderator
+  discord:
+    description: Envoyer un message sur Discord depuis Minecraft
+    usage: /discord <message|joueur> [message]
+
+permissions:
+  cantale.givevie:
+    description: Permet de donner une vie
+    default: op
+  cantale.moderator:
+    description: Permissions modérateur
+    default: false
+  cantale.admin:
+    description: Permissions administrateur
+    default: op
+    children:
+      cantale.givevie: true
+      cantale.moderator: true

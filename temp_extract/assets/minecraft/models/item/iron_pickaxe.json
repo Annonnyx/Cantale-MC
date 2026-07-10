@@ -1,0 +1,12 @@
+{
+  "parent": "minecraft:item/handheld",
+  "textures": {
+    "layer0": "minecraft:item/iron_pickaxe"
+  },
+  "overrides": [
+    {"predicate": {"custom_model_data": 1}, "model": "cantale:item/pickantaxe_iron_1x1"},
+    {"predicate": {"custom_model_data": 2}, "model": "cantale:item/pickantaxe_iron_3x3"},
+    {"predicate": {"custom_model_data": 3}, "model": "cantale:item/pickantaxe_iron_5x5"},
+    {"predicate": {"custom_model_data": 4}, "model": "cantale:item/pickantaxe_iron_7x7"}
+  ]
+}

@@ -1,0 +1,53 @@
+package fr.cantale.plugin.ui;
+
+import fr.cantale.plugin.CantalePlugin;
+import fr.cantale.plugin.ui.chat.ChatMenu;
+import fr.cantale.plugin.ui.chat.FactionChatUI;
+import fr.cantale.plugin.ui.chat.ProfileChatUI;
+import fr.cantale.plugin.ui.inventory.*;
+import org.bukkit.entity.Player;
+
+public class UIManager {
+
+    private final CantalePlugin plugin;
+    private final ChatMenu chatMenu;
+    private final NavigationManager navigationManager;
+
+    public UIManager(CantalePlugin plugin) {
+        this.plugin = plugin;
+        this.chatMenu = new ChatMenu(plugin);
+        this.navigationManager = new NavigationManager();
+    }
+
+    public NavigationManager getNavigationManager() {
+        return navigationManager;
+    }
+
+    public void openMainMenu(Player player) {
+        navigationManager.openUI(player, new MainMenuUI(plugin, player));
+    }
+
+    public void goBack(Player player) {
+        navigationManager.goBack(player);
+    }
+
+    public void openFactionMenu(Player player) {
+        navigationManager.openUI(player, new FactionMainUI(plugin, player));
+    }
+
+    public void openProfileMenu(Player player) {
+        navigationManager.openUI(player, new ProfileUI(plugin, player));
+    }
+
+    public void openAuctionMenu(Player player) {
+        navigationManager.openUI(player, new AuctionUI(plugin, player));
+    }
+
+    public void openTradeMenu(Player player) {
+        navigationManager.openUI(player, new TradeUI(plugin, player));
+    }
+
+    public ChatMenu getChatMenu() {
+        return chatMenu;
+    }
+}

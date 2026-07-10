@@ -1,0 +1,7 @@
+{
+  "parent": "item/generated",
+  "textures": { "layer0": "minecraft:item/nether_star" },
+  "overrides": [
+    {"predicate":{"custom_model_data":7001},"model":"cantale:item/vie_item"}
+  ]
+}

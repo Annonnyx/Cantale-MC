@@ -1,0 +1,14 @@
+{
+  "parent": "minecraft:item/handheld",
+  "textures": {
+    "layer0": "minecraft:item/shears"
+  },
+  "overrides": [
+    {"predicate": {"custom_model_data": 16}, "model": "cantale:item/multicantool_iron_1x1"},
+    {"predicate": {"custom_model_data": 17}, "model": "cantale:item/multicantool_iron"},
+    {"predicate": {"custom_model_data": 18}, "model": "cantale:item/multicantool_diamond_1x1"},
+    {"predicate": {"custom_model_data": 19}, "model": "cantale:item/multicantool_diamond"},
+    {"predicate": {"custom_model_data": 20}, "model": "cantale:item/multicantool_netherite_1x1"},
+    {"predicate": {"custom_model_data": 21}, "model": "cantale:item/multicantool_netherite"}
+  ]
+}

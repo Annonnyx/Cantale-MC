@@ -1,0 +1,7 @@
+{
+  "parent": "item/handheld",
+  "textures": { "layer0": "minecraft:item/netherite_axe" },
+  "overrides": [
+    {"predicate":{"custom_model_data":2003},"model":"cantale:item/cantaxe_netherite"}
+  ]
+}

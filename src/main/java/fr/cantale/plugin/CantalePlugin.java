@@ -1,0 +1,439 @@
+package fr.cantale.plugin;
+
+import org.bukkit.Bukkit;
+import fr.cantale.plugin.config.ConfigManager;
+import fr.cantale.plugin.database.DatabaseManager;
+import fr.cantale.plugin.lives.LifeManager;
+import fr.cantale.plugin.factions.FactionManager;
+import fr.cantale.plugin.economy.EconomyManager;
+import fr.cantale.plugin.economy.BankManager;
+import fr.cantale.plugin.auction.AuctionManager;
+import fr.cantale.plugin.trade.TradeManager;
+import fr.cantale.plugin.custom.CustomItemManager;
+import fr.cantale.plugin.custom.CustomItemListener;
+import fr.cantale.plugin.ui.UIManager;
+import fr.cantale.plugin.ui.map.MapUI;
+import fr.cantale.plugin.teleport.HomeManager;
+import fr.cantale.plugin.teleport.WarpManager;
+import fr.cantale.plugin.listeners.ClaimListener;
+import fr.cantale.plugin.listeners.PlayerListener;
+import fr.cantale.plugin.listeners.ChatListener;
+import fr.cantale.plugin.listeners.AfkListener;
+import fr.cantale.plugin.discord.DiscordBot;
+import fr.cantale.plugin.discord.DiscordConfig;
+import fr.cantale.plugin.tasks.AfkCheckTask;
+import fr.cantale.plugin.commands.CantaleCommand;
+import fr.cantale.plugin.commands.LifeCommand;
+import fr.cantale.plugin.commands.ListCommand;
+import fr.cantale.plugin.commands.AuctionCommand;
+import fr.cantale.plugin.commands.TradeCommand;
+import fr.cantale.plugin.commands.PayCommand;
+import fr.cantale.plugin.commands.BalanceCommand;
+import fr.cantale.plugin.commands.FactionCommand;
+import fr.cantale.plugin.commands.ProfileCommand;
+import fr.cantale.plugin.commands.CustomItemCommand;
+import fr.cantale.plugin.commands.HomeCommand;
+import fr.cantale.plugin.commands.WarpCommand;
+import fr.cantale.plugin.commands.EventsCommand;
+import fr.cantale.plugin.commands.SpawnCommand;
+import fr.cantale.plugin.commands.RtpCommand;
+import fr.cantale.plugin.commands.ModerationCommand;
+import fr.cantale.plugin.commands.WantedCommand;
+import fr.cantale.plugin.commands.PrivateChestCommand;
+import fr.cantale.plugin.commands.AdminCommand;
+import fr.cantale.plugin.commands.PasdicCommand;
+import fr.cantale.plugin.commands.ModHelpCommand;
+import fr.cantale.plugin.commands.VanishCommand;
+import fr.cantale.plugin.commands.PermissionCommand;
+import fr.cantale.plugin.commands.UnbanIpCommand;
+import fr.cantale.plugin.commands.LeaderboardCommand;
+import fr.cantale.plugin.commands.LastDeathCommand;
+import fr.cantale.plugin.commands.OptimizeCommand;
+import fr.cantale.plugin.rank.RankManager;
+import fr.cantale.plugin.rank.PlayerRank;
+import fr.cantale.plugin.commands.RankCommand;
+import fr.cantale.plugin.commands.EnderChestCommand;
+import fr.cantale.plugin.commands.Pc2Command;
+import fr.cantale.plugin.commands.DayCommand;
+import fr.cantale.plugin.serialkiller.SerialKillerManager;
+import fr.cantale.plugin.map.MapIntegrationListener;
+import fr.cantale.plugin.cooldown.CooldownManager;
+import fr.cantale.plugin.tasks.ClearLagTask;
+import fr.cantale.plugin.tasks.TerritoryTaxTask;
+import fr.cantale.plugin.protection.SpawnProtection;
+import fr.cantale.plugin.moderation.ActionLogger;
+import fr.cantale.plugin.performance.ChunkLoader;
+import fr.cantale.plugin.performance.AsyncTaskManager;
+import fr.cantale.plugin.tutorial.TutorialManager;
+import fr.cantale.plugin.npc.NPCManager;
+import fr.cantale.plugin.diplomacy.DiplomacyManager;
+import fr.cantale.plugin.cache.RedisCache;
+import fr.cantale.plugin.permissions.PermissionManager;
+import fr.cantale.plugin.optimization.ServerOptimizer;
+import org.bukkit.plugin.java.JavaPlugin;
+
+public class CantalePlugin extends JavaPlugin {
+
+    private static CantalePlugin instance;
+    private ConfigManager configManager;
+    private DatabaseManager databaseManager;
+    private LifeManager lifeManager;
+    private FactionManager factionManager;
+    private EconomyManager economyManager;
+    private AuctionManager auctionManager;
+    private BankManager bankManager;
+    private TradeManager tradeManager;
+    private HomeManager homeManager;
+    private WarpManager warpManager;
+    private MapUI mapUI;
+    private SpawnCommand spawnCommand;
+    private RtpCommand rtpCommand;
+    private SpawnProtection spawnProtection;
+    private AfkListener afkListener;
+    private ActionLogger actionLogger;
+    private ChunkLoader chunkLoader;
+    private AsyncTaskManager asyncTaskManager;
+    private TutorialManager tutorialManager;
+    private NPCManager npcManager;
+    private DiplomacyManager diplomacyManager;
+    private RedisCache redisCache;
+    private CooldownManager cooldownManager;
+    private AdminCommand adminCommand;
+    private ModerationCommand moderationCommand;
+    private WantedCommand wantedCommand;
+    private PrivateChestCommand privateChestCommand;
+    private PasdicCommand pasdicCommand;
+    private VanishCommand vanishCommand;
+    private PermissionManager permissionManager;
+    private RankManager rankManager;
+    private UIManager uiManager;
+    private CustomItemManager customItemManager;
+    private ServerOptimizer serverOptimizer;
+    private fr.cantale.plugin.database.FortifiedChunkDAO fortifiedChunkDAO;
+    private fr.cantale.plugin.vote.VoteDAO voteDAO;
+    private fr.cantale.plugin.vote.VoteRewardManager voteRewardManager;
+    private fr.cantale.plugin.vote.VoteListener voteListener;
+    private DiscordBot discordBot;
+    private fr.cantale.plugin.tag.TagManager tagManager;
+    private fr.cantale.plugin.tasks.ClearLagTask clearLagTask;
+    private fr.cantale.plugin.teleport.TeleportDelayManager teleportDelayManager;
+
+    @Override
+    public void onEnable() {
+        instance = this;
+
+        saveDefaultConfig();
+
+        this.configManager = new ConfigManager(this);
+        this.databaseManager = new DatabaseManager(this);
+        this.factionManager = new FactionManager(this);
+        this.databaseManager.init();
+
+        this.lifeManager = new LifeManager(this);
+        this.economyManager = new EconomyManager(this);
+        this.bankManager = new BankManager(this);
+        this.auctionManager = new AuctionManager(this);
+        this.auctionManager.loadListings();
+        this.tradeManager = new TradeManager(this);
+        this.homeManager = new HomeManager(this);
+        this.warpManager = new WarpManager(this);
+        this.warpManager.loadWarps();
+        this.mapUI = new MapUI(this);
+        this.cooldownManager = new CooldownManager();
+        this.spawnCommand = new SpawnCommand(this);
+        this.rtpCommand = new RtpCommand(this);
+        this.spawnProtection = new SpawnProtection(this);
+        this.spawnProtection.loadProtectedZones();
+        this.afkListener = new AfkListener(this);
+        this.actionLogger = new ActionLogger(this);
+        this.chunkLoader = new ChunkLoader(this);
+        this.asyncTaskManager = new AsyncTaskManager(this);
+        this.tutorialManager = new TutorialManager(this);
+        this.npcManager = new NPCManager(this);
+        this.npcManager.loadNPCs();
+        this.diplomacyManager = new DiplomacyManager(this);
+        this.diplomacyManager.loadDiplomacy();
+        this.redisCache = new RedisCache(this);
+        this.redisCache.init();
+        this.adminCommand = new AdminCommand(this);
+        this.moderationCommand = new ModerationCommand(this);
+        this.moderationCommand.getMuteManager().loadMutes();
+        this.wantedCommand = new WantedCommand(this);
+        this.wantedCommand.getWantedManager().loadWanted();
+        this.privateChestCommand = new PrivateChestCommand(this);
+        this.pasdicCommand = new PasdicCommand(this);
+        this.vanishCommand = new VanishCommand(this.moderationCommand.getVanishManager());
+        this.permissionManager = new PermissionManager(this);
+        this.rankManager = new RankManager(this);
+        this.tagManager = new fr.cantale.plugin.tag.TagManager(this);
+        this.teleportDelayManager = new fr.cantale.plugin.teleport.TeleportDelayManager(this);
+        this.uiManager = new UIManager(this);
+        this.customItemManager = new CustomItemManager();
+        this.fortifiedChunkDAO = new fr.cantale.plugin.database.FortifiedChunkDAO(this);
+        this.voteDAO = new fr.cantale.plugin.vote.VoteDAO(this);
+        this.voteRewardManager = new fr.cantale.plugin.vote.VoteRewardManager(this);
+        this.voteListener = new fr.cantale.plugin.vote.VoteListener(this);
+        this.serverOptimizer = new ServerOptimizer(this);
+        this.serverOptimizer.startTasks();
+
+        // Démarrer le bot Discord (envoie le message de startup automatiquement une fois connecté)
+        DiscordConfig discordConfig = new DiscordConfig(this);
+        this.discordBot = new DiscordBot(this, discordConfig);
+        this.discordBot.start();
+
+        registerCommands();
+        registerListeners();
+
+        // Démarrer ClearLag (toutes les secondes, clear toutes les 5 minutes)
+        this.clearLagTask = new ClearLagTask(this);
+        this.clearLagTask.runTaskTimer(this, 20L, 20L);
+
+        // Démarrer AFK check (toutes les minutes)
+        new AfkCheckTask(this, afkListener).runTaskTimer(this, 20L * 60, 20L * 60);
+
+        // Démarrer Taxe de territoire (tous les jours = 24 heures)
+        new TerritoryTaxTask(this).runTaskTimer(this, 20L * 60 * 5, 20L * 60 * 60 * 24);
+
+        // Démarrer Wanted Tracker (toutes les 5 min pour palier 5M+)
+        new fr.cantale.plugin.discord.tasks.WantedTrackerTask(this).schedule();
+
+        getLogger().info("Cantale v" + getDescription().getVersion() + " activé avec succès !");
+    }
+
+    @Override
+    public void onDisable() {
+        if (discordBot != null && discordBot.isConnected()) {
+            discordBot.sendServerStatus("🛑 **Le serveur Minecraft s'arrête...**", "#ED4245",
+                "Le serveur Cantale redémarre ou s'arrête. À bientôt !", true);
+            discordBot.stop();
+        } else if (discordBot != null) {
+            discordBot.stop();
+        }
+        if (asyncTaskManager != null) {
+            asyncTaskManager.shutdown();
+        }
+        if (redisCache != null) {
+            redisCache.shutdown();
+        }
+        if (databaseManager != null) {
+            databaseManager.close();
+        }
+        getLogger().info("Cantale désactivé.");
+    }
+
+    private void registerCommands() {
+        getCommand("cantale").setExecutor(new CantaleCommand(this));
+        getCommand("admin").setExecutor(adminCommand);
+        getCommand("dropvie").setExecutor(new LifeCommand(this));
+        getCommand("givevie").setExecutor(new LifeCommand(this));
+        getCommand("addlife").setExecutor(new LifeCommand(this));
+        getCommand("removelife").setExecutor(new LifeCommand(this));
+        getCommand("f").setExecutor(new FactionCommand(this));
+        getCommand("ah").setExecutor(new AuctionCommand(this));
+        getCommand("trade").setExecutor(new TradeCommand(this));
+        getCommand("customitem").setExecutor(new CustomItemCommand(this, customItemManager));
+        getCommand("home").setExecutor(new HomeCommand(this));
+        getCommand("warp").setExecutor(new WarpCommand(this));
+        getCommand("spawn").setExecutor(spawnCommand);
+        getCommand("rtp").setExecutor(rtpCommand);
+        getCommand("moderation").setExecutor(moderationCommand);
+        getCommand("vanish").setExecutor(vanishCommand);
+        getCommand("modhelp").setExecutor(new ModHelpCommand(this));
+        getCommand("wanted").setExecutor(wantedCommand);
+        getCommand("pc").setExecutor(privateChestCommand);
+        getCommand("pasdic").setExecutor(pasdicCommand);
+        getCommand("pay").setExecutor(new PayCommand(this));
+        getCommand("balance").setExecutor(new BalanceCommand(this));
+        getCommand("perm").setExecutor(new PermissionCommand(this));
+        getCommand("unbanip").setExecutor(new UnbanIpCommand(this));
+        getCommand("leaderboard").setExecutor(new LeaderboardCommand(this));
+        getCommand("lastdeath").setExecutor(new LastDeathCommand(this));
+        getCommand("optimize").setExecutor(new OptimizeCommand(this));
+        getCommand("rank").setExecutor(new RankCommand(this));
+        getCommand("ec").setExecutor(new EnderChestCommand(this));
+        getCommand("pc2").setExecutor(new Pc2Command(this));
+        getCommand("day").setExecutor(new DayCommand(this));
+        getCommand("profile").setExecutor(new ProfileCommand(this));
+        getCommand("listemorts").setExecutor(new ListCommand(this));
+        getCommand("vote").setExecutor(new fr.cantale.plugin.commands.VoteCommand(this));
+        getCommand("vote").setTabCompleter(new fr.cantale.plugin.commands.VoteCommand(this));
+        getCommand("web").setExecutor(new fr.cantale.plugin.commands.WebCommand(this));
+        getCommand("web").setTabCompleter(new fr.cantale.plugin.commands.WebCommand(this));
+        getCommand("link").setExecutor(new fr.cantale.plugin.commands.LinkCommand(this));
+        getCommand("events").setExecutor(new EventsCommand(this));
+        getCommand("tag").setExecutor(new fr.cantale.plugin.tag.TagCommand(this));
+        getCommand("tag").setTabCompleter(new fr.cantale.plugin.tag.TagCommand(this));
+        getCommand("discord").setExecutor(new fr.cantale.plugin.commands.DiscordCommand(this));
+        getCommand("discord").setTabCompleter(new fr.cantale.plugin.commands.DiscordCommand(this));
+    }
+
+    private void registerListeners() {
+        getServer().getPluginManager().registerEvents(new ClaimListener(this), this);
+        getServer().getPluginManager().registerEvents(new PlayerListener(this), this);
+        getServer().getPluginManager().registerEvents(new ChatListener(this), this);
+        getServer().getPluginManager().registerEvents(afkListener, this);
+        getServer().getPluginManager().registerEvents(new CustomItemListener(this), this);
+        getServer().getPluginManager().registerEvents(new fr.cantale.plugin.moderation.ModerationListener(moderationCommand.getMuteManager(), moderationCommand.getVanishManager()), this);
+        getServer().getPluginManager().registerEvents(new fr.cantale.plugin.listeners.LifeItemListener(this), this);
+        getServer().getPluginManager().registerEvents(new fr.cantale.plugin.listeners.TotemBlockListener(this), this);
+        getServer().getPluginManager().registerEvents(new fr.cantale.plugin.custom.RuneFortificationListener(this), this);
+        getServer().getPluginManager().registerEvents(new MapIntegrationListener(this), this);
+        getServer().getPluginManager().registerEvents(new fr.cantale.plugin.optimization.VillagerSpawnBlocker(this), this);
+        // Vote system : enregistre PlayerJoinEvent + tente de cabler VotifierEvent par réflexion
+        getServer().getPluginManager().registerEvents(voteListener, this);
+        voteListener.tryRegisterVotifier();
+        getServer().getPluginManager().registerEvents(teleportDelayManager, this);
+    }
+
+    public static CantalePlugin getInstance() {
+        return instance;
+    }
+
+    public ConfigManager getConfigManager() {
+        return configManager;
+    }
+
+    public DatabaseManager getDatabaseManager() {
+        return databaseManager;
+    }
+
+    public FactionManager getFactionManager() {
+        return factionManager;
+    }
+
+    public LifeManager getLifeManager() {
+        return lifeManager;
+    }
+
+    public EconomyManager getEconomyManager() {
+        return economyManager;
+    }
+
+    public AuctionManager getAuctionManager() {
+        return auctionManager;
+    }
+
+    public MapUI getMapUI() {
+        return mapUI;
+    }
+
+    public SpawnProtection getSpawnProtection() {
+        return spawnProtection;
+    }
+
+    public ActionLogger getActionLogger() {
+        return actionLogger;
+    }
+
+    public ChunkLoader getChunkLoader() {
+        return chunkLoader;
+    }
+
+    public ServerOptimizer getServerOptimizer() {
+        return serverOptimizer;
+    }
+
+    public PermissionManager getPermissionManager() {
+        return permissionManager;
+    }
+
+    public AsyncTaskManager getAsyncTaskManager() {
+        return asyncTaskManager;
+    }
+
+    public TutorialManager getTutorialManager() {
+        return tutorialManager;
+    }
+
+    public NPCManager getNPCManager() {
+        return npcManager;
+    }
+
+    public DiplomacyManager getDiplomatieManager() {
+        return diplomacyManager;
+    }
+
+    public RedisCache getRedisCache() {
+        return redisCache;
+    }
+
+    public CooldownManager getCooldownManager() {
+        return cooldownManager;
+    }
+
+    public TradeManager getTradeManager() {
+        return tradeManager;
+    }
+
+    public BankManager getBankManager() {
+        return bankManager;
+    }
+
+    public HomeManager getHomeManager() {
+        return homeManager;
+    }
+
+    public WarpManager getWarpManager() {
+        return warpManager;
+    }
+
+    public ModerationCommand getModerationCommand() {
+        return moderationCommand;
+    }
+
+    public fr.cantale.plugin.database.PlayerDAO getPlayerDAO() {
+        return new fr.cantale.plugin.database.PlayerDAO(this);
+    }
+
+    public UIManager getUIManager() {
+        return uiManager;
+    }
+
+    public RankManager getRankManager() {
+        return rankManager;
+    }
+
+    public CustomItemManager getCustomItemManager() {
+        return customItemManager;
+    }
+
+    public fr.cantale.plugin.database.FortifiedChunkDAO getFortifiedChunkDAO() {
+        return fortifiedChunkDAO;
+    }
+
+    public fr.cantale.plugin.vote.VoteDAO getVoteDAO() {
+        return voteDAO;
+    }
+
+    public fr.cantale.plugin.vote.VoteRewardManager getVoteRewardManager() {
+        return voteRewardManager;
+    }
+
+    public fr.cantale.plugin.vote.VoteListener getVoteListener() {
+        return voteListener;
+    }
+
+    public SerialKillerManager getSerialKillerManager() {
+        return new SerialKillerManager(this);
+    }
+
+    public DiscordBot getDiscordBot() {
+        return discordBot;
+    }
+
+    public fr.cantale.plugin.wanted.WantedManager getWantedManager() {
+        return wantedCommand != null ? wantedCommand.getWantedManager() : null;
+    }
+
+    public fr.cantale.plugin.tag.TagManager getTagManager() {
+        return tagManager;
+    }
+
+    public fr.cantale.plugin.tasks.ClearLagTask getClearLagTask() {
+        return clearLagTask;
+    }
+
+    public fr.cantale.plugin.teleport.TeleportDelayManager getTeleportDelayManager() {
+        return teleportDelayManager;
+    }
+}

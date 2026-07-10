@@ -1,0 +1,240 @@
+# ╔════════════════════════════════════════════════════════════╗
+# ║                    Cantale - Configuration                 ║
+# ╚════════════════════════════════════════════════════════════╝
+
+# ─── Base de données ─────────────────────────────────────────
+# MySQL partagée entre le plugin Minecraft et le backend Node.js
+database:
+  type: mysql
+  # Paramètres SQLite (ignorés si type = mysql)
+  sqlite:
+    file: cantale.db
+  # Paramètres MySQL (fournis par PixelHorizons)
+  mysql:
+    host: 82.66.173.236
+    port: 3306
+    database: s116_Cantale
+    username: u116_vm9rF8BvkC
+    password: dO@Z9p1qSisBZNjUy9g+MQW^
+    pool-size: 10
+
+# ─── Système de vies ───────────────────────────────────────
+lives:
+  # Nombre de vies au départ pour un nouveau joueur
+  default-lives: 3
+  # Nombre de vies minimum
+  min-lives: 0
+  # Prix d'une vie en Cantox (0 = gratuit via /givevie)
+  buy-price: 10000
+  # Ban IP quand un joueur atteint 0 vie
+  ban-on-zero: true
+  # Message affiché au ban
+  ban-message: "&cVous n'avez plus de vies ! Achetez-en une ou attendez qu'un ami vous en donne une."
+
+# ─── Économie ────────────────────────────────────────────────
+economy:
+  # Argent de départ
+  start-balance: 10000
+
+# ─── Téléportation ───────────────────────────────────────────
+teleport:
+  # Temps d'attente avant TP en secondes
+  delay: 5
+  # Nombre de homes personnels par défaut
+  max-homes: 3
+
+# ─── Factions ────────────────────────────────────────────────
+factions:
+  # Nombre minimum de joueurs pour créer une faction
+  min-members-create: 8
+  # Chunks de départ
+  start-chunks: 60
+  # Homes de départ par faction
+  start-homes: 30
+
+# ─── Messages ──────────────────────────────────────────────────
+messages:
+  prefix: "&8[&6Cantale&8] &r"
+
+# ─── Optimisation serveur ──────────────────────────────────────
+optimization:
+  # Intervalle d'auto-save en minutes
+  autosave-interval: 5
+  # Intervalle de nettoyage des entités en secondes
+  entity-cleanup-interval: 60
+  # Maximum d'items au sol par chunk
+  max-items-per-chunk: 20
+  # Maximum d'entités par chunk (hors joueurs/villageois)
+  max-entities-per-chunk: 30
+  # Supprimer les items au sol vieux de 2min
+  clear-ground-items: true
+  # Supprimer les flèches vieilles de 30s
+  clear-arrows: true
+  # Supprimer l'expérience au sol
+  clear-experience: false
+  # Décharger les chunks inutilisés
+  optimize-chunks: true
+  # Seuil d'alerte TPS (nettoyage d'urgence en dessous)
+  tps-warning-threshold: 15
+  # Désactiver entièrement les villageois (CreatureSpawnEvent + EntityTransform)
+  villagers-disabled: false
+
+# ─── Bot Discord CANTALE ────────────────────────────────────────
+discord:
+  # Activer le bot Discord
+  enabled: true
+  # Token du bot (NE PAS PARTAGER)
+  token: "MTUwNTIwMzUwMjgxMTQ1MTQ0Mw.GWRNvE.9VS9WnL4lRMyOXXcQVWvBmwnryex7cp57DcEqo"
+  # ID du serveur Discord (Guild)
+  guild-id: "1271523439412252722"
+  # ID du client OAuth2 (pour liens web)
+  client-id: "1505203502811451443"
+
+  # ── Salons ──
+  channels:
+    verification: "1504900143206633492"
+    welcome: "1504899974775967894"
+    rules: "1271524199231656109"
+    role-selection: "1504900388682465350"
+    announcements: "1504900450397323324"
+    support: "1504903347738513448"
+    mod-logs: "1504903742649139260"
+    minecraft-status: "1504900607591452852"
+    partnerships: "1505139277443367023"
+    mc-chat: "1504900607591452852"
+    lb-kills: "1504903036554711191"
+    lb-money: "1504903076115517641"
+    lb-wanted: "1504903121065873508"
+    lb-factions: "1504903167224315955"
+    mc-deaths: "1504903266624999519"
+    mc-factions: "1504903302738087987"
+    # Salon où l'hébergeur poste ses annonces de maintenance (relayed vers minecraft-status)
+    hosting-announcements: "1504902828702044182"
+    # Salon événements
+    events: "1504901579130798121"
+    # Salon piège anti-bot : tout message → suppression + ban
+    anti-bot: "1513931644963262544"
+
+  # ── Rôles ──
+  roles:
+    unverified: "1504909709180801094"
+    verified: "1504909608056127538"
+    staff:
+      - "1504907451789475991"
+      - "1504907619851047003"
+      - "1504907542554349618"
+      - "1504907694148943893"
+      - "1504907761069330494"
+      - "1504907859299926147"
+    announcements-ping: "1504910684998074459"
+    partner: "1505140575760941238"
+    server-status-ping: "1504910790996525247"
+    event-ping: "1504910718338597089"
+    tournament-ping: "1504910922479833309"
+    update-ping: "1504910823406174522"
+    moderator-ping: "1504907859299926147"
+    wanted-ping: "1504910790996525247"
+
+  # ── Supabase (sync site web) ──
+  # DÉSACTIVÉ — on utilise MySQL partagée avec le backend à la place
+  supabase:
+    url: ""
+    service-key: ""
+    sync-interval: 0
+
+  # ── Vérification ──
+  verification:
+    # Méthode: button | reaction | captcha
+    method: "button"
+    # Message de bienvenue envoyé après vérification
+    welcome-message: "Bienvenue sur Cantale ! Tu es maintenant vérifié."
+    # Supprimer le message de vérification après succès
+    cleanup: true
+
+  # ── Modération ──
+  moderation:
+    # ─ Anti-spam ─
+    anti-spam: true
+    spam-threshold: 5
+    char-repeat-threshold: 15
+    banned-words: []
+
+    # ─ Anti-raid ─
+    # Détecte un burst d'arrivées et bloque l'envoi de messages
+    anti-raid: true
+    # Nombre d'arrivées déclenchant le raid
+    raid-join-threshold: 10
+    # Fenêtre de détection (secondes)
+    raid-join-window: 10
+    # Activer le lockdown auto (bloque @everyone d'écrire)
+    raid-lockdown: true
+    # Durée du lockdown (secondes)
+    raid-lockdown-duration: 300
+
+    # ─ Anti-ping massif ─
+    anti-ping: true
+    # Nombre max de mentions par message
+    max-mentions: 5
+    # Mute auto quand le seuil est dépassé
+    mute-on-ping: true
+    # Durée du mute (secondes)
+    mute-on-ping-duration: 3600
+
+    # ─ Anti-caps ─
+    anti-caps: true
+    # Pourcentage de majuscules déclenchant la suppression
+    caps-percent: 70
+
+    # ─ Anti-liens / anti-invites ─
+    anti-links: true
+    # Liens autorisés (les autres sont supprimés)
+    allowed-links:
+      - "cantale.world"
+      - "cantale.fun"
+      - "cantale.store"
+    # Supprimer automatiquement les liens d'invitation Discord
+    anti-invites: true
+
+    # ─ Escalade sanctions auto ─
+    # Sanctions progressives : avertissement → timeout → kick → ban
+    escalation: true
+    # Seuil avant timeout (infractions 24h)
+    warn-threshold: 3
+    # Seuil avant timeout 1h
+    mute-threshold: 2
+    # Seuil avant kick
+    kick-threshold: 2
+
+    # ─ Cache messages (logs delete/edit) ─
+    message-cache-size: 500
+
+  # ── Chat Bridge ──
+  chat-bridge:
+    # Activer la sync MC ↔ Discord
+    enabled: true
+    # Format MC → Discord
+    mc-to-discord-format: "**[%server%]** %player%: %message%"
+    # Format Discord → MC
+    discord-to-mc-format: "&9[Discord] &r%name%: %message%"
+    # Ignorer les webhooks et bots
+    ignore-bots: true
+
+# ─── Resource Pack ─────────────────────────────────────────────
+# URL publique du pack Cantale (zip). Les joueurs le reçoivent à la connexion.
+# Généré avec : cd Cantale-ResourcePack && zip -r ../resourcepack.zip .
+# SHA-1 : shasum -a 1 resourcepack.zip
+resource-pack:
+  url: "https://cantale.world/resourcepack.zip"
+  sha1: "9a97010133ed7f49f2cb0e3e996874466796ea6c"
+
+# ─── Système de Vote (Votifier) ────────────────────────────────
+vote:
+  # Diffuser un message au serveur quand un joueur vote
+  broadcast: true
+  # Sites de vote affichés via /vote
+  # Format : "Nom Affiché|URL"  →  remplace les IDs par les tiens après inscription
+  sites:
+    - "Serveurs-Minecraft.fr|https://serveurs-minecraft.fr/serveur-Cantale.000000"
+    - "Top-Serveurs.net|https://top-serveurs.net/minecraft/cantale"
+    - "Serveur-Prive.net|https://serveur-prive.net/minecraft/cantale-000"
+    - "List-Serveurs.com|https://list-serveurs.com/serveur/cantale"

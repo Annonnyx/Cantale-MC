@@ -1,0 +1,17 @@
+{
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "cantale:item/vie"
+  },
+  "display": {
+    "thirdperson_righthand": {
+      "rotation": [0, 0, 45],
+      "translation": [0, 3.5, 0],
+      "scale": [0.5, 0.5, 0.5]
+    },
+    "gui": {
+      "translation": [0, 2, 0],
+      "scale": [0.6, 0.6, 0.6]
+    }
+  }
+}
