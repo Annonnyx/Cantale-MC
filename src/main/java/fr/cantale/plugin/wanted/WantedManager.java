@@ -76,15 +76,22 @@ public class WantedManager {
     }
 
     public void completeWanted(Player hunter, Player target) {
-        Wanted wanted = getWanted(target.getUniqueId());
-        if (wanted == null || !wanted.isActive()) return;
+        List<Wanted> bounties = activeWanted.stream()
+                .filter(w -> w.getTargetUuid().equals(target.getUniqueId()) && w.isActive())
+                .toList();
 
-        wantedDAO.completeWanted(wanted.getId());
-        wanted.setActive(false);
-        activeWanted.remove(wanted);
+        if (bounties.isEmpty()) return;
 
-        plugin.getEconomyManager().addBalance(hunter.getUniqueId(), wanted.getReward());
-        Bukkit.broadcastMessage("§8[§cWANTED§8] §e" + hunter.getName() + " §7a capturé §e" + target.getName() + " §7et gagné §6" + wanted.getReward() + " Cantox§7!");
+        double totalReward = 0;
+        for (Wanted w : bounties) {
+            wantedDAO.completeWanted(w.getId());
+            w.setActive(false);
+            activeWanted.remove(w);
+            totalReward += w.getReward();
+        }
+
+        plugin.getEconomyManager().addBalance(hunter.getUniqueId(), totalReward);
+        Bukkit.broadcastMessage("§8[§cWANTED§8] §e" + hunter.getName() + " §7a capturé §e" + target.getName() + " §7et gagné §6" + String.format("%.0f", totalReward) + " Cantox§7!");
     }
 
     public Wanted getWanted(UUID targetUuid) {
@@ -147,18 +154,29 @@ public class WantedManager {
     }
 
     public boolean removeWanted(Player target, String reason) {
-        Wanted wanted = getWanted(target.getUniqueId());
-        if (wanted == null || !wanted.isActive()) {
+        List<Wanted> toRemove = activeWanted.stream()
+                .filter(w -> w.getTargetUuid().equals(target.getUniqueId())
+                        && w.isActive()
+                        && w.getReason().equalsIgnoreCase(reason))
+                .toList();
+
+        if (toRemove.isEmpty()) {
             return false;
         }
 
-        wantedDAO.completeWanted(wanted.getId());
-        wanted.setActive(false);
-        activeWanted.remove(wanted);
+        double totalRefund = 0;
+        for (Wanted w : toRemove) {
+            wantedDAO.completeWanted(w.getId());
+            w.setActive(false);
+            activeWanted.remove(w);
+            totalRefund += w.getReward();
+        }
 
-        // Rembourser l'émetteur de la prime
-        plugin.getEconomyManager().addBalance(wanted.getIssuerUuid(), wanted.getReward());
-        Bukkit.broadcastMessage("§8[§cWANTED§8] §e" + target.getName() + " §7n'est plus recherché. Prime annulée par: §e" + reason);
+        // Rembourser l'émetteur de la ou des primes annulées
+        for (Wanted w : toRemove) {
+            plugin.getEconomyManager().addBalance(w.getIssuerUuid(), w.getReward());
+        }
+        Bukkit.broadcastMessage("§8[§cWANTED§8] §e" + target.getName() + " §7n'est plus recherché pour : §e" + reason + " §7(§6" + String.format("%.0f", totalRefund) + " Cantox §7remboursés)");
         return true;
     }
 }

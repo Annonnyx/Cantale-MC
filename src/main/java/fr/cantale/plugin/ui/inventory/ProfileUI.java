@@ -28,7 +28,7 @@ public class ProfileUI extends BaseUI {
             int lives = plugin.getLifeManager().getLives(player.getUniqueId());
             double balance = plugin.getEconomyManager().getBalance(player);
             meta.setLore(java.util.Arrays.asList(
-                "§7Grade: §e" + rank.name(),
+                "§7Grade: " + formatRank(rank),
                 "§7Faction: §e" + (faction != null ? faction.getName() : "Aucune"),
                 "§7Vies: §c" + lives,
                 "§7Cantox: §6" + (int) balance
@@ -54,7 +54,7 @@ public class ProfileUI extends BaseUI {
     protected void handleClick(int slot) {
         NavigationManager nav = plugin.getUIManager().getNavigationManager();
         switch (slot) {
-            case 11 -> player.sendMessage("§eStatistiques — à implémenter.");
+            case 11 -> nav.openUI(player, new StatisticsUI(plugin, player));
             case 13 -> nav.openUI(player, new LifeUI(plugin, player));
             case 15 -> nav.openUI(player, new EconomyUI(plugin, player));
             case 17 -> nav.openUI(player, new FactionMainUI(plugin, player));
@@ -63,5 +63,17 @@ public class ProfileUI extends BaseUI {
             case 33 -> player.performCommand("wanted");
             case 35 -> nav.openUI(player, new TagCustomizationUI(plugin, player));
         }
+    }
+
+    private String formatRank(PlayerRank rank) {
+        return switch (rank) {
+            case AVENTURIER -> "§bAventurier";
+            case VIP -> "§aVIP";
+            case CHEVRE -> "§6Chèvre";
+            case MODERATOR -> "§9Modérateur";
+            case ADMIN -> "§cAdmin";
+            case OWNER -> "§4Owner";
+            default -> "§7Aucun";
+        };
     }
 }

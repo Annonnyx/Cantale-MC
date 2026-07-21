@@ -24,10 +24,8 @@ public enum CustomItemType {
     MULTI_CANTOOL_DIAMOND("Multi-Cantool Diamant", Material.DIAMOND_PICKAXE, 0),
     MULTI_CANTOOL_NETHERITE_1X1("Multi-Cantool Netherite 1x1", Material.NETHERITE_PICKAXE, 1),
     MULTI_CANTOOL_NETHERITE("Multi-Cantool Netherite", Material.NETHERITE_PICKAXE, 0),
-    STATIO_LYTRAS("Statio-Lytras", Material.ELYTRA, 0),
     CANTALAME("Cantalame", Material.NETHERITE_SWORD, 0),
-    VIE("Vie", Material.TOTEM_OF_UNDYING, 0),
-    RUNE_FORTIFICATION("Rune de Fortification", Material.ENCHANTED_BOOK, 0);
+    VIE("Vie", Material.TOTEM_OF_UNDYING, 0);
 
     private final String displayName;
     private final Material material;
@@ -63,15 +61,7 @@ public enum CustomItemType {
         return name().startsWith("MULTI_CANTOOL");
     }
 
-    public boolean isStatioLytras() {
-        return name().equals("STATIO_LYTRAS");
-    }
-
     public boolean isCantalame() {
         return name().equals("CANTALAME");
-    }
-
-    public boolean isRuneFortification() {
-        return name().equals("RUNE_FORTIFICATION");
     }
 }

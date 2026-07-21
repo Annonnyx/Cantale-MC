@@ -17,7 +17,7 @@ public class ModHelpCommand implements CommandExecutor {
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
-        if (!sender.hasPermission("cantale.admin")) {
+        if (!sender.hasPermission("cantale.admin") && !sender.hasPermission("cantale.moderator")) {
             sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&cVous n'avez pas la permission."));
             return true;
         }

@@ -5,6 +5,7 @@ import fr.cantale.plugin.factions.FactionManager;
 import fr.cantale.plugin.serialkiller.SerialKillerManager;
 import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.Sound;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -79,7 +80,7 @@ public class CustomItemListener implements Listener {
             || matName.contains("COPPER") || matName.contains("ANCIENT");
 
         if (isPickaxeBlock) {
-            player.removePotionEffect(PotionEffectType.FAST_DIGGING);
+            player.removePotionEffect(PotionEffectType.HASTE);
             return;
         }
 
@@ -95,7 +96,7 @@ public class CustomItemListener implements Listener {
         }
 
         player.addPotionEffect(new PotionEffect(
-            PotionEffectType.FAST_DIGGING,
+            PotionEffectType.HASTE,
             15,
             hasteLevel,
             true, false, false
@@ -118,6 +119,30 @@ public class CustomItemListener implements Listener {
             handleCantaxe(event);
         } else if (type.isMultiCantool()) {
             handleMultiCantool(event);
+        }
+    }
+
+    private void breakNaturallyWithDrops(Block block, ItemStack tool) {
+        for (ItemStack drop : block.getDrops(tool)) {
+            block.getWorld().dropItemNaturally(block.getLocation(), drop);
+        }
+        block.setType(Material.AIR);
+    }
+
+    private void damageItem(Player player, ItemStack item, int amount) {
+        if (item == null || item.getType().isAir()) return;
+        if (player.getGameMode() == org.bukkit.GameMode.CREATIVE) return;
+
+        org.bukkit.inventory.meta.Damageable meta = (org.bukkit.inventory.meta.Damageable) item.getItemMeta();
+        if (meta == null) return;
+
+        int damage = meta.getDamage() + amount;
+        if (damage >= item.getType().getMaxDurability()) {
+            player.getInventory().setItemInMainHand(null);
+            player.playSound(player.getLocation(), Sound.ENTITY_ITEM_BREAK, 1.0f, 1.0f);
+        } else {
+            meta.setDamage(damage);
+            item.setItemMeta(meta);
         }
     }
 
@@ -241,80 +266,64 @@ public class CustomItemListener implements Listener {
         Material mat = block.getType();
         Player player = event.getPlayer();
         ItemStack tool = player.getInventory().getItemInMainHand();
-        
+
         CustomItemType type = customItemManager.getCustomItemType(tool);
-        boolean is1x1 = type != null && type.getMiningRadius() == 1;
+        boolean is1x1 = true; // For Multi-Cantool, we want only a single block break instead of area mining.
 
         String matName = mat.name();
 
-        // Determine which virtual tool to use based on block type
-        // Order matters: check shears FIRST (most specific), then axe, shovel, pickaxe (default)
+        // Annuler l'événement vanilla : le serveur voit une pioche, on casse manuellement avec le bon outil virtuel
+        event.setCancelled(true);
+        event.setDropItems(false);
+
+        ItemStack virtualTool;
+        boolean isSoft = false;
 
         // 1. COMPORTEMENT CISAILLES - Feuillage, laine, tapis, fleurs
-        // NOTE: GRASS_BLOCK is a SHOVEL block, NOT shears. TALL_GRASS/SHORT_GRASS are shears.
         if (matName.contains("LEAVES") || matName.contains("WOOL") || matName.contains("CARPET")
                 || matName.contains("VINE") || matName.contains("FLOWER") || matName.contains("MUSHROOM")
                 || matName.contains("FERN") || matName.contains("TALL_GRASS") || matName.contains("SHORT_GRASS")
                 || matName.contains("LILY") || matName.contains("MOSS_BLOCK") || matName.contains("SPORE")
                 || matName.contains("HANGING") || matName.contains("AZALEA") || matName.contains("BLOSSOM")) {
-            ItemStack virtualShears = new ItemStack(Material.SHEARS);
-            ItemMeta shearMeta = virtualShears.getItemMeta();
+            virtualTool = new ItemStack(Material.SHEARS);
+            ItemMeta shearMeta = virtualTool.getItemMeta();
             if (shearMeta != null) {
-                shearMeta.addEnchant(Enchantment.DIG_SPEED, 10, true);
-                virtualShears.setItemMeta(shearMeta);
+                shearMeta.addEnchant(Enchantment.EFFICIENCY, 10, true);
+                virtualTool.setItemMeta(shearMeta);
             }
-            // Center block: cancel default drops, spawn correct shears drops
-            event.setDropItems(false);
-            for (ItemStack drop : block.getDrops(virtualShears)) {
-                block.getWorld().dropItemNaturally(block.getLocation(), drop);
-            }
-            if (!is1x1) {
-                breakMultiZone(block, virtualShears, player, true);
-            }
-            return;
+            isSoft = true;
         }
-
         // 2. COMPORTEMENT HACHE - Logs et bois
-        if (matName.contains("LOG") || matName.contains("WOOD") || matName.contains("STEM") 
+        else if (matName.contains("LOG") || matName.contains("WOOD") || matName.contains("STEM")
                 || matName.contains("PLANK") || matName.contains("FENCE") || matName.contains("DOOR")) {
-            ItemStack virtualAxe = getVirtualTool(mat, type);
-            // Center block: cancel default drops, spawn correct axe drops
-            event.setDropItems(false);
-            for (ItemStack drop : block.getDrops(virtualAxe)) {
-                block.getWorld().dropItemNaturally(block.getLocation(), drop);
-            }
-            if (!is1x1) {
-                breakTreeWithTool(block, virtualAxe);
-            }
-            return;
+            virtualTool = getVirtualTool(mat, type);
         }
-
         // 3. COMPORTEMENT PELLE - Terre, sable, gravier, GRASS_BLOCK
-        if (matName.contains("DIRT") || matName.contains("GRASS") || matName.contains("SAND")
+        else if (matName.contains("DIRT") || matName.contains("GRASS") || matName.contains("SAND")
                 || matName.contains("GRAVEL") || matName.contains("CLAY") || matName.contains("PODZOL")
                 || matName.contains("MYCELIUM") || matName.contains("FARMLAND") || matName.contains("SOUL_SAND")
                 || matName.contains("SOUL_SOIL") || matName.contains("ROOTED") || matName.contains("MOSS")) {
-            ItemStack virtualShovel = getVirtualTool(mat, type);
-            // Center block: cancel default drops, spawn correct shovel drops
-            event.setDropItems(false);
-            for (ItemStack drop : block.getDrops(virtualShovel)) {
-                block.getWorld().dropItemNaturally(block.getLocation(), drop);
-            }
-            if (!is1x1) {
-                breakMultiZone(block, virtualShovel, player, true);
-            }
-            return;
+            virtualTool = getVirtualTool(mat, type);
+            isSoft = true;
+        }
+        // 4. COMPORTEMENT PIOCHE - Pierre, minerais, etc (défaut)
+        else {
+            virtualTool = getVirtualTool(mat, type);
         }
 
-        // 4. COMPORTEMENT PIOCHE - Pierre, minerais, etc (défaut)
-        ItemStack virtualPick = getVirtualTool(mat, type);
-        // Center block: cancel default drops, spawn correct pickaxe drops
-        event.setDropItems(false);
-        for (ItemStack drop : block.getDrops(virtualPick)) {
-            block.getWorld().dropItemNaturally(block.getLocation(), drop);
+        // Casser le bloc central avec l'outil virtuel approprié
+        if (matName.contains("SAND") || matName.contains("GRAVEL") || matName.contains("CONCRETE_POWDER")) {
+            block.setType(Material.AIR);
+        } else {
+            breakNaturallyWithDrops(block, virtualTool);
         }
+
+        // Endommager l'outil original d'1 point de durabilité
+        damageItem(player, tool, 1);
+
+        // Zone 3x3 désactivée en mode 1x1
         if (!is1x1) {
-            breakMultiZone(block, virtualPick, player, false);
+            breakMultiZone(block, virtualTool, player, isSoft);
         }
     }
 
@@ -353,8 +362,8 @@ public class CustomItemListener implements Listener {
             if (type.name().contains("NETHERITE")) effLevel = 10;
             else if (type.name().contains("DIAMOND")) effLevel = 7;
             else effLevel = 5;
-            meta.addEnchant(Enchantment.DIG_SPEED, effLevel, true);
-            meta.addEnchant(Enchantment.LOOT_BONUS_BLOCKS, 3, true);
+            meta.addEnchant(Enchantment.EFFICIENCY, effLevel, true);
+            meta.addEnchant(Enchantment.FORTUNE, 3, true);
             virtualTool.setItemMeta(meta);
         }
         return virtualTool;
@@ -494,17 +503,12 @@ public class CustomItemListener implements Listener {
     @EventHandler
     public void onPlayerMove(PlayerMoveEvent event) {
         Player player = event.getPlayer();
-        
-        // Check Chevre rank flight (unlimited flight in claims without needing Statio-Lytras)
+
+        // Vol réservé au grade Chèvre (ou staff) dans ses claims
         fr.cantale.plugin.rank.PlayerRank rank = plugin.getRankManager().getRank(player);
         boolean hasChevreFlight = rank.hasUnlimitedFlight();
-        
-        ItemStack chestplate = player.getInventory().getChestplate();
-        boolean hasStatioLytras = chestplate != null 
-            && customItemManager.isCustomItem(chestplate)
-            && customItemManager.getCustomItemType(chestplate) == CustomItemType.STATIO_LYTRAS;
-        
-        if (!hasChevreFlight && !hasStatioLytras) {
+
+        if (!hasChevreFlight) {
             // Clean up metadata if player had it
             if (player.hasMetadata("cantale_in_claim")) {
                 player.removeMetadata("cantale_in_claim", plugin);
@@ -515,33 +519,21 @@ public class CustomItemListener implements Listener {
             }
             return;
         }
-        
+
         boolean inClaim = isInFactionClaim(player);
         boolean wasInClaim = player.hasMetadata("cantale_in_claim");
-        
+
         if (inClaim) {
             // Activer le vol créatif dans le claim (allowFlight, pas forcer flying)
             if (!player.getAllowFlight()) {
                 player.setAllowFlight(true);
                 if (!wasInClaim) {
-                    if (hasChevreFlight) {
-                        player.sendMessage("§8[§6Cantale§8] §6Vol Chèvre activé — Double-tap espace pour voler !");
-                    } else {
-                        player.sendMessage("§8[§6Cantale§8] §aStatio-Lytras activé — Double-tap espace pour voler !");
-                    }
+                    player.sendMessage("§8[§6Cantale§8] §6Vol Chèvre activé — Double-tap espace pour voler !");
                 }
             }
             // Mark player as in claim
             if (!wasInClaim) {
                 player.setMetadata("cantale_in_claim", new org.bukkit.metadata.FixedMetadataValue(plugin, true));
-            }
-            
-            // Réduire la durabilité doucement (1 chance sur 100 par mouvement) — only for Statio-Lytras
-            if (hasStatioLytras && player.isFlying() && Math.random() < 0.01) {
-                if (chestplate.getDurability() < chestplate.getType().getMaxDurability()) {
-                    chestplate.setDurability((short) (chestplate.getDurability() + 1));
-                    player.getInventory().setChestplate(chestplate);
-                }
             }
         } else if (wasInClaim) {
             // Just left a claim — disable flight with grace warning
@@ -550,7 +542,7 @@ public class CustomItemListener implements Listener {
                 // Give 3 second grace period before disabling flight
                 player.sendMessage("§8[§6Cantale§8] §cVous quittez le claim ! Vol désactivé dans 3 secondes.");
                 org.bukkit.Bukkit.getScheduler().runTaskLater(plugin, () -> {
-                    if (!isInFactionClaim(player) && player.isOnline() 
+                    if (!isInFactionClaim(player) && player.isOnline()
                         && !player.getGameMode().equals(org.bukkit.GameMode.CREATIVE)) {
                         player.setFlying(false);
                         player.setAllowFlight(false);
@@ -580,12 +572,6 @@ public class CustomItemListener implements Listener {
         // Gérer l'enchantement des custom items
         if (customItemManager.isCustomItem(result)) {
             CustomItemType type = customItemManager.getCustomItemType(result);
-            
-            // Statio-Lytras : non-enchantable
-            if (type.isStatioLytras()) {
-                event.setResult(null);
-                return;
-            }
             
             // Pickantaxe et Cantaxe : autoriser tous les enchantements
             // (Le système vanilla gère déjà la compatibilité)
@@ -631,12 +617,31 @@ public class CustomItemListener implements Listener {
         
         ItemStack weapon = killer.getInventory().getItemInMainHand();
         
+        // Wanted : récompenser le tueur si la victime est recherchée
+        var wantedMgr = plugin.getWantedManager();
+        if (wantedMgr != null && wantedMgr.isWanted(victim.getUniqueId())) {
+            wantedMgr.completeWanted(killer, victim);
+        }
+        
         if (!cantalameManager.isCantalame(weapon)) return;
         
         // Ajouter le kill à la Cantalame
         cantalameManager.addKill(weapon, victim);
         
+        // Dropper la tête de la victime à l'endroit de sa mort
+        dropPlayerHead(victim, victim.getLocation());
         killer.sendMessage("§6[Cantalame] §7Kill ajouté ! §e" + cantalameManager.getKillCount(weapon) + "/100");
+    }
+
+    private void dropPlayerHead(Player victim, Location location) {
+        ItemStack head = new ItemStack(org.bukkit.Material.PLAYER_HEAD);
+        org.bukkit.inventory.meta.SkullMeta meta = (org.bukkit.inventory.meta.SkullMeta) head.getItemMeta();
+        if (meta != null) {
+            meta.setOwningPlayer(victim);
+            meta.setDisplayName("§cTête de §e" + victim.getName());
+            head.setItemMeta(meta);
+        }
+        location.getWorld().dropItemNaturally(location, head);
     }
 
     @EventHandler(priority = EventPriority.HIGHEST)

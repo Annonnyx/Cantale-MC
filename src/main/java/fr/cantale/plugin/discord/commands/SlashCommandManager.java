@@ -16,6 +16,8 @@ import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import net.dv8tion.jda.api.interactions.commands.DefaultMemberPermissions;
 import net.dv8tion.jda.api.interactions.commands.OptionType;
 import net.dv8tion.jda.api.interactions.commands.build.Commands;
+import net.dv8tion.jda.api.interactions.commands.build.OptionData;
+import net.dv8tion.jda.api.interactions.components.ActionRow;
 import net.dv8tion.jda.api.interactions.components.text.TextInput;
 import net.dv8tion.jda.api.interactions.components.text.TextInputStyle;
 import net.dv8tion.jda.api.interactions.modals.Modal;
@@ -33,11 +35,13 @@ public class SlashCommandManager extends ListenerAdapter {
 
     private final CantalePlugin plugin;
     private final DiscordConfig config;
+    private final fr.cantale.plugin.discord.commands.GiveawayManager giveawayManager;
     private fr.cantale.plugin.discord.listeners.ModConfigPanelListener modConfigPanel;
 
     public SlashCommandManager(CantalePlugin plugin, DiscordConfig config) {
         this.plugin = plugin;
         this.config = config;
+        this.giveawayManager = new fr.cantale.plugin.discord.commands.GiveawayManager(plugin);
     }
 
     public void setModConfigPanel(fr.cantale.plugin.discord.listeners.ModConfigPanelListener panel) {
@@ -86,6 +90,43 @@ public class SlashCommandManager extends ListenerAdapter {
                 .addOption(OptionType.STRING, "pseudo", "Pseudo du joueur", true)
                 .setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.USE_APPLICATION_COMMANDS)),
 
+            Commands.slash("balance", "Afficher son solde Cantox (compte lié requis)")
+                .setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.USE_APPLICATION_COMMANDS)),
+
+            Commands.slash("bal", "Alias de /balance")
+                .setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.USE_APPLICATION_COMMANDS)),
+
+            Commands.slash("leaderboard", "Classement des joueurs")
+                .addOptions(new OptionData(OptionType.STRING, "categorie", "Catégorie du classement", true)
+                    .addChoice("Argent", "argent")
+                    .addChoice("Kills", "kills")
+                    .addChoice("Temps de jeu", "playtime"))
+                .setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.USE_APPLICATION_COMMANDS)),
+
+            Commands.slash("classement", "Alias de /leaderboard")
+                .addOptions(new OptionData(OptionType.STRING, "categorie", "Catégorie du classement", true)
+                    .addChoice("Argent", "argent")
+                    .addChoice("Kills", "kills")
+                    .addChoice("Temps de jeu", "playtime"))
+                .setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.USE_APPLICATION_COMMANDS)),
+
+            Commands.slash("fleaderboard", "Classement des factions")
+                .addOptions(new OptionData(OptionType.STRING, "categorie", "Catégorie du classement", true)
+                    .addChoice("Argent", "argent")
+                    .addChoice("Power", "power"))
+                .setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.USE_APPLICATION_COMMANDS)),
+
+            Commands.slash("fclassement", "Alias de /fleaderboard")
+                .addOptions(new OptionData(OptionType.STRING, "categorie", "Catégorie du classement", true)
+                    .addChoice("Argent", "argent")
+                    .addChoice("Power", "power"))
+                .setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.USE_APPLICATION_COMMANDS)),
+
+            Commands.slash("giveaway", "Lancer un giveaway Discord → récompenses Minecraft")
+                .addOption(OptionType.STRING, "temps", "Durée (ex: 10m, 1h, 2h30m)", true)
+                .addOption(OptionType.INTEGER, "gagnants", "Nombre de gagnants", true)
+                .setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.MODERATE_MEMBERS)),
+
             Commands.slash("link", "Lier son compte Minecraft")
                 .addOption(OptionType.STRING, "code", "Code à 6 caractères généré en jeu avec /link", true)
                 .addOption(OptionType.STRING, "pseudo", "Ton pseudo Minecraft exact (avec les majuscules)", true)
@@ -99,6 +140,12 @@ public class SlashCommandManager extends ListenerAdapter {
             Commands.slash("givevie", "Donner une vie à un joueur Minecraft")
                 .addOption(OptionType.STRING, "joueur", "Pseudo du joueur", true)
                 .addOption(OptionType.INTEGER, "nombre", "Nombre de vies (1-5)", true)
+                .setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.USE_APPLICATION_COMMANDS)),
+
+            Commands.slash("daily", "Récupérer sa récompense quotidienne Cantox (lien MC requis)")
+                .setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.USE_APPLICATION_COMMANDS)),
+
+            Commands.slash("journalier", "Récupérer sa récompense quotidienne Cantox (lien MC requis)")
                 .setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.USE_APPLICATION_COMMANDS)),
 
             Commands.slash("annonce", "Poster une annonce générale sur le serveur")
@@ -133,7 +180,14 @@ public class SlashCommandManager extends ListenerAdapter {
             Commands.slash("msg", "Envoyer un message en jeu à un joueur Minecraft")
                 .addOption(OptionType.STRING, "joueur", "Pseudo du joueur Minecraft", true)
                 .addOption(OptionType.STRING, "message", "Message à envoyer", true)
-                .setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.USE_APPLICATION_COMMANDS))
+                .setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.USE_APPLICATION_COMMANDS)),
+
+            Commands.slash("say", "[Owner] Faire parler le bot")
+                .addOption(OptionType.STRING, "message", "Message à envoyer", true)
+                .setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.ADMINISTRATOR)),
+
+            Commands.slash("off", "[Owner] Annonce le shutdown et arrête le serveur")
+                .setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.ADMINISTRATOR))
         ).queue(
             success -> plugin.getLogger().info("[Discord] Slash commands enregistrés avec succès (" + success.size() + " commandes)"),
             error -> plugin.getLogger().severe("[Discord] Erreur lors de l'enregistrement des slash commands: " + error.getMessage())
@@ -156,6 +210,10 @@ public class SlashCommandManager extends ListenerAdapter {
             case "infractions" -> handleInfractions(event, member);
             case "stats", "status" -> handleStats(event);
             case "profile" -> handleProfile(event);
+            case "balance", "bal" -> handleBalance(event, member);
+            case "leaderboard", "classement" -> handleLeaderboard(event);
+            case "fleaderboard", "fclassement" -> handleFactionLeaderboard(event);
+            case "giveaway" -> giveawayManager.handleGiveaway(event, member);
             case "link" -> handleLink(event, member);
             case "pay" -> handlePay(event, member);
             case "givevie" -> handleGiveVie(event, member);
@@ -169,7 +227,57 @@ public class SlashCommandManager extends ListenerAdapter {
             }
             case "partenariat" -> handlePartenariat(event, member);
             case "msg" -> handleMsg(event, member);
+            case "daily", "journalier" -> handleDaily(event, member);
+            case "say" -> handleSay(event, member);
+            case "off" -> handleOff(event, member);
         }
+    }
+
+    private static final long OWNER_DISCORD_ID = 1122092101459517481L;
+
+    private boolean isOwner(Member member) {
+        return member != null && member.getIdLong() == OWNER_DISCORD_ID;
+    }
+
+    private void handleSay(SlashCommandInteractionEvent event, Member member) {
+        if (!isOwner(member)) {
+            event.reply("❌ Cette commande est réservée au propriétaire.").setEphemeral(true).queue();
+            return;
+        }
+        String message = event.getOption("message").getAsString();
+        event.getChannel().sendMessage(message).queue();
+        event.reply("✅ Message envoyé.").setEphemeral(true).queue();
+    }
+
+    private void handleOff(SlashCommandInteractionEvent event, Member member) {
+        if (!isOwner(member)) {
+            event.reply("❌ Cette commande est réservée au propriétaire.").setEphemeral(true).queue();
+            return;
+        }
+        event.reply("🔴 Arrêt du serveur Minecraft en cours...").setEphemeral(true).queue();
+
+        long channelId = 1504900607591452852L;
+        long pingRoleId = 1504910790996525247L;
+        net.dv8tion.jda.api.entities.channel.concrete.TextChannel channel = event.getGuild().getTextChannelById(channelId);
+        if (channel != null) {
+            EmbedBuilder embed = new EmbedBuilder()
+                .setColor(Color.RED)
+                .setTitle("🛑 Serveur Minecraft hors-ligne")
+                .setDescription("Le serveur Cantale vient d'être arrêté par <@" + OWNER_DISCORD_ID + ">.")
+                .setTimestamp(Instant.now());
+            channel.sendMessage("<@&" + pingRoleId + "> **Le serveur Minecraft est OFF !**")
+                .setEmbeds(embed.build()).queue(
+                    success -> org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> org.bukkit.Bukkit.shutdown()),
+                    error -> org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> org.bukkit.Bukkit.shutdown())
+                );
+        } else {
+            org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> org.bukkit.Bukkit.shutdown());
+        }
+    }
+
+    @Override
+    public void onStringSelectInteraction(@NotNull net.dv8tion.jda.api.events.interaction.component.StringSelectInteractionEvent event) {
+        giveawayManager.handleSelect(event);
     }
 
     private void handlePartenariat(SlashCommandInteractionEvent event, Member moderator) {
@@ -345,7 +453,7 @@ public class SlashCommandManager extends ListenerAdapter {
                 .setColor(color)
                 .setTitle("📊 Statut Cantale — Live")
                 .setDescription("**" + onlineIcon + " " + (online > 0 ? "En ligne" : "Personne connecté") + "**\n"
-                    + "Connecte-toi sur `play.cantale.world` pour jouer !")
+                    + "Connecte-toi sur `play.cantale.world` pour jouer !\n\n*Actualisé toutes les 10s pendant 5min.*")
                 .addField("👥 Joueurs", "`" + online + " / " + max + "`", true)
                 .addField(tpsIcon + " TPS", "`" + String.format("%.2f", Math.min(tps, 20.0)) + "` " + tpsStatus, true)
                 .addField("⏱ Uptime", uptime, true)
@@ -358,7 +466,11 @@ public class SlashCommandManager extends ListenerAdapter {
                 .setFooter("Cantale — Trois vies. C'est tout.", null)
                 .setTimestamp(Instant.now());
 
-            event.getHook().editOriginalEmbeds(embed.build()).queue();
+            event.getHook().sendMessageEmbeds(embed.build()).queue(message -> {
+                if (plugin.getDiscordBot() != null) {
+                    plugin.getDiscordBot().registerLiveStatsMessage(message.getChannel().getIdLong(), message.getIdLong());
+                }
+            });
         });
     }
 
@@ -394,6 +506,159 @@ public class SlashCommandManager extends ListenerAdapter {
                 plugin.getLogger().warning("[Discord] /profile error: " + e.getMessage());
                 org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> event.reply("❌ Erreur lors de la récupération du profil.").setEphemeral(true).queue());
             }
+        });
+    }
+
+    private void handleBalance(SlashCommandInteractionEvent event, Member member) {
+        if (!hasJoueurRole(member)) {
+            event.reply("❌ Tu dois lier ton compte Minecraft avec `/link` pour utiliser cette commande.").setEphemeral(true).queue();
+            return;
+        }
+        String discordId = member.getId();
+        event.deferReply(true).queue();
+
+        org.bukkit.Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+            try (java.sql.Connection conn = plugin.getDatabaseManager().getConnection()) {
+                String uuid = getUuidFromDiscordId(conn, discordId);
+                if (uuid == null) {
+                    org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> event.getHook().editOriginal("❌ Ton compte n'est pas lié. Fais `/link` d'abord.").queue());
+                    return;
+                }
+
+                String username = getPlayerNameFromUuid(conn, uuid);
+                double balance;
+                try (java.sql.PreparedStatement stmt = conn.prepareStatement("SELECT balance FROM players WHERE uuid = ?")) {
+                    stmt.setString(1, uuid);
+                    java.sql.ResultSet rs = stmt.executeQuery();
+                    if (!rs.next()) {
+                        org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> event.getHook().editOriginal("❌ Joueur introuvable.").queue());
+                        return;
+                    }
+                    balance = rs.getDouble("balance");
+                }
+
+                double finalBalance = balance;
+                org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> {
+                    EmbedBuilder embed = new EmbedBuilder()
+                        .setColor(Color.GREEN)
+                        .setTitle("💰 Solde Cantox")
+                        .setDescription("**" + (username != null ? username : "Inconnu") + "** : **" + String.format("%.0f", finalBalance) + "** Cantox")
+                        .setTimestamp(Instant.now());
+                    event.getHook().editOriginalEmbeds(embed.build()).queue();
+                });
+            } catch (Exception e) {
+                plugin.getLogger().warning("[Discord] /balance error: " + e.getMessage());
+                org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> event.getHook().editOriginal("❌ Erreur lors de la récupération du solde.").queue());
+            }
+        });
+    }
+
+    private void handleLeaderboard(SlashCommandInteractionEvent event) {
+        String category = event.getOption("categorie").getAsString().toLowerCase();
+        event.deferReply().queue();
+
+        org.bukkit.Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+            String column = switch (category) {
+                case "kills" -> "kills";
+                case "playtime" -> "playtime";
+                default -> "balance";
+            };
+            String title = switch (category) {
+                case "kills" -> "⚔️ Classement — Kills";
+                case "playtime" -> "⏱️ Classement — Temps de jeu";
+                default -> "💰 Classement — Argent";
+            };
+            java.awt.Color color = switch (category) {
+                case "kills" -> Color.RED;
+                case "playtime" -> Color.CYAN;
+                default -> Color.GREEN;
+            };
+
+            String sql = "SELECT username, " + column + " FROM players ORDER BY " + column + " DESC LIMIT 10";
+            java.util.List<String> lines = new java.util.ArrayList<>();
+            String[] medals = {"🥇", "🥈", "🥉", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"};
+
+            try (java.sql.Connection conn = plugin.getDatabaseManager().getConnection();
+                 java.sql.PreparedStatement stmt = conn.prepareStatement(sql);
+                 java.sql.ResultSet rs = stmt.executeQuery()) {
+                int rank = 0;
+                while (rs.next()) {
+                    String name = rs.getString("username");
+                    double value = rs.getDouble(column);
+                    String display;
+                    if (category.equals("playtime")) {
+                        long seconds = (long) value;
+                        long hours = seconds / 3600;
+                        long minutes = (seconds % 3600) / 60;
+                        display = hours + "h " + minutes + "min";
+                    } else {
+                        display = String.format("%.0f", value);
+                    }
+                    lines.add(medals[rank] + " **" + name + "** — " + display);
+                    rank++;
+                }
+            } catch (Exception e) {
+                plugin.getLogger().warning("[Discord] /leaderboard error: " + e.getMessage());
+            }
+
+            org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> {
+                EmbedBuilder embed = new EmbedBuilder()
+                    .setColor(color)
+                    .setTitle(title)
+                    .setDescription(lines.isEmpty() ? "Aucune donnée disponible." : String.join("\n", lines))
+                    .setFooter("Top 10 — Cantale", null)
+                    .setTimestamp(Instant.now());
+                event.getHook().editOriginalEmbeds(embed.build()).queue();
+            });
+        });
+    }
+
+    private void handleFactionLeaderboard(SlashCommandInteractionEvent event) {
+        String category = event.getOption("categorie").getAsString().toLowerCase();
+        event.deferReply().queue();
+
+        org.bukkit.Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+            String column = switch (category) {
+                case "power" -> "power";
+                default -> "balance";
+            };
+            String title = switch (category) {
+                case "power" -> "⚡ Classement Factions — Power";
+                default -> "💰 Classement Factions — Argent";
+            };
+            java.awt.Color color = switch (category) {
+                case "power" -> Color.ORANGE;
+                default -> Color.GREEN;
+            };
+
+            String sql = "SELECT name, tag, " + column + " FROM factions ORDER BY " + column + " DESC LIMIT 10";
+            java.util.List<String> lines = new java.util.ArrayList<>();
+            String[] medals = {"🥇", "🥈", "🥉", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"};
+
+            try (java.sql.Connection conn = plugin.getDatabaseManager().getConnection();
+                 java.sql.PreparedStatement stmt = conn.prepareStatement(sql);
+                 java.sql.ResultSet rs = stmt.executeQuery()) {
+                int rank = 0;
+                while (rs.next()) {
+                    String name = rs.getString("name");
+                    String tag = rs.getString("tag");
+                    double value = rs.getDouble(column);
+                    lines.add(medals[rank] + " **" + name + "** [" + tag + "] — " + String.format("%.0f", value));
+                    rank++;
+                }
+            } catch (Exception e) {
+                plugin.getLogger().warning("[Discord] /fleaderboard error: " + e.getMessage());
+            }
+
+            org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> {
+                EmbedBuilder embed = new EmbedBuilder()
+                    .setColor(color)
+                    .setTitle(title)
+                    .setDescription(lines.isEmpty() ? "Aucune faction disponible." : String.join("\n", lines))
+                    .setFooter("Top 10 — Cantale", null)
+                    .setTimestamp(Instant.now());
+                event.getHook().editOriginalEmbeds(embed.build()).queue();
+            });
         });
     }
 
@@ -447,11 +712,16 @@ public class SlashCommandManager extends ListenerAdapter {
                 }
 
                 // Créer liaison
+                String discordUsername = member.getUser().getName();
+                String discordGlobalName = member.getUser().getGlobalName();
+                String discordDisplayName = discordGlobalName != null ? discordGlobalName : member.getEffectiveName();
                 try (java.sql.PreparedStatement stmt = conn.prepareStatement(
-                    "INSERT INTO discord_links (discord_id, uuid, linked_at) VALUES (?, ?, ?)")) {
+                    "INSERT INTO discord_links (discord_id, uuid, linked_at, discord_username, discord_display_name) VALUES (?, ?, ?, ?, ?)")) {
                     stmt.setString(1, discordId);
                     stmt.setString(2, uuid);
                     stmt.setLong(3, System.currentTimeMillis() / 1000);
+                    stmt.setString(4, discordUsername);
+                    stmt.setString(5, discordDisplayName);
                     stmt.executeUpdate();
                 }
 
@@ -631,6 +901,61 @@ public class SlashCommandManager extends ListenerAdapter {
             if (rs.next()) return rs.getString("uuid");
         }
         return null;
+    }
+
+    private String getPlayerNameFromUuid(java.sql.Connection conn, String uuid) throws java.sql.SQLException {
+        try (java.sql.PreparedStatement stmt = conn.prepareStatement("SELECT username FROM players WHERE uuid = ?")) {
+            stmt.setString(1, uuid);
+            java.sql.ResultSet rs = stmt.executeQuery();
+            if (rs.next()) return rs.getString("username");
+        }
+        return null;
+    }
+
+    private void handleDaily(SlashCommandInteractionEvent event, Member member) {
+        if (!hasJoueurRole(member)) {
+            event.reply("❌ Tu dois lier ton compte Minecraft avec `/link` pour utiliser cette commande.").setEphemeral(true).queue();
+            return;
+        }
+
+        String discordId = member.getId();
+        event.deferReply(true).queue();
+
+        org.bukkit.Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+            try (java.sql.Connection conn = plugin.getDatabaseManager().getConnection()) {
+                String uuid = getUuidFromDiscordId(conn, discordId);
+                if (uuid == null) {
+                    org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> event.getHook().editOriginal("❌ Ton compte n'est pas lié. Fais `/link` d'abord.").queue());
+                    return;
+                }
+
+                int granted = plugin.getRankManager().grantDailyCantox(java.util.UUID.fromString(uuid), 1000);
+                if (granted <= 0) {
+                    org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> event.getHook().editOriginal("❌ Tu as déjà récupéré ta récompense quotidienne aujourd'hui. Reviens demain !").queue());
+                    return;
+                }
+
+                String username = getPlayerNameFromUuid(conn, uuid);
+                org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> {
+                    EmbedBuilder embed = new EmbedBuilder()
+                        .setColor(Color.GREEN)
+                        .setTitle("💰 Récompense quotidienne")
+                        .setDescription("Tu as reçu **" + granted + "** Cantox !")
+                        .setFooter("Compte lié: " + (username != null ? username : "inconnu"), null)
+                        .setTimestamp(Instant.now());
+                    event.getHook().editOriginalEmbeds(embed.build()).queue();
+
+                    // Notifier le joueur en jeu s'il est en ligne
+                    org.bukkit.OfflinePlayer offlinePlayer = org.bukkit.Bukkit.getOfflinePlayer(java.util.UUID.fromString(uuid));
+                    if (offlinePlayer.isOnline() && offlinePlayer.getPlayer() != null) {
+                        offlinePlayer.getPlayer().sendMessage("§8[§6Cantale§8] §aTa récompense quotidienne a été récupérée depuis Discord : §e" + granted + " Cantox§a.");
+                    }
+                });
+            } catch (Exception e) {
+                plugin.getLogger().warning("[Discord] /daily error: " + e.getMessage());
+                org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> event.getHook().editOriginal("❌ Erreur lors de la récupération de la récompense.").queue());
+            }
+        });
     }
 
     private boolean hasJoueurRole(Member member) {
@@ -840,6 +1165,11 @@ public class SlashCommandManager extends ListenerAdapter {
 
     @Override
     public void onButtonInteraction(@NotNull ButtonInteractionEvent event) {
+        if (giveawayManager.handlesButton(event)) {
+            giveawayManager.handleButton(event);
+            return;
+        }
+
         String componentId = event.getComponentId();
         if (!componentId.startsWith("mc_reply:")) return;
 
@@ -862,6 +1192,11 @@ public class SlashCommandManager extends ListenerAdapter {
 
     @Override
     public void onModalInteraction(@NotNull ModalInteractionEvent event) {
+        if (giveawayManager.handlesModal(event)) {
+            giveawayManager.handleModal(event);
+            return;
+        }
+
         String modalId = event.getModalId();
         if (!modalId.startsWith("mc_reply_modal:")) return;
 

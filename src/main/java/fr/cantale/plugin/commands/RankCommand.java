@@ -47,19 +47,28 @@ public class RankCommand implements CommandExecutor, TabCompleter {
         switch (subCommand) {
             case "set" -> {
                 if (args.length < 3) {
-                    sender.sendMessage("§8[§6Cantale§8] §cUsage : /rank set <joueur> <AVENTURIER|VIP|CHEVRE|NONE>");
+                    sender.sendMessage("§8[§6Cantale§8] §cUsage : /rank set <joueur> <OWNER|ADMIN|MODERATOR|AVENTURIER|VIP|CHEVRE|NONE>");
                     return true;
                 }
                 PlayerRank rank = PlayerRank.fromString(args[2]);
+                // Rétro-compatibilité : si le joueur utilise /rank, on synchronise aussi le rôle PermissionManager
+                plugin.getPermissionManager().setPlayerRole(target.getUniqueId(), rank);
                 if (rankManager.setRank(target.getUniqueId(), rank)) {
                     sender.sendMessage("§8[§6Cantale§8] §aGrade de §e" + target.getName() + " §adéfini sur §e" + rank.getDisplayName());
                     target.sendMessage("§8[§6Cantale§8] §aVotre grade est maintenant : §e" + rank.getDisplayName());
+                    plugin.getTagManager().updatePlayerNametag(target);
                     if (rank == PlayerRank.CHEVRE) {
                         target.sendMessage("§8[§6Cantale§8] §6Avantages Chèvre : Vol illimité, 100k Cantox/jour, /pc+/pc2, 3 Vies/mois, pas de cooldown TP");
                     } else if (rank == PlayerRank.VIP) {
                         target.sendMessage("§8[§6Cantale§8] §cAvantages VIP : 1 Statio-Lytra/mois, 10k Cantox/jour, /pc 54 slots, 2 Vies/mois");
                     } else if (rank == PlayerRank.AVENTURIER) {
                         target.sendMessage("§8[§6Cantale§8] §bAvantages Aventurier : 2.5k Cantox/jour, 1 Vie/mois, 5 homes, 5 ventes /ah");
+                    } else if (rank == PlayerRank.MODERATOR) {
+                        target.sendMessage("§8[§6Cantale§8] §9Grade Modérateur actif.");
+                    } else if (rank == PlayerRank.ADMIN) {
+                        target.sendMessage("§8[§6Cantale§8] §cGrade Admin actif.");
+                    } else if (rank == PlayerRank.OWNER) {
+                        target.sendMessage("§8[§6Cantale§8] §4Grade Owner actif.");
                     }
                 } else {
                     sender.sendMessage("§8[§6Cantale§8] §cErreur lors de la définition du grade.");
@@ -94,7 +103,7 @@ public class RankCommand implements CommandExecutor, TabCompleter {
 
     private void sendHelp(CommandSender sender) {
         sender.sendMessage("§8[§6Cantale§8] §7Commandes de grade :");
-        sender.sendMessage("§8[§6Cantale§8] §e/rank set <joueur> <AVENTURIER|VIP|CHEVRE|NONE> §7— Définir le grade");
+        sender.sendMessage("§8[§6Cantale§8] §e/rank set <joueur> <OWNER|ADMIN|MODERATOR|AVENTURIER|VIP|CHEVRE|NONE> §7— Définir le grade");
         sender.sendMessage("§8[§6Cantale§8] §e/rank remove <joueur> §7— Retirer le grade");
         sender.sendMessage("§8[§6Cantale§8] §e/rank info <joueur> §7— Voir le grade et les avantages");
     }
@@ -113,6 +122,9 @@ public class RankCommand implements CommandExecutor, TabCompleter {
                 completions.add(p.getName());
             }
         } else if (args.length == 3 && args[0].equalsIgnoreCase("set")) {
+            completions.add("OWNER");
+            completions.add("ADMIN");
+            completions.add("MODERATOR");
             completions.add("AVENTURIER");
             completions.add("VIP");
             completions.add("CHEVRE");

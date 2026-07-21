@@ -39,6 +39,7 @@ public class PlayerListener implements Listener {
         UUID uuid = player.getUniqueId();
 
         playerDAO.createOrUpdatePlayer(uuid, player.getName());
+        checkPendingRewards(player);
 
         // Mettre à jour le nametag (tags, faction, grade) — 1 tick de délai pour que le joueur soit chargé
         Bukkit.getScheduler().runTaskLater(plugin, () -> {
@@ -70,8 +71,15 @@ public class PlayerListener implements Listener {
 
         // Accueil Première Connexion
         if (!player.hasPlayedBefore()) {
-            // Message de bienvenue global
-            Bukkit.broadcastMessage("§8[§6Cantale§8] §aBienvenue à §e" + player.getName() + " §apour sa première connexion sur le serveur !");
+            // Enregistrer le joueur comme nouveau pour /bvn
+            plugin.getWelcomeCommand().registerNewcomer(player.getUniqueId());
+
+            // Message de bienvenue global plus visible
+            Bukkit.broadcastMessage("");
+            Bukkit.broadcastMessage("§8§m--------------------------------------------------");
+            Bukkit.broadcastMessage("§8[§6§lBienvenue§8] §e§l" + player.getName() + " §a§lrejoint Cantale pour la première fois !");
+            Bukkit.broadcastMessage("§7Souhaitez-lui la bienvenue avec §e/bvn " + player.getName() + " §7et gagnez §e100 Cantox§7 !");
+            Bukkit.broadcastMessage("§8§m--------------------------------------------------");
 
             // Guide de mods en privé
             player.sendMessage("§8[§6Cantale§8] §7=== Guide de Démarrage ===");
@@ -174,8 +182,18 @@ public class PlayerListener implements Listener {
     public void onPlayerQuit(PlayerQuitEvent event) {
         Player player = event.getPlayer();
 
+        // Sauvegarder le temps de jeu en BDD de manière asynchrone
+        UUID uuid = player.getUniqueId();
+        long playtimeSeconds = player.getStatistic(org.bukkit.Statistic.PLAY_ONE_MINUTE) / 20L;
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+            playerDAO.updatePlaytime(uuid, playtimeSeconds);
+        });
+
         // Nettoyer l'équipe scoreboard du joueur
         plugin.getTagManager().removePlayerTeam(player);
+
+        // Retirer le joueur du suivi des nouveaux pour /bvn
+        plugin.getWelcomeCommand().unregisterNewcomer(player.getUniqueId());
 
         // Logger la déconnexion
         plugin.getActionLogger().logQuit(player.getName());
@@ -216,6 +234,19 @@ public class PlayerListener implements Listener {
         Player player = event.getEntity();
         lifeManager.handleDeath(player);
 
+        // Gain de pouvoir de faction pour le tueur
+        Player killer = player.getKiller();
+        if (killer != null && !killer.getUniqueId().equals(player.getUniqueId())) {
+            Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+                boolean gained = plugin.getFactionManager().addPowerToPlayerFaction(killer.getUniqueId(), 5);
+                if (gained) {
+                    Bukkit.getScheduler().runTask(plugin, () -> {
+                        killer.sendMessage("§8[§6Faction§8] §a+5 pouvoir pour ta faction grâce à ce kill !");
+                    });
+                }
+            });
+        }
+
         // Les items VIE custom dans l'inventaire sont perdus à la mort (ne drop pas)
         fr.cantale.plugin.custom.CustomItemManager cim = plugin.getCustomItemManager();
         for (org.bukkit.inventory.ItemStack item : player.getInventory().getContents()) {
@@ -238,6 +269,108 @@ public class PlayerListener implements Listener {
                     "**" + deathMsg + "**"
                 );
             }
+        }
+    }
+
+    private void checkPendingRewards(Player player) {
+        UUID uuid = player.getUniqueId();
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+            String sql = "SELECT id, reward_type, reward_value, quantity FROM pending_rewards WHERE player_uuid = ? AND claimed = 0";
+            try (java.sql.Connection conn = plugin.getDatabaseManager().getConnection();
+                 java.sql.PreparedStatement stmt = conn.prepareStatement(sql)) {
+                stmt.setString(1, uuid.toString());
+                java.sql.ResultSet rs = stmt.executeQuery();
+                
+                while (rs.next()) {
+                    int id = rs.getInt("id");
+                    String type = rs.getString("reward_type");
+                    String value = rs.getString("reward_value");
+                    int quantity = rs.getInt("quantity");
+
+                    // Appliquer la récompense sur le thread principal de Bukkit
+                    Bukkit.getScheduler().runTask(plugin, () -> {
+                        if (!player.isOnline()) return;
+                        applyReward(player, type, value, quantity);
+                        
+                        // Marquer comme consommée en asynchrone
+                        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+                            try (java.sql.Connection c = plugin.getDatabaseManager().getConnection();
+                                 java.sql.PreparedStatement uStmt = c.prepareStatement("UPDATE pending_rewards SET claimed = 1 WHERE id = ?")) {
+                                uStmt.setInt(1, id);
+                                uStmt.executeUpdate();
+                            } catch (Exception e) {
+                                plugin.getLogger().severe("Erreur update pending_rewards: " + e.getMessage());
+                            }
+                        });
+                    });
+                }
+            } catch (Exception e) {
+                // La table n'existe peut-être pas ou erreur de connexion
+            }
+        });
+    }
+
+    private void applyReward(Player player, String type, String value, int quantity) {
+        UUID uuid = player.getUniqueId();
+        switch (type.toUpperCase()) {
+            case "CANTOX":
+                try {
+                    double amount = Double.parseDouble(value);
+                    plugin.getEconomyManager().addBalance(uuid, amount);
+                    player.sendMessage("§8[§6Giveaway§8] §aFélicitations ! Tu as reçu §e" + String.format("%.0f", amount) + " Cantox§a de ton gain Discord !");
+                } catch (NumberFormatException ignored) {}
+                break;
+            case "RANK":
+                fr.cantale.plugin.rank.PlayerRank rank = fr.cantale.plugin.rank.PlayerRank.fromString(value);
+                if (rank != fr.cantale.plugin.rank.PlayerRank.NONE) {
+                    plugin.getRankManager().setRank(uuid, rank);
+                    player.sendMessage("§8[§6Giveaway§8] §aFélicitations ! Tu as reçu le grade " + rank.getDisplayName() + " §ade ton gain Discord !");
+                }
+                break;
+            case "ITEM":
+                try {
+                    fr.cantale.plugin.custom.CustomItemType itemType = fr.cantale.plugin.custom.CustomItemType.valueOf(value.toUpperCase());
+                    ItemStack itemStack = plugin.getCustomItemManager().createCustomItem(itemType);
+                    if (itemStack != null) {
+                        itemStack.setAmount(quantity);
+                        player.sendMessage("§8[§6Giveaway§8] §aFélicitations ! Tu as gagné §e" + quantity + "x " + itemType.name() + " §asur Discord !");
+                        
+                        // Essayer d'ajouter à l'inventaire
+                        java.util.HashMap<Integer, ItemStack> remaining = player.getInventory().addItem(itemStack.clone());
+                        if (remaining.isEmpty()) {
+                            player.sendMessage("§aLes items ont été ajoutés à ton inventaire.");
+                            return;
+                        }
+                        
+                        // S'il reste des items, essayer l'Ender Chest
+                        ItemStack remItem = remaining.values().iterator().next();
+                        java.util.HashMap<Integer, ItemStack> ecRemaining = player.getEnderChest().addItem(remItem.clone());
+                        if (ecRemaining.isEmpty()) {
+                            player.sendMessage("§aTon inventaire était plein, les items ont été placés dans ton Ender Chest.");
+                            return;
+                        }
+                        
+                        // S'il en reste encore, essayer le coffre privé virtuel (/pc)
+                        ItemStack pcRem = ecRemaining.values().iterator().next();
+                        java.util.List<ItemStack> pcRemaining = plugin.getPrivateChestService().storeItemsInPrivateChest(uuid, java.util.List.of(pcRem.clone()));
+                        if (pcRemaining.isEmpty()) {
+                            player.sendMessage("§aTon inventaire et ton Ender Chest étaient pleins, les items ont été placés dans ton coffre privé virtuel (/pc).");
+                            return;
+                        }
+                        
+                        // Si toujours plein, drop par terre
+                        for (ItemStack drop : pcRemaining) {
+                            player.getWorld().dropItemNaturally(player.getLocation(), drop);
+                        }
+                        player.sendMessage("§cTes coffres étaient pleins ! Les items restants ont été jetés à tes pieds.");
+                    }
+                } catch (Exception e) {
+                    plugin.getLogger().severe("Erreur applyReward ITEM: " + e.getMessage());
+                }
+                break;
+            default:
+                player.sendMessage("§8[§6Giveaway§8] §aFélicitations ! Tu as gagné le lot suivant : §e" + value);
+                break;
         }
     }
 

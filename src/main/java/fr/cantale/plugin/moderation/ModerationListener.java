@@ -30,7 +30,7 @@ public class ModerationListener implements Listener {
         // Cacher les joueurs vanished
         for (Player entry : event.getPlayer().getServer().getOnlinePlayers()) {
             if (vanishManager.isVanished(entry.getUniqueId())) {
-                if (!event.getPlayer().hasPermission("cantale.admin")) {
+                if (!event.getPlayer().hasPermission("cantale.admin") && !event.getPlayer().hasPermission("cantale.moderator")) {
                     event.getPlayer().hidePlayer(entry);
                 }
             }
@@ -39,7 +39,7 @@ public class ModerationListener implements Listener {
         // Cacher le joueur s'il est vanish
         if (vanishManager.isVanished(event.getPlayer().getUniqueId())) {
             for (Player other : event.getPlayer().getServer().getOnlinePlayers()) {
-                if (!other.hasPermission("cantale.admin")) {
+                if (!other.hasPermission("cantale.admin") && !other.hasPermission("cantale.moderator")) {
                     other.hidePlayer(event.getPlayer());
                 }
             }

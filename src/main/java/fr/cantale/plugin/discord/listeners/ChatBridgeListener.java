@@ -48,8 +48,8 @@ public class ChatBridgeListener extends ListenerAdapter {
         processingMcMessage = true;
         try {
             String format = config.getMcToDiscordFormat()
-                .replace("%player%", playerName)
-                .replace("%message%", message)
+                .replace("%player%", stripMinecraftColors(playerName))
+                .replace("%message%", stripMinecraftColors(message))
                 .replace("%server%", "Cantale");
 
             channel.sendMessage(format).queue(
@@ -73,10 +73,15 @@ public class ChatBridgeListener extends ListenerAdapter {
 
         EmbedBuilder embed = new EmbedBuilder()
             .setColor(Color.GRAY)
-            .setDescription("*" + formattedMessage + "*")
+            .setDescription("*" + stripMinecraftColors(formattedMessage) + "*")
             .setTimestamp(Instant.now());
 
         channel.sendMessageEmbeds(embed.build()).queue();
+    }
+
+    private String stripMinecraftColors(String input) {
+        if (input == null) return null;
+        return input.replaceAll("§[0-9a-fk-orA-FK-OR]", "");
     }
 
     /**

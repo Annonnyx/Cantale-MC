@@ -18,11 +18,18 @@ import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityExplodeEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
+import org.bukkit.metadata.FixedMetadataValue;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
 
 public class ClaimListener implements Listener {
 
     private final CantalePlugin plugin;
     private final FactionManager factionManager;
+    private final Map<UUID, Long> lastClaimMessage = new HashMap<>();
+    private static final long CLAIM_MESSAGE_COOLDOWN_MS = 2000;
 
     public ClaimListener(CantalePlugin plugin) {
         this.plugin = plugin;
@@ -101,15 +108,16 @@ public class ClaimListener implements Listener {
             return; // Même chunk
         }
 
+        Player player = event.getPlayer();
         Claim fromClaim = getClaimAt(event.getFrom());
         Claim toClaim = getClaimAt(event.getTo());
 
-        // Auto-claim si activé et dans wilderness
-        if (toClaim == null && fromClaim == null) {
+        // Auto-claim si activé et dans wilderness (silencieux si échec)
+        if (toClaim == null && factionManager.isAutoClaimEnabled(player.getUniqueId())) {
             int chunkX = event.getTo().getBlockX() >> 4;
             int chunkZ = event.getTo().getBlockZ() >> 4;
-            if (factionManager.autoClaim(event.getPlayer().getUniqueId(), event.getTo().getWorld().getName(), chunkX, chunkZ)) {
-                event.getPlayer().sendMessage(formatMessage("&aAuto-claim du chunk actuel !"));
+            if (factionManager.autoClaim(player.getUniqueId(), event.getTo().getWorld().getName(), chunkX, chunkZ)) {
+                sendClaimMessage(player, "&aAuto-claim du chunk actuel !");
             }
         }
 
@@ -118,32 +126,43 @@ public class ClaimListener implements Listener {
         boolean toPasdic = toClaim != null && toClaim.isPasdic();
 
         if (!fromPasdic && toPasdic) {
-            // Entrée dans un chunk PASDIC
-            event.getPlayer().setGameMode(GameMode.ADVENTURE);
-            event.getPlayer().sendMessage(formatMessage("&bMode Adventure activé - Zone PASDIC"));
+            player.setGameMode(GameMode.ADVENTURE);
+            sendClaimMessage(player, "&bMode Adventure activé - Zone PASDIC");
         } else if (fromPasdic && !toPasdic) {
-            // Sortie d'un chunk PASDIC
-            event.getPlayer().setGameMode(GameMode.SURVIVAL);
-            event.getPlayer().sendMessage(formatMessage("&aMode Survival rétabli"));
+            player.setGameMode(GameMode.SURVIVAL);
+            sendClaimMessage(player, "&aMode Survival rétabli");
         }
 
-        if (fromClaim == null && toClaim != null) {
-            // Entrée dans un claim
-            Faction faction = factionManager.getFaction(toClaim.getFactionId());
-            if (faction != null) {
-                event.getPlayer().sendMessage(formatMessage("&eEntrée dans le claim de &6" + faction.getName() + " &e(&7" + faction.getTag() + "&e)"));
+        // Messages d'entrée/sortie de claim (avec anti-spam)
+        int fromFactionId = fromClaim == null ? -1 : fromClaim.getFactionId();
+        int toFactionId = toClaim == null ? -1 : toClaim.getFactionId();
+
+        if (fromFactionId != toFactionId) {
+            if (fromClaim == null && toClaim != null) {
+                Faction faction = factionManager.getFaction(toClaim.getFactionId());
+                if (faction != null) {
+                    sendClaimMessage(player, "&eEntrée dans le claim de &6" + faction.getName() + " &e(&7" + faction.getTag() + "&e)");
+                }
+            } else if (fromClaim != null && toClaim == null) {
+                sendClaimMessage(player, "&eSortie du claim - Wilderness");
+            } else if (fromClaim != null && toClaim != null) {
+                Faction fromFaction = factionManager.getFaction(fromClaim.getFactionId());
+                Faction toFaction = factionManager.getFaction(toClaim.getFactionId());
+                if (fromFaction != null && toFaction != null) {
+                    sendClaimMessage(player, "&eSortie de &6" + fromFaction.getName() + " &e→ Entrée dans &6" + toFaction.getName());
+                }
             }
-        } else if (fromClaim != null && toClaim == null) {
-            // Sortie d'un claim
-            event.getPlayer().sendMessage(formatMessage("&eSortie du claim - Wilderness"));
-        } else if (fromClaim != null && toClaim != null && fromClaim.getFactionId() != toClaim.getFactionId()) {
-            // Changement de claim
-            Faction fromFaction = factionManager.getFaction(fromClaim.getFactionId());
-            Faction toFaction = factionManager.getFaction(toClaim.getFactionId());
-            if (fromFaction != null && toFaction != null) {
-                event.getPlayer().sendMessage(formatMessage("&eSortie de &6" + fromFaction.getName() + " &e→ Entrée dans &6" + toFaction.getName()));
-            }
+            player.setMetadata("cantale_last_claim_faction", new FixedMetadataValue(plugin, toFactionId));
         }
+    }
+
+    private void sendClaimMessage(Player player, String message) {
+        long now = System.currentTimeMillis();
+        UUID uuid = player.getUniqueId();
+        Long last = lastClaimMessage.get(uuid);
+        if (last != null && now - last < CLAIM_MESSAGE_COOLDOWN_MS) return;
+        lastClaimMessage.put(uuid, now);
+        player.sendMessage(formatMessage(message));
     }
 
     private boolean canInteract(Player player, org.bukkit.Location location) {

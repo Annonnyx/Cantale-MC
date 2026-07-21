@@ -7,6 +7,10 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
+/**
+ * @deprecated Utiliser PrivateChestService à la place.
+ */
+@Deprecated
 public class PrivateChestManager {
 
     private final CantalePlugin plugin;
@@ -22,21 +26,21 @@ public class PrivateChestManager {
     public void openPrivateChest(Player player) {
         UUID uuid = player.getUniqueId();
         PrivateChest chest = openChests.get(uuid);
-        
+
         if (chest == null) {
-            chest = privateChestDAO.loadPrivateChest(uuid);
+            chest = new PrivateChest(uuid, 27);
             openChests.put(uuid, chest);
         }
-        
+
         player.openInventory(chest.getInventory());
     }
 
     public void saveAndClose(Player player) {
         UUID uuid = player.getUniqueId();
         PrivateChest chest = openChests.get(uuid);
-        
+
         if (chest != null) {
-            privateChestDAO.savePrivateChest(uuid, chest.getContents());
+            privateChestDAO.saveChest(uuid, ChestType.PC1, chest.getContents());
             openChests.remove(uuid);
         }
     }

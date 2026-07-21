@@ -1,9 +1,8 @@
 package fr.cantale.plugin.commands;
 
 import fr.cantale.plugin.CantalePlugin;
-import fr.cantale.plugin.privatechest.PrivateChest;
-import fr.cantale.plugin.privatechest.PrivateChestManager;
-import fr.cantale.plugin.rank.PlayerRank;
+import fr.cantale.plugin.privatechest.ChestType;
+import fr.cantale.plugin.privatechest.PrivateChestService;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -12,11 +11,11 @@ import org.bukkit.entity.Player;
 public class PrivateChestCommand implements CommandExecutor {
 
     private final CantalePlugin plugin;
-    private final PrivateChestManager privateChestManager;
+    private final PrivateChestService chestService;
 
     public PrivateChestCommand(CantalePlugin plugin) {
         this.plugin = plugin;
-        this.privateChestManager = new PrivateChestManager(plugin);
+        this.chestService = new PrivateChestService(plugin);
     }
 
     @Override
@@ -26,33 +25,13 @@ public class PrivateChestCommand implements CommandExecutor {
             return true;
         }
 
-        PlayerRank rank = plugin.getRankManager().getRank(player);
-        int slots = rank.getPcSlots();
-
-        // Open private chest with rank-appropriate size
-        PrivateChest chest = new PrivateChest(player.getUniqueId(), slots);
-        
-        // Load saved contents
-        PrivateChest saved = plugin.getDatabaseManager() != null 
-            ? new fr.cantale.plugin.privatechest.PrivateChestDAO(plugin).loadPrivateChest(player.getUniqueId())
-            : null;
-        if (saved != null && saved.getContents() != null) {
-            // Copy saved items into the new sized chest
-            org.bukkit.inventory.ItemStack[] savedContents = saved.getContents();
-            org.bukkit.inventory.ItemStack[] newContents = chest.getContents();
-            int copyLen = Math.min(savedContents.length, newContents.length);
-            for (int i = 0; i < copyLen; i++) {
-                newContents[i] = savedContents[i];
-            }
-            chest.setContents(newContents);
-        }
-
-        player.openInventory(chest.getInventory());
-        player.sendMessage("§8[§6Cantale§8] §7Coffre privé ouvert §7(§e" + slots + " slots§7)");
+        boolean isStaff = player.hasPermission("cantale.admin");
+        chestService.openChest(player, ChestType.PC1, isStaff);
+        player.sendMessage("§8[§6Cantale§8] §7Coffre privé ouvert.");
         return true;
     }
 
-    public PrivateChestManager getPrivateChestManager() {
-        return privateChestManager;
+    public PrivateChestService getChestService() {
+        return chestService;
     }
 }

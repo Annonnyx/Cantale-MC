@@ -2,6 +2,7 @@ package fr.cantale.plugin.commands;
 
 import fr.cantale.plugin.CantalePlugin;
 import fr.cantale.plugin.permissions.PermissionManager;
+import fr.cantale.plugin.rank.PlayerRank;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.command.Command;
@@ -23,8 +24,8 @@ public class UnbanIpCommand implements CommandExecutor {
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         // Console can use this command without permission check
         if (sender instanceof Player player) {
-            if (!permissionManager.hasPermission(player.getUniqueId(), PermissionManager.Role.OWNER)) {
-                sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&cSeul l'owner peut utiliser cette commande."));
+            if (!permissionManager.hasPermission(player.getUniqueId(), PlayerRank.ADMIN)) {
+                sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&cSeul un admin peut utiliser cette commande."));
                 return true;
             }
         }

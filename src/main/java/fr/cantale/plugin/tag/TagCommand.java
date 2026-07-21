@@ -25,24 +25,47 @@ public class TagCommand implements CommandExecutor, TabCompleter {
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
-        if (!sender.hasPermission("cantale.moderator")) {
-            sender.sendMessage(formatMessage("&cVous n'avez pas la permission d'utiliser cette commande."));
-            return true;
-        }
-
         if (args.length == 0) {
             sendHelp(sender);
             return true;
         }
 
         String sub = args[0].toLowerCase();
+
+        // Permissions granulaires : give/remove accessible aux modérateurs,
+        // create/delete/list réservé aux admins.
+        boolean isAdmin = sender.hasPermission("cantale.admin") || sender.hasPermission("cantale.tag.admin");
+        boolean isGiver = sender.hasPermission("cantale.moderator")
+                || sender.hasPermission("cantale.tag.give")
+                || sender.hasPermission("cantale.tag.admin");
+
+        switch (sub) {
+            case "create", "delete", "list", "color", "edit" -> {
+                if (!isAdmin) {
+                    sender.sendMessage(formatMessage("&cVous n'avez pas la permission."));
+                    return true;
+                }
+            }
+            case "add", "give", "remove" -> {
+                if (!isGiver) {
+                    sender.sendMessage(formatMessage("&cVous n'avez pas la permission de donner/retirer des tags."));
+                    return true;
+                }
+            }
+            default -> {
+                sendHelp(sender);
+                return true;
+            }
+        }
+
         switch (sub) {
             case "create" -> handleCreate(sender, args);
             case "delete" -> handleDelete(sender, args);
             case "add", "give" -> handleAdd(sender, args);
             case "remove" -> handleRemove(sender, args);
             case "list" -> handleList(sender);
-            default -> sendHelp(sender);
+            case "color" -> handleColor(sender, args);
+            case "edit" -> handleEdit(sender, args);
         }
 
         return true;
@@ -102,8 +125,24 @@ public class TagCommand implements CommandExecutor, TabCompleter {
 
         if (tagManager.unlockTag(target.getUniqueId(), tagId)) {
             sender.sendMessage(formatMessage("&aLe tag &e" + tagId + " &aa été attribué à &e" + target.getName() + "&a."));
-            if (target.isOnline() && target.getPlayer() != null) {
-                target.getPlayer().sendMessage(formatMessage("&aVous avez débloqué le tag : " + ChatColor.translateAlternateColorCodes('&', displayName)));
+
+            Player onlineTarget = target.isOnline() ? target.getPlayer() : null;
+            if (onlineTarget != null) {
+                onlineTarget.sendMessage(formatMessage("&aVous avez débloqué le tag : " + ChatColor.translateAlternateColorCodes('&', displayName)));
+                onlineTarget.sendMessage(formatMessage("&7Vous pouvez l'activer dans &e/profile &7> &ePersonnaliser mes Tags&7."));
+
+                // Équipe automatiquement le tag s'il n'en a pas d'autre actif
+                String currentActive = tagManager.getActiveCustomTag(target.getUniqueId());
+                if (currentActive == null || !tagManager.hasUnlockedTag(target.getUniqueId(), currentActive)) {
+                    tagManager.setActiveCustomTag(target.getUniqueId(), tagId);
+                    tagManager.updatePlayerNametag(onlineTarget);
+                    onlineTarget.sendMessage(formatMessage("&aTag équipé automatiquement."));
+                }
+
+                // Annonce aux staff en ligne
+                Bukkit.getOnlinePlayers().stream()
+                        .filter(p -> p.hasPermission("cantale.moderator") && !p.getUniqueId().equals(onlineTarget.getUniqueId()))
+                        .forEach(staff -> staff.sendMessage(formatMessage("&7[&eStaff&7] &e" + target.getName() + " &aa débloqué le tag " + ChatColor.translateAlternateColorCodes('&', displayName) + "&a.")));
             }
         } else {
             sender.sendMessage(formatMessage("&cErreur lors de l'attribution du tag."));
@@ -156,12 +195,47 @@ public class TagCommand implements CommandExecutor, TabCompleter {
         }
     }
 
+    private void handleColor(CommandSender sender, String[] args) {
+        if (args.length < 3) {
+            sender.sendMessage(formatMessage("&cUsage: /tag color <id> <couleur>"));
+            sender.sendMessage(formatMessage("&7Exemple: /tag color champion &6&l[Champion]"));
+            return;
+        }
+
+        String tagId = args[1].toLowerCase();
+        String newDisplay = String.join(" ", Arrays.copyOfRange(args, 2, args.length));
+
+        if (tagManager.getCustomTagDisplayName(tagId) == null) {
+            sender.sendMessage(formatMessage("&cLe tag &e" + tagId + " &cn'existe pas."));
+            return;
+        }
+
+        if (tagManager.updateCustomTagDisplayName(tagId, newDisplay)) {
+            sender.sendMessage(formatMessage("&aCouleur/nom du tag &e" + tagId + " &amodifié en : " + ChatColor.translateAlternateColorCodes('&', newDisplay)));
+            // Mettre à jour les joueurs qui ont ce tag actif
+            Bukkit.getOnlinePlayers().forEach(p -> {
+                String active = tagManager.getActiveCustomTag(p.getUniqueId());
+                if (tagId.equalsIgnoreCase(active)) {
+                    tagManager.updatePlayerNametag(p);
+                }
+            });
+        } else {
+            sender.sendMessage(formatMessage("&cErreur lors de la modification du tag."));
+        }
+    }
+
+    private void handleEdit(CommandSender sender, String[] args) {
+        // Alias de handleColor pour une commande plus intuitive
+        handleColor(sender, args);
+    }
+
     private void sendHelp(CommandSender sender) {
         sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&8[§6Cantale§8] &7=== Modération des Tags ==="));
         sender.sendMessage(formatMessage("&7/tag create <id> <nom_affichage> &e- Créer un tag"));
         sender.sendMessage(formatMessage("&7/tag delete <id> &e- Supprimer un tag"));
         sender.sendMessage(formatMessage("&7/tag add <joueur> <id> &e- Donner un tag"));
         sender.sendMessage(formatMessage("&7/tag remove <joueur> <id> &e- Retirer un tag"));
+        sender.sendMessage(formatMessage("&7/tag color <id> <couleur> &e- Modifier l'affichage d'un tag"));
         sender.sendMessage(formatMessage("&7/tag list &e- Voir la liste des tags"));
     }
 
@@ -177,7 +251,7 @@ public class TagCommand implements CommandExecutor, TabCompleter {
         }
 
         if (args.length == 1) {
-            return Arrays.asList("create", "delete", "add", "give", "remove", "list").stream()
+            return Arrays.asList("create", "delete", "add", "give", "remove", "list", "color", "edit").stream()
                     .filter(s -> s.startsWith(args[0].toLowerCase()))
                     .collect(Collectors.toList());
         }
@@ -198,7 +272,7 @@ public class TagCommand implements CommandExecutor, TabCompleter {
 
         if (args.length == 3) {
             String sub = args[0].toLowerCase();
-            if (sub.equals("add") || sub.equals("give")) {
+            if (sub.equals("add") || sub.equals("give") || sub.equals("color") || sub.equals("edit")) {
                 // Proposer tous les tags existants
                 return new ArrayList<>(tagManager.getAllCustomTags().keySet());
             }

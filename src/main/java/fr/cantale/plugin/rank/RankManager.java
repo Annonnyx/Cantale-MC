@@ -35,7 +35,10 @@ public class RankManager {
     }
 
     public boolean setRank(UUID uuid, PlayerRank rank) {
-        String sql = "INSERT OR REPLACE INTO player_permissions (uuid, role, updated_at) VALUES (?, ?, ?)";
+        String sql = plugin.getDatabaseManager().isSQLite()
+                ? "INSERT OR REPLACE INTO player_permissions (uuid, role, updated_at) VALUES (?, ?, ?)"
+                : "INSERT INTO player_permissions (uuid, role, updated_at) VALUES (?, ?, ?) " +
+                  "ON DUPLICATE KEY UPDATE role = VALUES(role), updated_at = VALUES(updated_at)";
         try (Connection conn = plugin.getDatabaseManager().getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setString(1, uuid.toString());
@@ -117,7 +120,10 @@ public class RankManager {
             stmt.setString(2, uuid.toString());
             int updated = stmt.executeUpdate();
             if (updated == 0) {
-                String insert = "INSERT OR REPLACE INTO player_permissions (uuid, role, updated_at, last_monthly_lives) VALUES (?, ?, ?, ?)";
+                String insert = plugin.getDatabaseManager().isSQLite()
+                        ? "INSERT OR REPLACE INTO player_permissions (uuid, role, updated_at, last_monthly_lives) VALUES (?, ?, ?, ?)"
+                        : "INSERT INTO player_permissions (uuid, role, updated_at, last_monthly_lives) VALUES (?, ?, ?, ?) " +
+                          "ON DUPLICATE KEY UPDATE role = VALUES(role), updated_at = VALUES(updated_at), last_monthly_lives = VALUES(last_monthly_lives)";
                 try (PreparedStatement ins = conn.prepareStatement(insert)) {
                     ins.setString(1, uuid.toString());
                     PlayerRank rank = getRank(uuid);
@@ -143,22 +149,31 @@ public class RankManager {
 
     /**
      * Grant daily Cantox bonus if the player hasn't received it today.
-     * Returns the amount granted, or 0 if already received today.
+     * baseAmount is granted to everyone, plus the rank's daily bonus.
+     * Returns the total amount granted, or 0 if already received today.
      */
-    public int grantDailyCantox(Player player) {
-        PlayerRank rank = getRank(player);
-        if (rank == PlayerRank.NONE) return 0;
+    public int grantDailyCantox(Player player, int baseAmount) {
+        return grantDailyCantox(player.getUniqueId(), baseAmount);
+    }
+
+    /**
+     * Version UUID pour les réclamations hors ligne (ex: Discord).
+     */
+    public int grantDailyCantox(UUID uuid, int baseAmount) {
+        PlayerRank rank = getRank(uuid);
 
         String today = LocalDate.now().toString();
-        String lastClaim = getLastCantoxClaim(player.getUniqueId());
+        String lastClaim = getLastCantoxClaim(uuid);
 
         if (today.equals(lastClaim)) return 0; // Already claimed today
 
-        // Grant the bonus
-        plugin.getEconomyManager().deposit(player, rank.getDailyCantox());
-        setLastCantoxClaim(player.getUniqueId(), today);
+        int total = Math.max(0, baseAmount) + rank.getDailyCantox();
+        if (total <= 0) return 0;
 
-        return rank.getDailyCantox();
+        plugin.getEconomyManager().addBalance(uuid, total);
+        setLastCantoxClaim(uuid, today);
+
+        return total;
     }
 
     private String getLastCantoxClaim(UUID uuid) {
@@ -177,7 +192,6 @@ public class RankManager {
     }
 
     private void setLastCantoxClaim(UUID uuid, String date) {
-        // Ensure the column exists
         ensureCantoxClaimColumn();
 
         String sql = "UPDATE player_permissions SET last_cantox_claim = ? WHERE uuid = ?";
@@ -187,8 +201,10 @@ public class RankManager {
             stmt.setString(2, uuid.toString());
             int updated = stmt.executeUpdate();
             if (updated == 0) {
-                // Row doesn't exist, insert it
-                String insert = "INSERT OR REPLACE INTO player_permissions (uuid, role, updated_at, last_cantox_claim) VALUES (?, ?, ?, ?)";
+                String insert = plugin.getDatabaseManager().isSQLite()
+                        ? "INSERT OR REPLACE INTO player_permissions (uuid, role, updated_at, last_cantox_claim) VALUES (?, ?, ?, ?)"
+                        : "INSERT INTO player_permissions (uuid, role, updated_at, last_cantox_claim) VALUES (?, ?, ?, ?) " +
+                          "ON DUPLICATE KEY UPDATE role = VALUES(role), updated_at = VALUES(updated_at), last_cantox_claim = VALUES(last_cantox_claim)";
                 try (PreparedStatement ins = conn.prepareStatement(insert)) {
                     ins.setString(1, uuid.toString());
                     PlayerRank rank = getRank(uuid);

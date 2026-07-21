@@ -88,32 +88,34 @@ public class TutorialManager {
     }
 
     /**
-     * Retourne le message du tutoriel selon la progression
+     * Retourne le message du tutoriel selon la progression.
+     * Les couleurs sont choisies pour être lisibles sur le fond clair du chat Minecraft.
+     * Pas de jaune (&e) sur blanc, on utilise du bleu foncé (&1/&3), du rouge (&c) et du gris (&8).
      */
     private String getTutorialMessage(int progress) {
         switch (progress) {
             case 0:
-                return "&eBienvenue sur Cantale !\n&7Ce serveur est un serveur de factions avec des mécaniques uniques.\n&7Créez une faction avec /f create <nom> pour commencer.";
+                return "&1&lBienvenue sur Cantale !\n&8Un serveur Hardcore Faction avec des mécaniques uniques.\n&8Crée ta faction avec &3/f create <nom> &8pour commencer.";
             case 10:
-                return "&eLes Factions\n&7Les factions vous permettent de claim des terres et de vous battre pour le territoire.\n&7Utilisez /f claim pour claim votre chunk actuel.";
+                return "&1&lLes Factions\n&8Les factions te permettent de claim des terres et de te battre pour le territoire.\n&8Utilise &3/f claim &8pour claim ton chunk actuel.";
             case 20:
-                return "&eLe Pouvoir\n&7Le pouvoir de votre faction détermine vos limites (claims, fhomes, warps).\n&7Plus vous avez de membres actifs, plus votre pouvoir augmente.";
+                return "&1&lLe Pouvoir\n&8Le pouvoir de ta faction détermine tes limites : claims, fhomes, warps.\n&8Plus tes membres sont actifs, plus ton pouvoir augmente.";
             case 30:
-                return "&eLes Vies\n&7Vous avez 3 vies au départ. Si vous perdez toutes vos vies, vous serez banni !\n&7Gagnez des vies en tuant des mobs ou en recevant des vies d'autres joueurs.";
+                return "&c&lLes Vies\n&8Tu as 3 vies au départ. Si tu perds toutes tes vies, tu es banni !\n&8Gagne des vies en tuant des mobs, en votant ou via d'autres joueurs.";
             case 40:
-                return "&eL'Économie\n&7La monnaie est le Cantox. Gagnez-en en vendant des ressources ou en minant.\n&7Utilisez /balance pour voir votre solde.";
+                return "&1&lL'Économie\n&8La monnaie est le &3Cantox&8. Gagne-en en vendant des ressources, en minant ou en votant.\n&8Utilise &3/balance &8pour voir ton solde.";
             case 50:
-                return "&eLes Warps\n&7Utilisez /warp <nom> pour vous téléporter à des points d'intérêt.\n&7Utilisez /setwarp <nom> pour créer vos propres warps.";
+                return "&1&lLes Warps\n&8Utilise &3/warp <nom> &8pour te téléporter à un point d'intérêt.\n&8Utilise &3/setwarp <nom> &8pour créer tes propres warps.";
             case 60:
-                return "&eLe RTP\n&7Utilisez /rtp pour vous téléporter aléatoirement dans le monde.\n&7Attention : cooldown de 1 minute !";
+                return "&1&lLe RTP\n&8Utilise &3/rtp &8pour te téléporter aléatoirement dans le monde.\n&cAttention : cooldown de quelques minutes !";
             case 70:
-                return "&eL'Auction House\n&7Utilisez /ah pour acheter et vendre des objets aux autres joueurs.\n&7C'est un excellent moyen de gagner des Cantox.";
+                return "&1&lL'Hôtel des Ventes\n&8Utilise &3/ah &8pour acheter et vendre des objets aux autres joueurs.\n&8C'est un excellent moyen de gagner des Cantox.";
             case 80:
-                return "&eLa Protection\n&7Le spawn et les warps sont protégés : impossible de claim ou build autour.\n&7Respectez les zones protégées !";
+                return "&1&lLa Protection\n&8Le spawn et les warps sont protégés : impossible de claim ou build autour.\n&8Respecte les zones protégées !";
             case 90:
-                return "&eRègles Importantes\n&7- Pas de griefing en dehors des guerres\n&7- Pas de cheats ou hacks\n&7- Respectez les autres joueurs\n\n&eVous y êtes presque !";
+                return "&c&lRègles Importantes\n&8- Pas de griefing en dehors des guerres\n&8- Pas de cheats ou hacks\n&8- Respecte les autres joueurs\n\n&3Tu y es presque !";
             default:
-                return "&eFélicitations !";
+                return "&3&lFélicitations !";
         }
     }
 }

@@ -36,7 +36,19 @@ public class SpawnCommand implements CommandExecutor {
         }
 
         Location spawn = plugin.getServer().getWorld("world").getSpawnLocation();
-        
+
+        int delay = plugin.getTeleportDelayManager().getTeleportDelay(player);
+        if (spawn != null) {
+            if (delay > 0) {
+                long ticksBefore = Math.max(0, (delay - 1) * 20L);
+                plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+                    if (spawn.getWorld() != null) spawn.getChunk().load(true);
+                }, ticksBefore);
+            } else {
+                spawn.getChunk().load(true);
+            }
+        }
+
         plugin.getTeleportDelayManager().delayTeleport(player, () -> {
             player.teleport(spawn);
             player.sendMessage("§8[§6Cantale§8] §aTéléportation au spawn !");

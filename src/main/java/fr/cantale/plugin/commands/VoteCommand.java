@@ -5,6 +5,7 @@ import fr.cantale.plugin.vote.VoteDAO;
 import fr.cantale.plugin.vote.VoteListener;
 import fr.cantale.plugin.vote.VoteReward;
 import fr.cantale.plugin.vote.VoteRewardManager;
+import fr.cantale.plugin.vote.VoteSite;
 import org.bukkit.ChatColor;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
@@ -57,21 +58,13 @@ public class VoteCommand implements CommandExecutor, TabCompleter {
         sender.sendMessage(format("&8&m─────────&r &8[&6Vote Cantale&8] &8&m─────────"));
         sender.sendMessage(format("&7Votez pour Cantale et obtenez des récompenses !"));
         sender.sendMessage("");
-        List<String> sites = plugin.getConfig().getStringList("vote.sites");
+        List<VoteSite> sites = VoteListener.loadSites();
         if (sites.isEmpty()) {
-            // Liste par défaut
-            sites = List.of(
-                    "Serveurs-Minecraft.fr|https://serveurs-minecraft.fr/serveur-Cantale.000000",
-                    "Top-Serveurs.net|https://top-serveurs.net/minecraft/cantale",
-                    "Serveur-Prive.net|https://serveur-prive.net/minecraft/cantale-000",
-                    "List-Serveurs.com|https://list-serveurs.com/serveur/cantale"
-            );
+            sender.sendMessage(format("&cAucun site de vote configuré."));
         }
-        for (String entry : sites) {
-            String[] parts = entry.split("\\|", 2);
-            String name = parts[0];
-            String url = parts.length > 1 ? parts[1] : "";
-            sender.sendMessage(format("&7▶ &e" + name + " &8→ &b&n" + url));
+        for (VoteSite site : sites) {
+            sender.sendMessage(format("&7▶ &e" + site.displayName() + " &8→ &b&n" + site.url()
+                    + " &8(&7" + site.crateCount() + " Cadeau(x) du Roi&8)"));
         }
         sender.sendMessage("");
         sender.sendMessage(format("&7Récompenses : &7Commun &8| &9Rare &8| &5Épique &8| &6Légendaire"));
@@ -101,12 +94,13 @@ public class VoteCommand implements CommandExecutor, TabCompleter {
             VoteReward.Tier tier;
             try { tier = VoteReward.Tier.valueOf(pv.tier()); }
             catch (Exception e) { tier = VoteReward.Tier.COMMUN; }
+            VoteSite site = resolveSite(pv.site());
             VoteReward reward = rewardManager.roll(switch (tier) {
                 case LEGENDAIRE -> 999;
                 case EPIQUE -> 30;
                 case RARE -> 7;
                 case COMMUN -> 1;
-            });
+            }, site);
             rewardManager.deliverTo(player, reward);
             voteDAO.markDelivered(pv.id());
             player.sendMessage(format("&aRécompense " + tier.getDisplayName() + " &a: &e" + reward.getSummary()
@@ -136,8 +130,16 @@ public class VoteCommand implements CommandExecutor, TabCompleter {
             return;
         }
         sender.sendMessage(format("&7Total des votes : &e" + stats.totalVotes()));
-        sender.sendMessage(format("&7Streak actuelle : &6" + stats.streakDays() + " &7jour(s)"));
+        sender.sendMessage(format("&7Votes ce mois : &e" + stats.monthlyVotes()));
+        sender.sendMessage(format("&7Streak actuelle : &6" + stats.streakDays() + " jour(s)"));
         sender.sendMessage(format("&7Bonus actuel : " + bonusLabel(stats.streakDays())));
+    }
+
+    private VoteSite resolveSite(String siteName) {
+        for (VoteSite site : VoteListener.loadSites()) {
+            if (siteName != null && siteName.equalsIgnoreCase(site.displayName())) return site;
+        }
+        return null;
     }
 
     private String bonusLabel(int streak) {

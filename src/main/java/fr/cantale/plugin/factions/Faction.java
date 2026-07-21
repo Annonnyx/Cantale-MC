@@ -110,20 +110,20 @@ public class Faction {
         this.power = Math.max(0, this.power - amount);
     }
 
-    // Claims max = pouvoir / 10
+    // Claims max = pouvoir / 10, minimum 5 pour permettre quelques claims dès la création
     public int getMaxClaims() {
-        return power / 10;
+        return Math.max(5, power / 10);
     }
 
-    // Fhomes pool = pouvoir / 20
+    // Fhomes pool = pouvoir / 20, minimum 1
     public int getMaxFhomes() {
-        return power / 20;
+        return Math.max(1, power / 20);
     }
 
-    // Warps : 1 à 600, puis +1 tous les +300
+    // Warps : 1 à 60, puis +1 tous les +30
     public int getMaxWarps() {
-        if (power < 600) return 1;
-        return 1 + (power - 600) / 300;
+        if (power < 60) return 1;
+        return 1 + (power - 60) / 30;
     }
 
     // Tiers de faction

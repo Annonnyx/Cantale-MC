@@ -25,11 +25,17 @@ public class HomeManager {
 
     private int getMaxHomes(Player player) {
         PlayerRank rank = plugin.getRankManager().getRank(player);
+        if (rank == PlayerRank.ADMIN || rank == PlayerRank.OWNER) {
+            return Integer.MAX_VALUE;
+        }
         return rank.getMaxHomes();
     }
 
     private int getMaxHomes(UUID uuid) {
         PlayerRank rank = plugin.getRankManager().getRank(uuid);
+        if (rank == PlayerRank.ADMIN || rank == PlayerRank.OWNER) {
+            return Integer.MAX_VALUE;
+        }
         return rank.getMaxHomes();
     }
 
@@ -39,7 +45,7 @@ public class HomeManager {
 
         int maxHomes = getMaxHomes(player);
         if (homes.size() >= maxHomes && !homes.containsKey(name)) {
-            player.sendMessage("§8[§6Cantale§8] §cVous avez atteint la limite de " + maxHomes + " homes.");
+            player.sendMessage("§8[§6Cantale§8] §cVous avez atteint la limite de " + (maxHomes == Integer.MAX_VALUE ? "∞" : maxHomes) + " homes.");
             return false;
         }
 
@@ -86,6 +92,22 @@ public class HomeManager {
         }
 
         Location loc = homes.get(name).getLocation();
+
+        int delay = plugin.getTeleportDelayManager().getTeleportDelay(player);
+        if (loc != null && loc.getWorld() != null) {
+            plugin.getChunkLoader().preloadChunksAround(loc, 1);
+            if (delay > 0) {
+                long ticksBefore = Math.max(0, (delay - 1) * 20L);
+                plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+                    if (loc.getWorld() != null) {
+                        loc.getWorld().getChunkAtAsync(loc.getBlockX() >> 4, loc.getBlockZ() >> 4);
+                    }
+                }, ticksBefore);
+            } else {
+                loc.getWorld().getChunkAtAsync(loc.getBlockX() >> 4, loc.getBlockZ() >> 4);
+            }
+        }
+
         plugin.getTeleportDelayManager().delayTeleport(player, () -> {
             player.teleport(loc);
             player.sendMessage("§8[§6Cantale§8] §aTéléporté au home §e" + name + "§a.");

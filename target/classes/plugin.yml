@@ -4,6 +4,7 @@ main: fr.cantale.plugin.CantalePlugin
 api-version: 1.20
 author: Cantale
 description: Plugin Minecraft complet avec factions, économie, vies hardcore, et plus encore
+api-version: 1.21
 softdepend:
   - Votifier
   - NuVotifier
@@ -82,15 +83,15 @@ commands:
   moderation:
     description: Outils de modération
     usage: /moderation <kick|mute|unmute|tp|tphere|vanish>
-    permission: cantale.admin
+    permission: cantale.moderator
   vanish:
     description: Activer/désactiver le vanish
     usage: /vanish
-    permission: cantale.admin
+    permission: cantale.moderator
   modhelp:
     description: Aide pour les commandes de modération
     usage: /modhelp
-    permission: cantale.admin
+    permission: cantale.moderator
   wanted:
     description: Système de primes
     usage: /wanted [add|list]
@@ -123,15 +124,29 @@ commands:
     description: Ouvrir l'Ender Chest
     usage: /ec
   pc2:
-    description: 2ème coffre privé (grade Chèvre)
+    description: 2ème coffre privé (grade VIP ou Chèvre)
     usage: /pc2
+  pc3:
+    description: 3ème coffre privé (grade Chèvre)
+    usage: /pc3
   rank:
     description: Gérer les grades des joueurs (admin)
-    usage: /rank <set|remove|info> <joueur> [AVENTURIER|VIP|CHEVRE|NONE]
+    usage: /rank <set|remove|info> <joueur> [OWNER|ADMIN|MODERATOR|AVENTURIER|VIP|CHEVRE|NONE]
     permission: cantale.admin
   day:
     description: Afficher le jour et l'heure Minecraft
     usage: /day
+  daily:
+    description: Réclame ta récompense quotidienne
+    usage: /daily
+    aliases: [journalier]
+  bvn:
+    description: Souhaite la bienvenue à un nouveau joueur
+    usage: /bvn <pseudo>
+  crate:
+    description: Donner des caisses (admin)
+    usage: /crate give <joueur> <vote|rare|epic|mythic|legendary> [quantité]
+    permission: cantale.admin
   listemorts:
     description: Afficher la liste des joueurs morts définitivement
     usage: /listemorts
@@ -148,11 +163,19 @@ commands:
     aliases: [website, site]
   tag:
     description: Gérer les tags des joueurs
-    usage: /tag <create|delete|add|remove|list>
+    usage: /tag <create|delete|add|remove|color|edit|list>
     permission: cantale.moderator
   discord:
     description: Envoyer un message sur Discord depuis Minecraft
-    usage: /discord <message|joueur> [message]
+    usage: /discord <message|mp <joueur> <message>|joueur> [message]
+  say:
+    description: [Owner] Faire parler le bot en jeu
+    usage: /say <message>
+  anticheat:
+    description: Commande d'administration du système Anti-Cheat
+    usage: /anticheat
+    aliases: [ac]
+    permission: cantale.admin
 
 permissions:
   cantale.givevie:
@@ -167,3 +190,11 @@ permissions:
     children:
       cantale.givevie: true
       cantale.moderator: true
+      cantale.anticheat.alerts: true
+      cantale.anticheat.bypass: true
+  cantale.anticheat.alerts:
+    description: Permet de recevoir les alertes de triche en jeu
+    default: false
+  cantale.anticheat.bypass:
+    description: Permet de bypasser les vérifications de triche
+    default: false

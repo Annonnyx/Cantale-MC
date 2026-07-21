@@ -50,37 +50,68 @@ public class DiscordCommand implements CommandExecutor, TabCompleter {
         }
 
         if (args.length == 0) {
-            player.sendMessage(formatMessage("&eUsage: /discord <message> &7— Envoie un message sur Discord"));
-            player.sendMessage(formatMessage("&eUsage: /discord <joueur> <message> &7— Envoie un MP Discord au joueur lié"));
+            sendHelp(player);
             return true;
         }
 
-        // Déterminer si le premier argument est un joueur existant en BDD avec un lien Discord
-        // On tente de résoudre comme un joueur : s'il existe un lien discord pour args[0], c'est un /discord <joueur> <message>
-        // Sinon, on considère tout comme un message public
-        String possiblePlayer = args[0];
+        String first = args[0].toLowerCase();
 
-        // Si un seul argument, c'est forcément un message public (pas un joueur sans message)
-        if (args.length == 1) {
-            sendPublicMessage(player, args[0], bot);
-            return true;
-        }
-
-        // Essayer de résoudre le premier argument comme un joueur lié
-        org.bukkit.Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
-            String discordId = getDiscordIdForPlayer(possiblePlayer);
-            if (discordId != null && args.length >= 2) {
-                // C'est un /discord <joueur> <message> — envoyer un MP
-                String message = String.join(" ", Arrays.copyOfRange(args, 1, args.length));
-                sendPrivateMessage(player, possiblePlayer, discordId, message, bot);
-            } else {
-                // Pas de joueur lié trouvé → envoyer tout comme message public
-                String message = String.join(" ", args);
-                org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> sendPublicMessage(player, message, bot));
+        // Syntaxe explicite pour MP : /discord mp <joueur> <message>
+        if (first.equals("mp") || first.equals("msg") || first.equals("pm")) {
+            if (args.length < 3) {
+                player.sendMessage(formatMessage("&cUsage: /discord mp <joueur> <message>"));
+                return true;
             }
-        });
+            String targetName = args[1];
+            String message = String.join(" ", Arrays.copyOfRange(args, 2, args.length));
+            org.bukkit.Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+                String discordId = getDiscordIdForPlayer(targetName);
+                if (discordId == null) {
+                    // Fallback JDA pour les anciens liens sans noms Discord stockés
+                    discordId = resolveDiscordIdByJda(targetName, bot);
+                }
+                final String finalDiscordId = discordId;
+                if (finalDiscordId == null) {
+                    org.bukkit.Bukkit.getScheduler().runTask(plugin, () ->
+                        player.sendMessage(formatMessage("&cCe joueur n'a pas lié son compte Discord.")));
+                    return;
+                }
+                sendPrivateMessage(player, targetName, finalDiscordId, message, bot);
+            });
+            return true;
+        }
 
+        // Syntaxe legacy : /discord <joueur> <message>
+        // On tente de résoudre le premier argument comme un joueur lié
+        if (args.length >= 2) {
+            String possiblePlayer = args[0];
+            org.bukkit.Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+                String discordId = getDiscordIdForPlayer(possiblePlayer);
+                if (discordId == null) {
+                    // Fallback JDA pour les anciens liens sans noms Discord stockés
+                    discordId = resolveDiscordIdByJda(possiblePlayer, bot);
+                }
+                if (discordId != null) {
+                    String message = String.join(" ", Arrays.copyOfRange(args, 1, args.length));
+                    sendPrivateMessage(player, possiblePlayer, discordId, message, bot);
+                } else {
+                    String message = String.join(" ", args);
+                    org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> sendPublicMessage(player, message, bot));
+                }
+            });
+            return true;
+        }
+
+        // Un seul argument = message public
+        sendPublicMessage(player, args[0], bot);
         return true;
+    }
+
+    private void sendHelp(Player player) {
+        player.sendMessage("§8[§6Cantale§8] §7Rejoins notre serveur Discord pour lier ton compte et participer aux giveaways : §ehttps://discord.gg/eDTfYWtuYp");
+        player.sendMessage(formatMessage("&e/discord <message> &7— Envoie un message sur Discord"));
+        player.sendMessage(formatMessage("&e/discord mp <joueur|discord> <message> &7— Envoie un MP Discord au joueur lié"));
+        player.sendMessage(formatMessage("&7Vous pouvez utiliser le pseudo Minecraft ou le pseudo Discord (@username)."));
     }
 
     private void sendPublicMessage(Player player, String message, DiscordBot bot) {
@@ -152,22 +183,38 @@ public class DiscordCommand implements CommandExecutor, TabCompleter {
 
     private String getDiscordIdForPlayer(String playerName) {
         try (Connection conn = plugin.getDatabaseManager().getConnection()) {
-            // D'abord récupérer l'UUID du joueur
+            boolean sqlite = plugin.getDatabaseManager().isSQLite();
+
+            // 1. Recherche par nom Minecraft
             String uuid = null;
-            try (PreparedStatement stmt = conn.prepareStatement(
-                    "SELECT uuid FROM players WHERE username = ? COLLATE NOCASE")) {
+            String uuidSql = sqlite
+                    ? "SELECT uuid FROM players WHERE username = ? COLLATE NOCASE"
+                    : "SELECT uuid FROM players WHERE LOWER(username) = LOWER(?)";
+            try (PreparedStatement stmt = conn.prepareStatement(uuidSql)) {
                 stmt.setString(1, playerName);
                 ResultSet rs = stmt.executeQuery();
                 if (rs.next()) {
                     uuid = rs.getString("uuid");
                 }
             }
-            if (uuid == null) return null;
+            if (uuid != null) {
+                try (PreparedStatement stmt = conn.prepareStatement(
+                        "SELECT discord_id FROM discord_links WHERE uuid = ?")) {
+                    stmt.setString(1, uuid);
+                    ResultSet rs = stmt.executeQuery();
+                    if (rs.next()) {
+                        return rs.getString("discord_id");
+                    }
+                }
+            }
 
-            // Ensuite chercher le lien Discord
-            try (PreparedStatement stmt = conn.prepareStatement(
-                    "SELECT discord_id FROM discord_links WHERE uuid = ?")) {
-                stmt.setString(1, uuid);
+            // 2. Recherche par nom Discord (username ou display name global)
+            String discordSql = sqlite
+                    ? "SELECT discord_id FROM discord_links WHERE discord_username = ? COLLATE NOCASE OR discord_display_name = ? COLLATE NOCASE"
+                    : "SELECT discord_id FROM discord_links WHERE LOWER(discord_username) = LOWER(?) OR LOWER(discord_display_name) = LOWER(?)";
+            try (PreparedStatement stmt = conn.prepareStatement(discordSql)) {
+                stmt.setString(1, playerName);
+                stmt.setString(2, playerName);
                 ResultSet rs = stmt.executeQuery();
                 if (rs.next()) {
                     return rs.getString("discord_id");
@@ -179,13 +226,51 @@ public class DiscordCommand implements CommandExecutor, TabCompleter {
         return null;
     }
 
+    /**
+     * Fallback JDA pour les liens créés avant l'ajout des colonnes discord_username/display_name.
+     * Compare le nom fourni avec le username Discord et le display name global.
+     */
+    private String resolveDiscordIdByJda(String playerName, DiscordBot bot) {
+        try (Connection conn = plugin.getDatabaseManager().getConnection();
+             PreparedStatement stmt = conn.prepareStatement("SELECT discord_id FROM discord_links");
+             ResultSet rs = stmt.executeQuery()) {
+            while (rs.next()) {
+                String discordId = rs.getString("discord_id");
+                try {
+                    User user = bot.getJda().retrieveUserById(discordId).complete();
+                    if (user != null) {
+                        String username = user.getName();
+                        String globalName = user.getGlobalName();
+                        if (username.equalsIgnoreCase(playerName) ||
+                            (globalName != null && globalName.equalsIgnoreCase(playerName))) {
+                            return discordId;
+                        }
+                    }
+                } catch (Exception ignored) {
+                    // Utilisateur introuvable ou erreur JDA
+                }
+            }
+        } catch (Exception e) {
+            plugin.getLogger().warning("[DiscordCommand] Erreur resolveDiscordIdByJda: " + e.getMessage());
+        }
+        return null;
+    }
+
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         if (args.length == 1) {
-            // Proposer les joueurs en ligne
+            List<String> suggestions = new ArrayList<>(Arrays.asList("mp", "msg", "pm"));
+            suggestions.addAll(org.bukkit.Bukkit.getOnlinePlayers().stream()
+                .map(Player::getName)
+                .collect(Collectors.toList()));
+            return suggestions.stream()
+                .filter(name -> name.toLowerCase().startsWith(args[0].toLowerCase()))
+                .collect(Collectors.toList());
+        }
+        if (args.length == 2 && (args[0].equalsIgnoreCase("mp") || args[0].equalsIgnoreCase("msg") || args[0].equalsIgnoreCase("pm"))) {
             return org.bukkit.Bukkit.getOnlinePlayers().stream()
                 .map(Player::getName)
-                .filter(name -> name.toLowerCase().startsWith(args[0].toLowerCase()))
+                .filter(name -> name.toLowerCase().startsWith(args[1].toLowerCase()))
                 .collect(Collectors.toList());
         }
         return Collections.emptyList();

@@ -35,14 +35,10 @@ public class CustomItemManager {
             addCantaxeLore(type, lore);
         } else if (type.isMultiCantool()) {
             addMultiCantoolLore(type, lore);
-        } else if (type.isStatioLytras()) {
-            addStatioLytrasLore(lore);
         } else if (type.isCantalame()) {
             addCantalameLore(lore);
         } else if (type == CustomItemType.VIE) {
             addVieLore(lore);
-        } else if (type.isRuneFortification()) {
-            addRuneFortificationLore(lore);
         }
 
         meta.setLore(lore);
@@ -103,24 +99,10 @@ public class CustomItemManager {
         }
     }
 
-    private void addStatioLytrasLore(List<String> lore) {
-        lore.add(ChatColor.AQUA + "Vol créatif (pas de boost)");
-        lore.add(ChatColor.RED + "Uniquement dans claims faction");
-        lore.add(ChatColor.RED + "Non-craftable");
-    }
-
     private void addCantalameLore(List<String> lore) {
         lore.add(ChatColor.AQUA + "Épée évolutive");
         lore.add(ChatColor.GRAY + "Gagne en puissance avec chaque kill unique");
         lore.add(ChatColor.GRAY + "Maximum : 100 kills uniques");
-        lore.add(ChatColor.RED + "Non-craftable");
-    }
-
-    private void addRuneFortificationLore(List<String> lore) {
-        lore.add(ChatColor.AQUA + "Rune de Fortification");
-        lore.add(ChatColor.GRAY + "Clic-droit sur un block pour le fortifier");
-        lore.add(ChatColor.GRAY + "Le block devient incassable par les non-factions");
-        lore.add(ChatColor.GRAY + "Consomme 1 rune par block");
         lore.add(ChatColor.RED + "Non-craftable");
     }
 
@@ -133,37 +115,37 @@ public class CustomItemManager {
 
     private void addPickantiseEnchantments(CustomItemType type, ItemMeta meta) {
         if (type.name().contains("IRON")) {
-            meta.addEnchant(Enchantment.DURABILITY, 5, true);
-            meta.addEnchant(Enchantment.DIG_SPEED, 5, true);
+            meta.addEnchant(Enchantment.UNBREAKING, 5, true);
+            meta.addEnchant(Enchantment.EFFICIENCY, 5, true);
         } else if (type.name().contains("DIAMOND")) {
-            meta.addEnchant(Enchantment.DURABILITY, 7, true);
-            meta.addEnchant(Enchantment.DIG_SPEED, 7, true);
+            meta.addEnchant(Enchantment.UNBREAKING, 7, true);
+            meta.addEnchant(Enchantment.EFFICIENCY, 7, true);
         } else if (type.name().contains("NETHERITE")) {
-            meta.addEnchant(Enchantment.DIG_SPEED, 10, true);
+            meta.addEnchant(Enchantment.EFFICIENCY, 10, true);
             // Netherite = infini (pas de durabilité)
         }
     }
 
     private void addCantaxeEnchantments(CustomItemType type, ItemMeta meta) {
         if (type.name().contains("IRON")) {
-            meta.addEnchant(Enchantment.DIG_SPEED, 5, true);
+            meta.addEnchant(Enchantment.EFFICIENCY, 5, true);
         } else if (type.name().contains("DIAMOND")) {
-            meta.addEnchant(Enchantment.DIG_SPEED, 7, true);
+            meta.addEnchant(Enchantment.EFFICIENCY, 7, true);
         } else if (type.name().contains("NETHERITE")) {
-            meta.addEnchant(Enchantment.DIG_SPEED, 10, true);
+            meta.addEnchant(Enchantment.EFFICIENCY, 10, true);
         }
     }
 
     private void addMultiCantoolEnchantments(CustomItemType type, ItemMeta meta) {
         if (type.name().contains("IRON")) {
-            meta.addEnchant(Enchantment.DURABILITY, 5, true);
-            meta.addEnchant(Enchantment.DIG_SPEED, 5, true);
+            meta.addEnchant(Enchantment.UNBREAKING, 5, true);
+            meta.addEnchant(Enchantment.EFFICIENCY, 5, true);
         } else if (type.name().contains("DIAMOND")) {
-            meta.addEnchant(Enchantment.DURABILITY, 7, true);
-            meta.addEnchant(Enchantment.DIG_SPEED, 7, true);
+            meta.addEnchant(Enchantment.UNBREAKING, 7, true);
+            meta.addEnchant(Enchantment.EFFICIENCY, 7, true);
         } else if (type.name().contains("NETHERITE")) {
             // Netherite : pas de durabilité (infini)
-            meta.addEnchant(Enchantment.DIG_SPEED, 10, true);
+            meta.addEnchant(Enchantment.EFFICIENCY, 10, true);
         }
     }
 
@@ -273,9 +255,7 @@ public class CustomItemManager {
             case MULTI_CANTOOL_DIAMOND -> 19;
             case MULTI_CANTOOL_NETHERITE_1X1 -> 20;
             case MULTI_CANTOOL_NETHERITE -> 21;
-            case STATIO_LYTRAS -> 22;
             case CANTALAME -> 23;
-            case RUNE_FORTIFICATION -> 24;
             case VIE -> 25;
         };
     }

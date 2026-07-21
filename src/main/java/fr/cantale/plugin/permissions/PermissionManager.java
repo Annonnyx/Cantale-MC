@@ -2,6 +2,7 @@ package fr.cantale.plugin.permissions;
 
 import fr.cantale.plugin.CantalePlugin;
 import fr.cantale.plugin.database.DatabaseManager;
+import fr.cantale.plugin.rank.PlayerRank;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -12,6 +13,10 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
 
+/**
+ * Gestionnaire de permissions unifié basé sur PlayerRank.
+ * Les anciens rôles admin/moderator/vip/player sont mappés sur PlayerRank.
+ */
 public class PermissionManager {
 
     private final CantalePlugin plugin;
@@ -22,110 +27,24 @@ public class PermissionManager {
         this.databaseManager = plugin.getDatabaseManager();
     }
 
-    public enum Role {
-        OWNER("owner", 4),
-        ADMIN("admin", 3),
-        MODERATOR("moderator", 2),
-        VIP("vip", 1),
-        PLAYER("player", 0);
-
-        private final String name;
-        private final int level;
-
-        Role(String name, int level) {
-            this.name = name;
-            this.level = level;
-        }
-
-        public String getName() {
-            return name;
-        }
-
-        public int getLevel() {
-            return level;
-        }
-
-        public static Role fromString(String name) {
-            for (Role role : values()) {
-                if (role.name.equalsIgnoreCase(name)) {
-                    return role;
-                }
-            }
-            return PLAYER;
-        }
-    }
-
-    // Permissions pour chaque rôle
+    // Permissions pour OWNER (tout)
     private static final Set<String> OWNER_PERMISSIONS = new HashSet<>(Arrays.asList(
-        // Plugin Cantale - toutes les permissions
         "cantale.*",
         "cantale.admin",
         "cantale.moderator",
         "cantale.vip",
         "cantale.givevie",
         "cantale.owner",
-        // Minecraft - toutes les permissions
         "minecraft.*",
         "bukkit.*",
         "spigot.*"
     ));
 
-    private static final Set<String> ADMIN_PERMISSIONS = new HashSet<>(Arrays.asList(
-        // Plugin Cantale - admin
-        "cantale.admin",
-        "cantale.moderator",
-        "cantale.vip",
-        "cantale.givevie",
-        "cantale.customitem",
-        "cantale.pasdic",
-        "cantale.wanted",
-        // Minecraft - admin
-        "minecraft.command.*",
-        "minecraft.command.ban",
-        "minecraft.command.ban-ip",
-        "minecraft.command.kick",
-        "minecraft.command.op",
-        "minecraft.command.deop",
-        "minecraft.command.whitelist",
-        "minecraft.command.gamemode",
-        "minecraft.command.give",
-        "minecraft.command.tp",
-        "minecraft.command.teleport",
-        "minecraft.command.effect",
-        "minecraft.command.enchant",
-        "minecraft.command.xp",
-        "minecraft.command.time",
-        "minecraft.command.weather",
-        "minecraft.command.difficulty",
-        "minecraft.command.stop",
-        "minecraft.command.save-all",
-        "minecraft.command.save-on",
-        "minecraft.command.save-off",
-        "bukkit.command.*",
-        "bukkit.command.gamemode",
-        "bukkit.command.teleport",
-        "bukkit.command.kick",
-        "bukkit.command.ban",
-        "bukkit.command.ban.ip",
-        "bukkit.command.unban",
-        "bukkit.command.unban.ip",
-        "bukkit.command.op",
-        "bukkit.command.deop",
-        "bukkit.command.whitelist",
-        "bukkit.command.whitelist.add",
-        "bukkit.command.whitelist.remove",
-        "bukkit.command.whitelist.list",
-        "bukkit.command.whitelist.reload",
-        "bukkit.command.whitelist.enable",
-        "bukkit.command.whitelist.disable"
-    ));
-
+    // Permissions pour MODERATOR
     private static final Set<String> MODERATOR_PERMISSIONS = new HashSet<>(Arrays.asList(
-        // Plugin Cantale - modération
         "cantale.moderator",
         "cantale.vip",
         "cantale.givevie",
-        // Minecraft - modération
         "minecraft.command.kick",
         "minecraft.command.mute",
         "minecraft.command.ban",
@@ -145,10 +64,9 @@ public class PermissionManager {
         "bukkit.command.whitelist.list"
     ));
 
+    // Permissions pour VIP
     private static final Set<String> VIP_PERMISSIONS = new HashSet<>(Arrays.asList(
-        // Plugin Cantale - VIP
         "cantale.vip",
-        // Minecraft - VIP
         "minecraft.command.fly",
         "minecraft.command.gamemode",
         "minecraft.command.gamemode.survival",
@@ -162,27 +80,37 @@ public class PermissionManager {
         "minecraft.command.delwarp"
     ));
 
-    public Role getPlayerRole(UUID uuid) {
+    /**
+     * Récupère le grade du joueur depuis la table player_permissions.
+     * Utilise PlayerRank comme source unique.
+     */
+    public PlayerRank getPlayerRole(UUID uuid) {
         String sql = "SELECT role FROM player_permissions WHERE uuid = ?";
         try (Connection conn = databaseManager.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setString(1, uuid.toString());
             ResultSet rs = stmt.executeQuery();
             if (rs.next()) {
-                return Role.fromString(rs.getString("role"));
+                return PlayerRank.fromString(rs.getString("role"));
             }
         } catch (SQLException e) {
             plugin.getLogger().severe("Erreur getPlayerRole : " + e.getMessage());
         }
-        return Role.PLAYER;
+        return PlayerRank.NONE;
     }
 
-    public void setPlayerRole(UUID uuid, Role role) {
-        String sql = "REPLACE INTO player_permissions (uuid, role, updated_at) VALUES (?, ?, ?)";
+    /**
+     * Définit le grade d'un joueur ( PlayerRank unique).
+     */
+    public void setPlayerRole(UUID uuid, PlayerRank rank) {
+        String sql = plugin.getDatabaseManager().isSQLite()
+                ? "INSERT OR REPLACE INTO player_permissions (uuid, role, updated_at) VALUES (?, ?, ?)"
+                : "INSERT INTO player_permissions (uuid, role, updated_at) VALUES (?, ?, ?) " +
+                  "ON DUPLICATE KEY UPDATE role = VALUES(role), updated_at = VALUES(updated_at)";
         try (Connection conn = databaseManager.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setString(1, uuid.toString());
-            stmt.setString(2, role.getName());
+            stmt.setString(2, rank.name());
             stmt.setInt(3, (int)(System.currentTimeMillis() / 1000));
             stmt.executeUpdate();
         } catch (SQLException e) {
@@ -190,23 +118,31 @@ public class PermissionManager {
         }
     }
 
+    /**
+     * Compatibilité avec l'ancien système : accepte les anciens noms de rôle.
+     * admin -> ADMIN, moderator -> MODERATOR, vip -> VIP, player -> NONE, owner -> OWNER
+     */
+    public void setPlayerRole(UUID uuid, String roleName) {
+        PlayerRank rank = PlayerRank.fromString(roleName);
+        setPlayerRole(uuid, rank);
+    }
+
+    /**
+     * Vérifie une permission string en fonction du PlayerRank.
+     */
     public boolean hasPermission(UUID uuid, String permission) {
-        Role role = getPlayerRole(uuid);
-        
-        // Owner a toutes les permissions
-        if (role == Role.OWNER) {
+        PlayerRank rank = getPlayerRole(uuid);
+
+        if (rank == PlayerRank.OWNER) {
             return true;
         }
 
-        // Vérifier les permissions selon le rôle
-        Set<String> rolePermissions = getPermissionsForRole(role);
-        
-        // Vérification exacte
+        Set<String> rolePermissions = getPermissionsForRole(rank);
+
         if (rolePermissions.contains(permission)) {
             return true;
         }
 
-        // Vérification par wildcard
         for (String perm : rolePermissions) {
             if (perm.endsWith(".*")) {
                 String prefix = perm.substring(0, perm.length() - 1);
@@ -219,23 +155,21 @@ public class PermissionManager {
         return false;
     }
 
-    public boolean hasPermission(UUID uuid, Role requiredRole) {
-        return getPlayerRole(uuid).getLevel() >= requiredRole.getLevel();
+    /**
+     * Vérifie si le joueur a au moins le grade requis.
+     */
+    public boolean hasPermission(UUID uuid, PlayerRank requiredRank) {
+        PlayerRank playerRank = getPlayerRole(uuid);
+        return playerRank.ordinal() >= requiredRank.ordinal();
     }
 
-    private Set<String> getPermissionsForRole(Role role) {
-        switch (role) {
-            case OWNER:
-                return OWNER_PERMISSIONS;
-            case ADMIN:
-                return ADMIN_PERMISSIONS;
-            case MODERATOR:
-                return MODERATOR_PERMISSIONS;
-            case VIP:
-                return VIP_PERMISSIONS;
-            default:
-                return new HashSet<>();
-        }
+    private Set<String> getPermissionsForRole(PlayerRank rank) {
+        return switch (rank) {
+            case OWNER, ADMIN -> OWNER_PERMISSIONS;
+            case MODERATOR -> MODERATOR_PERMISSIONS;
+            case VIP -> VIP_PERMISSIONS;
+            default -> new HashSet<>();
+        };
     }
 
     public void removePlayerRole(UUID uuid) {
@@ -248,4 +182,5 @@ public class PermissionManager {
             plugin.getLogger().severe("Erreur removePlayerRole : " + e.getMessage());
         }
     }
+
 }

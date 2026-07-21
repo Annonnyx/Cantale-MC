@@ -26,7 +26,9 @@ public class TagManager {
     // --- Database Custom Tags Admin ---
 
     public boolean createCustomTag(String tagId, String displayName) {
-        String sql = "INSERT OR REPLACE INTO custom_tags (tag_id, display_name) VALUES (?, ?)";
+        String sql = plugin.getDatabaseManager().isSQLite()
+                ? "INSERT OR REPLACE INTO custom_tags (tag_id, display_name) VALUES (?, ?)"
+                : "INSERT INTO custom_tags (tag_id, display_name) VALUES (?, ?) ON DUPLICATE KEY UPDATE display_name = VALUES(display_name)";
         try (Connection conn = plugin.getDatabaseManager().getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setString(1, tagId.toLowerCase());
@@ -48,6 +50,19 @@ public class TagManager {
             return affected > 0;
         } catch (SQLException e) {
             plugin.getLogger().severe("Erreur deleteCustomTag: " + e.getMessage());
+            return false;
+        }
+    }
+
+    public boolean updateCustomTagDisplayName(String tagId, String displayName) {
+        String sql = "UPDATE custom_tags SET display_name = ? WHERE tag_id = ?";
+        try (Connection conn = plugin.getDatabaseManager().getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, displayName);
+            stmt.setString(2, tagId.toLowerCase());
+            return stmt.executeUpdate() > 0;
+        } catch (SQLException e) {
+            plugin.getLogger().severe("Erreur updateCustomTagDisplayName: " + e.getMessage());
             return false;
         }
     }
@@ -85,7 +100,9 @@ public class TagManager {
     // --- Database Unlocked Tags per Player ---
 
     public boolean unlockTag(UUID uuid, String tagId) {
-        String sql = "INSERT OR IGNORE INTO player_unlocked_tags (uuid, tag_id) VALUES (?, ?)";
+        String sql = plugin.getDatabaseManager().isSQLite()
+                ? "INSERT OR IGNORE INTO player_unlocked_tags (uuid, tag_id) VALUES (?, ?)"
+                : "INSERT IGNORE INTO player_unlocked_tags (uuid, tag_id) VALUES (?, ?)";
         try (Connection conn = plugin.getDatabaseManager().getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setString(1, uuid.toString());
@@ -167,8 +184,8 @@ public class TagManager {
             stmt.setString(2, uuid.toString());
             int updated = stmt.executeUpdate();
             if (updated == 0) {
-                // Insérer par défaut
-                String insert = "INSERT OR REPLACE INTO player_permissions (uuid, role, updated_at, show_rank_tag) VALUES (?, ?, ?, ?)";
+                // La ligne n'existe peut-être pas encore, on tente un INSERT
+                String insert = "INSERT INTO player_permissions (uuid, role, updated_at, show_rank_tag) VALUES (?, ?, ?, ?)";
                 try (PreparedStatement ins = conn.prepareStatement(insert)) {
                     ins.setString(1, uuid.toString());
                     PlayerRank rank = plugin.getRankManager().getRank(uuid);
@@ -176,6 +193,11 @@ public class TagManager {
                     ins.setInt(3, (int) (System.currentTimeMillis() / 1000));
                     ins.setInt(4, show ? 1 : 0);
                     ins.executeUpdate();
+                } catch (SQLException insertEx) {
+                    // Si la ligne a été créée entre temps (duplicate key), on ignore
+                    if (!isDuplicateKeyError(insertEx)) {
+                        throw insertEx;
+                    }
                 }
             }
         } catch (SQLException e) {
@@ -206,8 +228,8 @@ public class TagManager {
             stmt.setString(2, uuid.toString());
             int updated = stmt.executeUpdate();
             if (updated == 0) {
-                // Insérer par défaut
-                String insert = "INSERT OR REPLACE INTO player_permissions (uuid, role, updated_at, active_custom_tag) VALUES (?, ?, ?, ?)";
+                // La ligne n'existe peut-être pas encore, on tente un INSERT
+                String insert = "INSERT INTO player_permissions (uuid, role, updated_at, active_custom_tag) VALUES (?, ?, ?, ?)";
                 try (PreparedStatement ins = conn.prepareStatement(insert)) {
                     ins.setString(1, uuid.toString());
                     PlayerRank rank = plugin.getRankManager().getRank(uuid);
@@ -215,6 +237,11 @@ public class TagManager {
                     ins.setInt(3, (int) (System.currentTimeMillis() / 1000));
                     ins.setString(4, tagId);
                     ins.executeUpdate();
+                } catch (SQLException insertEx) {
+                    // Si la ligne a été créée entre temps (duplicate key), on ignore
+                    if (!isDuplicateKeyError(insertEx)) {
+                        throw insertEx;
+                    }
                 }
             }
         } catch (SQLException e) {
@@ -226,7 +253,8 @@ public class TagManager {
 
     /**
      * Calcule le préfixe complet pour le chat, le nametag ou le TAB.
-     * Format: [Faction] [Grade] [Custom] [Staff]
+     * Format: [Faction] [Grade] [Custom]
+     * Les grades staff (Owner, Modérateur) sont affichés comme des grades classiques.
      */
     public String getPlayerPrefix(Player player) {
         UUID uuid = player.getUniqueId();
@@ -244,8 +272,11 @@ public class TagManager {
             if (rank != PlayerRank.NONE) {
                 String rankColor = switch (rank) {
                     case AVENTURIER -> "§b";
-                    case VIP -> "§c";
+                    case VIP -> "§a";
                     case CHEVRE -> "§6";
+                    case MODERATOR -> "§9";
+                    case ADMIN -> "§c";
+                    case OWNER -> "§4";
                     default -> "§r";
                 };
                 prefix.append(rankColor).append("[").append(rank.getDisplayName()).append("] §r");
@@ -259,13 +290,6 @@ public class TagManager {
             if (customDisplayName != null) {
                 prefix.append(ChatColor.translateAlternateColorCodes('&', customDisplayName)).append(" §r");
             }
-        }
-
-        // 4. Tag de Staff
-        if (player.hasPermission("cantale.admin")) {
-            prefix.append("§c[ADMIN] §r");
-        } else if (player.hasPermission("cantale.moderator")) {
-            prefix.append("§9[MODO] §r");
         }
 
         return prefix.toString();
@@ -313,5 +337,15 @@ public class TagManager {
         if (team != null) {
             team.unregister();
         }
+    }
+
+    /**
+     * Détecte une erreur de clé dupliquée, indépendamment du SGBD (MySQL ou SQLite).
+     */
+    private boolean isDuplicateKeyError(SQLException e) {
+        return e.getErrorCode() == 1062
+                || (e.getSQLState() != null && e.getSQLState().startsWith("23"))
+                || e.getMessage().toLowerCase().contains("duplicate")
+                || e.getMessage().toLowerCase().contains("unique constraint failed");
     }
 }

@@ -24,7 +24,7 @@ public class VanishManager {
             player.setInvisible(true);
             // Cacher des autres joueurs
             for (Player other : player.getServer().getOnlinePlayers()) {
-                if (!other.hasPermission("cantale.admin")) {
+                if (!other.hasPermission("cantale.admin") && !other.hasPermission("cantale.moderator")) {
                     other.hidePlayer(player);
                 }
             }

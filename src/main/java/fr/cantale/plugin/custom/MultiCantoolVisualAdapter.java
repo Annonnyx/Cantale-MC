@@ -1,11 +1,12 @@
 package fr.cantale.plugin.custom;
 
 import fr.cantale.plugin.CantalePlugin;
-import fr.cantale.plugin.util.NMSUtil;
+import fr.cantale.plugin.util.VisualPacketUtil;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
+import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.scheduler.BukkitRunnable;
@@ -25,8 +26,8 @@ public class MultiCantoolVisualAdapter {
     }
 
     public void start() {
-        if (!NMSUtil.isAvailable()) {
-            plugin.getLogger().warning("[Cantale] NMS not available, Multi-Cantool visual adapter disabled.");
+        if (!VisualPacketUtil.isAvailable()) {
+            plugin.getLogger().warning("[Cantale] Visual packet API not available, Multi-Cantool visual adapter disabled.");
             return;
         }
 
@@ -67,8 +68,7 @@ public class MultiCantoolVisualAdapter {
             }
         } else if (!visualMat.equals(current)) {
             ItemStack visualItem = createVisualItem(visualMat, hand);
-            int nmsSlot = 36 + player.getInventory().getHeldItemSlot();
-            NMSUtil.sendVisualSlot(player, nmsSlot, visualItem);
+            VisualPacketUtil.sendVisualSlot(player, EquipmentSlot.HAND, visualItem);
             lastVisual.put(uuid, visualMat);
         }
     }
@@ -82,8 +82,7 @@ public class MultiCantoolVisualAdapter {
 
     private void restore(Player player) {
         ItemStack hand = player.getInventory().getItemInMainHand();
-        int nmsSlot = 36 + player.getInventory().getHeldItemSlot();
-        NMSUtil.sendVisualSlot(player, nmsSlot, hand != null ? hand : new ItemStack(Material.AIR));
+        VisualPacketUtil.sendVisualSlot(player, EquipmentSlot.HAND, hand != null ? hand : new ItemStack(Material.AIR));
     }
 
     private Material getVisualMaterial(Material blockMaterial, CustomItemType type) {

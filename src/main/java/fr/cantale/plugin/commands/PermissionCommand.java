@@ -2,6 +2,7 @@ package fr.cantale.plugin.commands;
 
 import fr.cantale.plugin.CantalePlugin;
 import fr.cantale.plugin.permissions.PermissionManager;
+import fr.cantale.plugin.rank.PlayerRank;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.OfflinePlayer;
@@ -12,9 +13,11 @@ import org.bukkit.entity.Player;
 
 public class PermissionCommand implements CommandExecutor {
 
+    private final CantalePlugin plugin;
     private final PermissionManager permissionManager;
 
     public PermissionCommand(CantalePlugin plugin) {
+        this.plugin = plugin;
         this.permissionManager = plugin.getPermissionManager();
     }
 
@@ -22,8 +25,8 @@ public class PermissionCommand implements CommandExecutor {
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         // Seul l'owner peut utiliser cette commande
         if (sender instanceof Player player) {
-            if (!permissionManager.hasPermission(player.getUniqueId(), PermissionManager.Role.OWNER)) {
-                sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&cSeul l'owner peut utiliser cette commande."));
+            if (!permissionManager.hasPermission(player.getUniqueId(), PlayerRank.ADMIN)) {
+                sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&cSeul un admin peut utiliser cette commande."));
                 return true;
             }
         }
@@ -76,17 +79,18 @@ public class PermissionCommand implements CommandExecutor {
             }
         }
 
-        PermissionManager.Role role = PermissionManager.Role.fromString(args[2]);
-        if (role == PermissionManager.Role.PLAYER) {
-            sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&cRôle invalide. Rôles disponibles : owner, admin, moderator, vip"));
+        PlayerRank rank = PlayerRank.fromString(args[2]);
+        if (rank == PlayerRank.NONE) {
+            sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&cRôle invalide. Rôles disponibles : owner, admin, moderator, vip, player"));
             return;
         }
 
-        permissionManager.setPlayerRole(target.getUniqueId(), role);
-        sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&aRôle &e" + role.getName() + " &adonné à &e" + target.getName() + "&a."));
+        permissionManager.setPlayerRole(target.getUniqueId(), rank);
+        sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&aGrade &e" + rank.getDisplayName() + " &adonné à &e" + target.getName() + "&a."));
 
         if (target.isOnline()) {
-            target.getPlayer().sendMessage(ChatColor.translateAlternateColorCodes('&', "&aVotre rôle est maintenant : &e" + role.getName()));
+            target.getPlayer().sendMessage(ChatColor.translateAlternateColorCodes('&', "&aVotre grade est maintenant : &e" + rank.getDisplayName()));
+            plugin.getTagManager().updatePlayerNametag(target.getPlayer());
         }
     }
 
@@ -138,24 +142,24 @@ public class PermissionCommand implements CommandExecutor {
             }
         }
 
-        PermissionManager.Role role = permissionManager.getPlayerRole(target.getUniqueId());
-        sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&aRôle de &e" + target.getName() + "&a : &e" + role.getName()));
+        PlayerRank rank = permissionManager.getPlayerRole(target.getUniqueId());
+        sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&aGrade de &e" + target.getName() + "&a : &e" + rank.getDisplayName()));
     }
 
     private void handleList(CommandSender sender) {
-        sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&6=== &lRôles disponibles &r&6 ==="));
-        sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&e&lowner &7- Niveau 4 - Accès total"));
-        sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&c&ladmin &7- Niveau 3 - Accès admin"));
-        sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&9&lmoderator &7- Niveau 2 - Accès modération"));
-        sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&a&lvip &7- Niveau 1 - Accès VIP"));
-        sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&7&lplayer &7- Niveau 0 - Joueur normal"));
+        sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&6=== &lGrades disponibles &r&6 ==="));
+        sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&4&lowner &7- Accès total"));
+        sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&c&ladmin &7- Accès admin (équivalent Owner)"));
+        sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&9&lmoderator &7- Accès modération"));
+        sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&a&lvip &7- Accès VIP"));
+        sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&7&lplayer &7- Joueur normal"));
     }
 
     private void sendHelp(CommandSender sender) {
         sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&6=== &lGestion des Permissions &r&6 ==="));
-        sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&a/perm set <joueur> <role> &7- Définir le rôle d'un joueur"));
-        sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&a/perm remove <joueur> &7- Retirer le rôle d'un joueur"));
-        sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&a/perm check <joueur> &7- Vérifier le rôle d'un joueur"));
-        sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&a/perm list &7- Lister les rôles disponibles"));
+        sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&a/perm set <joueur> <role> &7- Définir le grade d'un joueur"));
+        sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&a/perm remove <joueur> &7- Retirer le grade d'un joueur"));
+        sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&a/perm check <joueur> &7- Vérifier le grade d'un joueur"));
+        sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&a/perm list &7- Lister les grades disponibles"));
     }
 }

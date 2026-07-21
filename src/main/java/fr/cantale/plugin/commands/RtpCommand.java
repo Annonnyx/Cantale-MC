@@ -2,15 +2,18 @@ package fr.cantale.plugin.commands;
 
 import fr.cantale.plugin.CantalePlugin;
 import fr.cantale.plugin.cooldown.CooldownManager;
+import org.bukkit.ChunkSnapshot;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.World;
-import org.bukkit.block.Block;
 import org.bukkit.block.Biome;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
+
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 
 public class RtpCommand implements CommandExecutor {
 
@@ -19,7 +22,8 @@ public class RtpCommand implements CommandExecutor {
     private static final long COOLDOWN_MS = 20000; // 20 secondes
     private static final int MIN_DISTANCE = 1000;
     private static final int MAX_DISTANCE = 5000;
-    private static final int MAX_ATTEMPTS = 30;
+    private static final int MAX_ATTEMPTS = 15;
+    private static final long TIMEOUT_SECONDS = 5;
 
     public RtpCommand(CantalePlugin plugin) {
         this.plugin = plugin;
@@ -33,7 +37,6 @@ public class RtpCommand implements CommandExecutor {
             return true;
         }
 
-        // Vérifier le cooldown
         if (cooldownManager.hasCooldown(player, "rtp", COOLDOWN_MS)) {
             long remaining = cooldownManager.getRemainingCooldown(player, "rtp", COOLDOWN_MS);
             player.sendMessage("§8[§6Cantale§8] §cCooldown ! Attendez encore " + (remaining / 1000) + " secondes.");
@@ -42,46 +45,71 @@ public class RtpCommand implements CommandExecutor {
 
         World world = player.getWorld();
         Location origin = player.getLocation();
-        Location target = null;
 
-        for (int attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-            double angle = Math.random() * 2 * Math.PI;
-            double distance = MIN_DISTANCE + Math.random() * (MAX_DISTANCE - MIN_DISTANCE);
+        player.sendMessage("§8[§6Cantale§8] §7Recherche d'une position sûre en cours...");
 
-            int x = origin.getBlockX() + (int) (Math.cos(angle) * distance);
-            int z = origin.getBlockZ() + (int) (Math.sin(angle) * distance);
+        org.bukkit.Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+            findSafeLocation(world, origin, 0)
+                    .orTimeout(TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                    .whenComplete((target, throwable) -> org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> {
+                        if (throwable != null || target == null) {
+                            player.sendMessage("§8[§6Cantale§8] §cImpossible de trouver une position sûre. Réessaie plus tard.");
+                            return;
+                        }
 
-            // Pré-charger le chunk (synchrone, mais RTP est déjà une commande joueur)
-            world.getChunkAt(x >> 4, z >> 4).load(true);
-
-            int y = world.getHighestBlockYAt(x, z);
-            Block highest = world.getBlockAt(x, y, z);
-
-            // Éviter l'eau et les biomes océaniques
-            if (isWater(highest.getType())) continue;
-            Biome biome = world.getBiome(x, y, z);
-            if (isOceanBiome(biome)) continue;
-
-            // Vérifier qu'on ne tombe pas dans le vide (y > 0)
-            if (y <= 0) continue;
-
-            target = new Location(world, x + 0.5, y + 1.0, z + 0.5);
-            break;
-        }
-
-        if (target == null) {
-            player.sendMessage("§8[§6Cantale§8] §cImpossible de trouver une position sûre. Réessaie plus tard.");
-            return true;
-        }
-
-        final Location finalTarget = target;
-        plugin.getTeleportDelayManager().delayTeleport(player, () -> {
-            player.teleport(finalTarget);
-            player.sendMessage("§8[§6Cantale§8] §aTéléportation aléatoire effectuée ! §7(" +
-                (int) finalTarget.distance(origin) + " blocs)");
-            cooldownManager.setCooldown(player, "rtp");
+                        plugin.getTeleportDelayManager().delayTeleport(player, () -> {
+                            player.teleport(target);
+                            player.sendMessage("§8[§6Cantale§8] §aTéléportation aléatoire effectuée ! §7(" + (int) target.distance(origin) + " blocs)");
+                            cooldownManager.setCooldown(player, "rtp");
+                        });
+                    }));
         });
+
         return true;
+    }
+
+    private CompletableFuture<Location> findSafeLocation(World world, Location origin, int attempt) {
+        if (attempt >= MAX_ATTEMPTS) {
+            return CompletableFuture.completedFuture(null);
+        }
+
+        double angle = Math.random() * 2 * Math.PI;
+        double distance = MIN_DISTANCE + Math.random() * (MAX_DISTANCE - MIN_DISTANCE);
+
+        int x = origin.getBlockX() + (int) (Math.cos(angle) * distance);
+        int z = origin.getBlockZ() + (int) (Math.sin(angle) * distance);
+        final int chunkX = x >> 4;
+        final int chunkZ = z >> 4;
+        final int xLocal = x & 15;
+        final int zLocal = z & 15;
+
+        CompletableFuture<org.bukkit.Chunk> chunkFuture;
+        try {
+            chunkFuture = world.getChunkAtAsync(chunkX, chunkZ, true);
+        } catch (Exception e) {
+            plugin.getLogger().warning("Erreur RTP getChunkAtAsync: " + e.getMessage());
+            return findSafeLocation(world, origin, attempt + 1);
+        }
+
+        return chunkFuture.thenCompose(chunk -> {
+            if (chunk == null) {
+                return findSafeLocation(world, origin, attempt + 1);
+            }
+
+            ChunkSnapshot snapshot = chunk.getChunkSnapshot();
+            int y = snapshot.getHighestBlockYAt(xLocal, zLocal);
+            Material type = snapshot.getBlockType(xLocal, y, zLocal);
+            Biome biome = snapshot.getBiome(xLocal, y, zLocal);
+
+            if (isWater(type) || isOceanBiome(biome) || y <= 0) {
+                return findSafeLocation(world, origin, attempt + 1);
+            }
+
+            return CompletableFuture.completedFuture(new Location(world, x + 0.5, y + 1.0, z + 0.5));
+        }).exceptionallyCompose(ex -> {
+            plugin.getLogger().warning("Erreur RTP tentative " + attempt + ": " + ex.getMessage());
+            return findSafeLocation(world, origin, attempt + 1);
+        });
     }
 
     private boolean isWater(Material material) {

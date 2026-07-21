@@ -12,6 +12,9 @@ import net.dv8tion.jda.api.utils.MemberCachePolicy;
 import net.dv8tion.jda.api.utils.cache.CacheFlag;
 
 import java.util.EnumSet;
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 
 /**
@@ -26,6 +29,11 @@ public class DiscordBot {
     private SupabaseSync supabaseSync;
     private ChatBridgeListener chatBridgeListener;
     private fr.cantale.plugin.discord.commands.SlashCommandManager slashCommandManager;
+
+    // Messages live /stats /status à actualiser toutes les 10s (max 5min par message)
+    private final List<LiveStatsMessage> liveStatsMessages = new CopyOnWriteArrayList<>();
+    private final long liveStatsMaxAgeMs = TimeUnit.MINUTES.toMillis(5);
+    private final long liveStatsIntervalMs = TimeUnit.SECONDS.toMillis(10);
 
     public DiscordBot(CantalePlugin plugin, DiscordConfig config) {
         this.plugin = plugin;
@@ -75,6 +83,7 @@ public class DiscordBot {
                     slashCommandManager = new SlashCommandManager(plugin, config);
                     slashCommandManager.register(guild);
                     jda.addEventListener(slashCommandManager);
+                    startLiveStatsUpdater();
 
                     ticketListener.register(guild);
 
@@ -105,6 +114,7 @@ public class DiscordBot {
                 // Message de démarrage serveur
                 sendServerStatus("✅ **Le serveur Minecraft est en ligne !**", "#57F287",
                     "Le serveur Cantale vient de démarrer. Rejoignez-nous !");
+                sendStartupAlert();
             } catch (Exception e) {
                 plugin.getLogger().log(Level.SEVERE, "[Discord] Échec du démarrage du bot", e);
             }
@@ -145,6 +155,7 @@ public class DiscordBot {
 
     /**
      * Envoie un embed vers un salon Discord spécifique (par ID).
+     * Les codes couleur Minecraft (§) sont automatiquement supprimés.
      */
     public void sendEmbedToChannel(long channelId, java.awt.Color color, String title, String description) {
         if (jda == null) return;
@@ -152,10 +163,15 @@ public class DiscordBot {
         if (channel == null) return;
         net.dv8tion.jda.api.EmbedBuilder embed = new net.dv8tion.jda.api.EmbedBuilder()
             .setColor(color)
-            .setTitle(title)
-            .setDescription(description)
+            .setTitle(stripMinecraftColors(title))
+            .setDescription(stripMinecraftColors(description))
             .setTimestamp(java.time.Instant.now());
         channel.sendMessageEmbeds(embed.build()).queue();
+    }
+
+    private String stripMinecraftColors(String input) {
+        if (input == null) return null;
+        return input.replaceAll("§[0-9a-fk-orA-FK-OR]", "");
     }
 
     public boolean isConnected() {
@@ -220,5 +236,102 @@ public class DiscordBot {
                 index = (index + 1) % statuses.length;
             }
         }, 20L * 10, 20L * 30); // première fois après 10s, puis toutes les 30s
+    }
+
+    /**
+     * Enregistre un message /stats ou /status pour actualisation live (10s, max 5min).
+     */
+    public void registerLiveStatsMessage(long channelId, long messageId) {
+        liveStatsMessages.add(new LiveStatsMessage(channelId, messageId, System.currentTimeMillis()));
+    }
+
+    /**
+     * Démarre le scheduler qui actualise les messages live toutes les 10 secondes.
+     */
+    private void startLiveStatsUpdater() {
+        org.bukkit.Bukkit.getScheduler().runTaskTimerAsynchronously(plugin, () -> {
+            if (jda == null || jda.getStatus() != JDA.Status.CONNECTED) return;
+
+            long now = System.currentTimeMillis();
+            liveStatsMessages.removeIf(msg -> now - msg.createdAt() > liveStatsMaxAgeMs);
+
+            net.dv8tion.jda.api.EmbedBuilder embed = buildLiveStatsEmbed();
+            for (LiveStatsMessage msg : liveStatsMessages) {
+                net.dv8tion.jda.api.entities.channel.concrete.TextChannel channel = jda.getTextChannelById(msg.channelId());
+                if (channel == null) continue;
+                try {
+                    channel.editMessageEmbedsById(msg.messageId(), embed.build()).queue(
+                        success -> {},
+                        error -> plugin.getLogger().fine("[Discord] Échec maj live stats: " + error.getMessage())
+                    );
+                } catch (Exception ignored) {}
+            }
+        }, 20L * 10, 20L * (liveStatsIntervalMs / 1000));
+    }
+
+    private net.dv8tion.jda.api.EmbedBuilder buildLiveStatsEmbed() {
+        java.util.Map<String, Object> stats = plugin.getServerOptimizer().getStats();
+
+        double tps = ((Number) stats.getOrDefault("tps", 20.0)).doubleValue();
+        int online = ((Number) stats.getOrDefault("online_players", 0)).intValue();
+        int max = ((Number) stats.getOrDefault("max_players", 0)).intValue();
+        long usedMb = ((Number) stats.getOrDefault("used_memory_mb", 0)).longValue();
+        long maxMb = ((Number) stats.getOrDefault("max_memory_mb", 0)).longValue();
+        int chunks = ((Number) stats.getOrDefault("loaded_chunks", 0)).intValue();
+        int entities = ((Number) stats.getOrDefault("total_entities", 0)).intValue();
+
+        long uptimeMs = System.currentTimeMillis() - java.lang.management.ManagementFactory.getRuntimeMXBean().getStartTime();
+        long upDays = uptimeMs / 86_400_000L;
+        long upHours = (uptimeMs % 86_400_000L) / 3_600_000L;
+        long upMin = (uptimeMs % 3_600_000L) / 60_000L;
+        String uptime = (upDays > 0 ? upDays + "j " : "") + upHours + "h " + upMin + "min";
+
+        String version = org.bukkit.Bukkit.getBukkitVersion().split("-")[0];
+
+        java.awt.Color color;
+        String tpsIcon;
+        String tpsStatus;
+        if (tps >= 19.0) { color = new java.awt.Color(0x2ECC71); tpsIcon = "🟢"; tpsStatus = "Excellent"; }
+        else if (tps >= 17.0) { color = new java.awt.Color(0xF1C40F); tpsIcon = "🟡"; tpsStatus = "Stable"; }
+        else if (tps >= 14.0) { color = new java.awt.Color(0xE67E22); tpsIcon = "🟠"; tpsStatus = "Lag léger"; }
+        else { color = new java.awt.Color(0xE74C3C); tpsIcon = "🔴"; tpsStatus = "Surchargé"; }
+
+        String onlineIcon = online > 0 ? "🟢" : "⚫";
+
+        return new net.dv8tion.jda.api.EmbedBuilder()
+            .setColor(color)
+            .setTitle("📊 Statut Cantale — Live")
+            .setDescription("**" + onlineIcon + " " + (online > 0 ? "En ligne" : "Personne connecté") + "**\n"
+                + "Connecte-toi sur `play.cantale.world` pour jouer !")
+            .addField("👥 Joueurs", "`" + online + " / " + max + "`", true)
+            .addField(tpsIcon + " TPS", "`" + String.format("%.2f", Math.min(tps, 20.0)) + "` " + tpsStatus, true)
+            .addField("⏱ Uptime", uptime, true)
+            .addField("🌐 IP publique", "`play.cantale.world`", true)
+            .addField("🎮 Version", version, true)
+            .addField("💾 RAM", usedMb + " / " + maxMb + " MB", true)
+            .addField("📦 Chunks chargés", String.valueOf(chunks), true)
+            .addField("🐾 Entités", String.valueOf(entities), true)
+            .addField("🛡 Optimisation", plugin.getServerOptimizer().isEnabled() ? "✅ Active" : "❌ Désactivée", true)
+            .setFooter("Cantale — Trois vies. C'est tout.", null)
+            .setTimestamp(java.time.Instant.now());
+    }
+
+    private record LiveStatsMessage(long channelId, long messageId, long createdAt) {}
+
+    private void sendStartupAlert() {
+        long channelId = 1504900607591452852L;
+        long pingRoleId = 1504910790996525247L;
+        if (jda == null) return;
+        net.dv8tion.jda.api.entities.channel.concrete.TextChannel channel = jda.getTextChannelById(channelId);
+        if (channel == null) return;
+
+        net.dv8tion.jda.api.EmbedBuilder embed = new net.dv8tion.jda.api.EmbedBuilder()
+            .setTitle("✅ Serveur Minecraft en ligne")
+            .setDescription("Le bot CANTALE est connecté et le serveur est disponible.")
+            .setColor(java.awt.Color.decode("#57F287"))
+            .setTimestamp(java.time.Instant.now());
+
+        channel.sendMessage("<@&" + pingRoleId + "> **Le serveur Minecraft est en ligne !**")
+            .setEmbeds(embed.build()).queue();
     }
 }

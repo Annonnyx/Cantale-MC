@@ -70,6 +70,7 @@ import fr.cantale.plugin.diplomacy.DiplomacyManager;
 import fr.cantale.plugin.cache.RedisCache;
 import fr.cantale.plugin.permissions.PermissionManager;
 import fr.cantale.plugin.optimization.ServerOptimizer;
+import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.plugin.java.JavaPlugin;
 
 public class CantalePlugin extends JavaPlugin {
@@ -107,6 +108,8 @@ public class CantalePlugin extends JavaPlugin {
     private PermissionManager permissionManager;
     private RankManager rankManager;
     private UIManager uiManager;
+    private fr.cantale.plugin.commands.WelcomeCommand welcomeCommand;
+    private fr.cantale.plugin.crate.CrateManager crateManager;
     private CustomItemManager customItemManager;
     private ServerOptimizer serverOptimizer;
     private fr.cantale.plugin.database.FortifiedChunkDAO fortifiedChunkDAO;
@@ -117,6 +120,7 @@ public class CantalePlugin extends JavaPlugin {
     private fr.cantale.plugin.tag.TagManager tagManager;
     private fr.cantale.plugin.tasks.ClearLagTask clearLagTask;
     private fr.cantale.plugin.teleport.TeleportDelayManager teleportDelayManager;
+    private fr.cantale.plugin.anticheat.AntiCheatManager antiCheatManager;
 
     @Override
     public void onEnable() {
@@ -128,16 +132,74 @@ public class CantalePlugin extends JavaPlugin {
         this.databaseManager = new DatabaseManager(this);
         this.factionManager = new FactionManager(this);
         this.databaseManager.init();
+        // Si la DB n'est pas disponible au démarrage, planifier des reconnexions asynchrones
+        if (!this.databaseManager.isConnected()) {
+            getLogger().warning("DB indisponible — planification des tentatives de reconnexion automatiques.");
+            this.databaseManager.scheduleReconnect(12, 20L * 5, 20L * 10);
+        }
 
         this.lifeManager = new LifeManager(this);
         this.economyManager = new EconomyManager(this);
         this.bankManager = new BankManager(this);
         this.auctionManager = new AuctionManager(this);
-        this.auctionManager.loadListings();
+        // Charger les listings d'enchères uniquement si la BDD est disponible.
+        if (this.databaseManager.getConnection() != null) {
+            this.auctionManager.loadListings();
+        } else {
+            getLogger().warning("Base de données non disponible — chargement des listings d'enchères différé.");
+            // Réessayer périodiquement (toutes les 10s) jusqu'à succès (max 12 tentatives = 2 minutes)
+            new BukkitRunnable() {
+                private int attempts = 0;
+
+                @Override
+                public void run() {
+                    attempts++;
+                    if (databaseManager.getConnection() != null) {
+                        try {
+                            auctionManager.loadListings();
+                            getLogger().info("Listings d'enchères chargés après reconnexion DB.");
+                        } catch (Exception e) {
+                            getLogger().warning("Erreur lors du chargement des listings après reconnexion : " + e.getMessage());
+                        }
+                        this.cancel();
+                        return;
+                    }
+                    if (attempts >= 12) {
+                        getLogger().severe("Impossible de charger les listings d'enchères : la BDD reste inaccessible après plusieurs tentatives.");
+                        this.cancel();
+                    }
+                }
+            }.runTaskTimerAsynchronously(this, 20L * 5, 20L * 10);
+        }
         this.tradeManager = new TradeManager(this);
         this.homeManager = new HomeManager(this);
         this.warpManager = new WarpManager(this);
-        this.warpManager.loadWarps();
+        if (this.databaseManager.getConnection() != null) {
+            this.warpManager.loadWarps();
+        } else {
+            getLogger().warning("DB inaccessible — chargement des warps différé.");
+            new BukkitRunnable() {
+                private int attempts = 0;
+                @Override
+                public void run() {
+                    attempts++;
+                    if (databaseManager.getConnection() != null) {
+                        try {
+                            warpManager.loadWarps();
+                            getLogger().info("Warps chargés après reconnexion DB.");
+                        } catch (Exception e) {
+                            getLogger().warning("Erreur lors du chargement des warps après reconnexion : " + e.getMessage());
+                        }
+                        this.cancel();
+                        return;
+                    }
+                    if (attempts >= 12) {
+                        getLogger().severe("Impossible de charger les warps : la BDD reste inaccessible.");
+                        this.cancel();
+                    }
+                }
+            }.runTaskTimerAsynchronously(this, 20L * 5, 20L * 10);
+        }
         this.mapUI = new MapUI(this);
         this.cooldownManager = new CooldownManager();
         this.spawnCommand = new SpawnCommand(this);
@@ -150,31 +212,134 @@ public class CantalePlugin extends JavaPlugin {
         this.asyncTaskManager = new AsyncTaskManager(this);
         this.tutorialManager = new TutorialManager(this);
         this.npcManager = new NPCManager(this);
-        this.npcManager.loadNPCs();
+        if (this.databaseManager.getConnection() != null) {
+            this.npcManager.loadNPCs();
+        } else {
+            getLogger().warning("DB inaccessible — chargement des NPC différé.");
+            new BukkitRunnable() {
+                private int attempts = 0;
+                @Override
+                public void run() {
+                    attempts++;
+                    if (databaseManager.getConnection() != null) {
+                        try {
+                            npcManager.loadNPCs();
+                            getLogger().info("NPC chargés après reconnexion DB.");
+                        } catch (Exception e) {
+                            getLogger().warning("Erreur lors du chargement des NPC après reconnexion : " + e.getMessage());
+                        }
+                        this.cancel();
+                        return;
+                    }
+                    if (attempts >= 12) {
+                        getLogger().severe("Impossible de charger les NPC : la BDD reste inaccessible.");
+                        this.cancel();
+                    }
+                }
+            }.runTaskTimerAsynchronously(this, 20L * 5, 20L * 10);
+        }
         this.diplomacyManager = new DiplomacyManager(this);
-        this.diplomacyManager.loadDiplomacy();
+        if (this.databaseManager.getConnection() != null) {
+            this.diplomacyManager.loadDiplomacy();
+        } else {
+            getLogger().warning("DB inaccessible — chargement de la diplomatie différé.");
+            new BukkitRunnable() {
+                private int attempts = 0;
+                @Override
+                public void run() {
+                    attempts++;
+                    if (databaseManager.getConnection() != null) {
+                        try {
+                            diplomacyManager.loadDiplomacy();
+                            getLogger().info("Diplomatie chargée après reconnexion DB.");
+                        } catch (Exception e) {
+                            getLogger().warning("Erreur lors du chargement de la diplomatie après reconnexion : " + e.getMessage());
+                        }
+                        this.cancel();
+                        return;
+                    }
+                    if (attempts >= 12) {
+                        getLogger().severe("Impossible de charger la diplomatie : la BDD reste inaccessible.");
+                        this.cancel();
+                    }
+                }
+            }.runTaskTimerAsynchronously(this, 20L * 5, 20L * 10);
+        }
         this.redisCache = new RedisCache(this);
         this.redisCache.init();
         this.adminCommand = new AdminCommand(this);
         this.moderationCommand = new ModerationCommand(this);
-        this.moderationCommand.getMuteManager().loadMutes();
+        if (this.databaseManager.getConnection() != null) {
+            this.moderationCommand.getMuteManager().loadMutes();
+        } else {
+            getLogger().warning("DB inaccessible — chargement des mutes différé.");
+            new BukkitRunnable() {
+                private int attempts = 0;
+                @Override
+                public void run() {
+                    attempts++;
+                    if (databaseManager.getConnection() != null) {
+                        try {
+                            moderationCommand.getMuteManager().loadMutes();
+                            getLogger().info("Mutes chargés après reconnexion DB.");
+                        } catch (Exception e) {
+                            getLogger().warning("Erreur lors du chargement des mutes après reconnexion : " + e.getMessage());
+                        }
+                        this.cancel();
+                        return;
+                    }
+                    if (attempts >= 12) {
+                        getLogger().severe("Impossible de charger les mutes : la BDD reste inaccessible.");
+                        this.cancel();
+                    }
+                }
+            }.runTaskTimerAsynchronously(this, 20L * 5, 20L * 10);
+        }
         this.wantedCommand = new WantedCommand(this);
-        this.wantedCommand.getWantedManager().loadWanted();
+        if (this.databaseManager.getConnection() != null) {
+            this.wantedCommand.getWantedManager().loadWanted();
+        } else {
+            getLogger().warning("DB inaccessible — chargement des primes (wanted) différé.");
+            new BukkitRunnable() {
+                private int attempts = 0;
+                @Override
+                public void run() {
+                    attempts++;
+                    if (databaseManager.getConnection() != null) {
+                        try {
+                            wantedCommand.getWantedManager().loadWanted();
+                            getLogger().info("Primes chargées après reconnexion DB.");
+                        } catch (Exception e) {
+                            getLogger().warning("Erreur lors du chargement des primes après reconnexion : " + e.getMessage());
+                        }
+                        this.cancel();
+                        return;
+                    }
+                    if (attempts >= 12) {
+                        getLogger().severe("Impossible de charger les primes : la BDD reste inaccessible.");
+                        this.cancel();
+                    }
+                }
+            }.runTaskTimerAsynchronously(this, 20L * 5, 20L * 10);
+        }
         this.privateChestCommand = new PrivateChestCommand(this);
         this.pasdicCommand = new PasdicCommand(this);
         this.vanishCommand = new VanishCommand(this.moderationCommand.getVanishManager());
         this.permissionManager = new PermissionManager(this);
         this.rankManager = new RankManager(this);
+        this.welcomeCommand = new fr.cantale.plugin.commands.WelcomeCommand(this);
         this.tagManager = new fr.cantale.plugin.tag.TagManager(this);
         this.teleportDelayManager = new fr.cantale.plugin.teleport.TeleportDelayManager(this);
         this.uiManager = new UIManager(this);
         this.customItemManager = new CustomItemManager();
+        this.crateManager = new fr.cantale.plugin.crate.CrateManager(this);
         this.fortifiedChunkDAO = new fr.cantale.plugin.database.FortifiedChunkDAO(this);
         this.voteDAO = new fr.cantale.plugin.vote.VoteDAO(this);
         this.voteRewardManager = new fr.cantale.plugin.vote.VoteRewardManager(this);
         this.voteListener = new fr.cantale.plugin.vote.VoteListener(this);
         this.serverOptimizer = new ServerOptimizer(this);
         this.serverOptimizer.startTasks();
+        this.antiCheatManager = new fr.cantale.plugin.anticheat.AntiCheatManager(this);
 
         // Démarrer le bot Discord (envoie le message de startup automatiquement une fois connecté)
         DiscordConfig discordConfig = new DiscordConfig(this);
@@ -218,6 +383,9 @@ public class CantalePlugin extends JavaPlugin {
         if (databaseManager != null) {
             databaseManager.close();
         }
+        if (antiCheatManager != null) {
+            antiCheatManager.shutdown();
+        }
         getLogger().info("Cantale désactivé.");
     }
 
@@ -252,8 +420,11 @@ public class CantalePlugin extends JavaPlugin {
         getCommand("rank").setExecutor(new RankCommand(this));
         getCommand("ec").setExecutor(new EnderChestCommand(this));
         getCommand("pc2").setExecutor(new Pc2Command(this));
+        getCommand("pc3").setExecutor(new Pc2Command(this));
         getCommand("day").setExecutor(new DayCommand(this));
         getCommand("daily").setExecutor(new fr.cantale.plugin.commands.DailyCommand(this));
+        getCommand("bvn").setExecutor(welcomeCommand);
+        getCommand("crate").setExecutor(new fr.cantale.plugin.commands.CrateCommand(this));
         getCommand("profile").setExecutor(new ProfileCommand(this));
         getCommand("listemorts").setExecutor(new ListCommand(this));
         getCommand("vote").setExecutor(new fr.cantale.plugin.commands.VoteCommand(this));
@@ -266,6 +437,9 @@ public class CantalePlugin extends JavaPlugin {
         getCommand("tag").setTabCompleter(new fr.cantale.plugin.tag.TagCommand(this));
         getCommand("discord").setExecutor(new fr.cantale.plugin.commands.DiscordCommand(this));
         getCommand("discord").setTabCompleter(new fr.cantale.plugin.commands.DiscordCommand(this));
+        getCommand("say").setExecutor(new fr.cantale.plugin.commands.OwnerSayCommand(this));
+        getCommand("anticheat").setExecutor(new fr.cantale.plugin.anticheat.AntiCheatCommand(this.antiCheatManager));
+        getCommand("anticheat").setTabCompleter(new fr.cantale.plugin.anticheat.AntiCheatCommand(this.antiCheatManager));
     }
 
     private void registerListeners() {
@@ -282,8 +456,15 @@ public class CantalePlugin extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new fr.cantale.plugin.optimization.VillagerSpawnBlocker(this), this);
         // Vote system : enregistre PlayerJoinEvent + tente de cabler VotifierEvent par réflexion
         getServer().getPluginManager().registerEvents(voteListener, this);
-        voteListener.tryRegisterVotifier();
+        boolean votifierOk = voteListener.tryRegisterVotifier();
+        if (votifierOk) {
+            getLogger().info("[Vote] Système de vote activé avec Votifier.");
+        } else {
+            getLogger().warning("[Vote] Votifier non détecté — les votes entrants ne seront pas traités.");
+        }
         getServer().getPluginManager().registerEvents(teleportDelayManager, this);
+        getServer().getPluginManager().registerEvents(new fr.cantale.plugin.privatechest.PrivateChestListener(this, privateChestCommand.getChestService()), this);
+        getServer().getPluginManager().registerEvents(new fr.cantale.plugin.crate.CrateListener(this, crateManager), this);
     }
 
     public static CantalePlugin getInstance() {
@@ -386,6 +567,10 @@ public class CantalePlugin extends JavaPlugin {
         return new fr.cantale.plugin.database.PlayerDAO(this);
     }
 
+    public fr.cantale.plugin.commands.WelcomeCommand getWelcomeCommand() {
+        return welcomeCommand;
+    }
+
     public UIManager getUIManager() {
         return uiManager;
     }
@@ -396,6 +581,14 @@ public class CantalePlugin extends JavaPlugin {
 
     public CustomItemManager getCustomItemManager() {
         return customItemManager;
+    }
+
+    public fr.cantale.plugin.crate.CrateManager getCrateManager() {
+        return crateManager;
+    }
+
+    public fr.cantale.plugin.privatechest.PrivateChestService getPrivateChestService() {
+        return privateChestCommand.getChestService();
     }
 
     public fr.cantale.plugin.database.FortifiedChunkDAO getFortifiedChunkDAO() {
@@ -436,5 +629,9 @@ public class CantalePlugin extends JavaPlugin {
 
     public fr.cantale.plugin.teleport.TeleportDelayManager getTeleportDelayManager() {
         return teleportDelayManager;
+    }
+
+    public fr.cantale.plugin.anticheat.AntiCheatManager getAntiCheatManager() {
+        return antiCheatManager;
     }
 }

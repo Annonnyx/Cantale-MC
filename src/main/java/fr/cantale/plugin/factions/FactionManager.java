@@ -31,6 +31,7 @@ public class FactionManager {
         }
 
         Faction faction = new Faction(name, tag, description, leader);
+        faction.setPower(calculateInitialPower());
         int id = factionDAO.createFaction(faction);
         if (id > 0) {
             faction.setId(id);
@@ -38,6 +39,22 @@ public class FactionManager {
             return faction;
         }
         return null;
+    }
+
+    private int calculateInitialPower() {
+        return 60; // 6 claims de départ (power/10), bonus minimal de 5 claims via getMaxClaims()
+    }
+
+    /**
+     * Ajoute du pouvoir à la faction d'un joueur. Retourne true si le joueur a une faction.
+     */
+    public boolean addPowerToPlayerFaction(UUID playerUuid, int amount) {
+        Faction faction = getPlayerFaction(playerUuid);
+        if (faction == null) return false;
+
+        faction.addPower(amount);
+        factionDAO.updatePower(faction.getId(), faction.getPower());
+        return true;
     }
 
     public Faction getFaction(int id) {

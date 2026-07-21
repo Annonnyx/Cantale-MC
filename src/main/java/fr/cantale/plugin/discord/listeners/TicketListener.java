@@ -158,7 +158,7 @@ public class TicketListener extends ListenerAdapter {
         String base = member.getEffectiveName();
         String sanitizedUser = base.toLowerCase().replaceAll("[^a-z0-9-]", "-");
         String motif = reason.toLowerCase().replaceAll("[^a-z0-9-]", "-");
-        String ticketName = sanitizedUser + "-" + motif;
+        String ticketName = "[" + sanitizedUser + "]-[" + motif + "]";
 
         guild.createTextChannel(ticketName)
             .setParent(null)
@@ -216,10 +216,7 @@ public class TicketListener extends ListenerAdapter {
         Guild guild = event.getGuild();
 
         String topic = ch.getTopic();
-        String ownerId = null;
-        if (topic != null && topic.startsWith("ticket:")) {
-            ownerId = topic.substring("ticket:".length());
-        }
+        String ownerId = extractOwnerIdFromTopic(topic);
 
         String name = ch.getName();
         if (!name.startsWith("closed-") && ownerId == null) {
@@ -272,15 +269,16 @@ public class TicketListener extends ListenerAdapter {
         if (!isTicket || name.startsWith("closed-")) return;
 
         Runnable archive = () -> {
-            ch.getManager().setName("closed-" + name).queue();
+            String closedName = "closed-" + name;
+            ch.getManager().setName(closedName).queue();
 
             try {
                 ch.getManager().putPermissionOverride(guild.getPublicRole(), EnumSet.noneOf(Permission.class), EnumSet.of(Permission.VIEW_CHANNEL)).queue();
             } catch (Exception ignored) {}
 
             try {
-                if (topic != null && topic.startsWith("ticket:")) {
-                    String ownerId = topic.substring("ticket:".length());
+                String ownerId = extractOwnerIdFromTopic(topic);
+                if (ownerId != null) {
                     var owner = guild.getMemberById(ownerId);
                     if (owner != null) {
                         ch.getManager().putPermissionOverride(owner, EnumSet.noneOf(Permission.class), EnumSet.of(Permission.VIEW_CHANNEL)).queue();
@@ -307,6 +305,13 @@ public class TicketListener extends ListenerAdapter {
         } else {
             archive.run();
         }
+    }
+
+    /** Extrait l'identifiant du propriétaire depuis le topic d'un ticket. */
+    private String extractOwnerIdFromTopic(String topic) {
+        if (topic == null) return null;
+        if (!topic.startsWith("ticket:")) return null;
+        return topic.substring("ticket:".length());
     }
 
     private boolean isStaff(Member member) {

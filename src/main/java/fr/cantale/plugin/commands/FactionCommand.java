@@ -70,6 +70,7 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
             case "autoclaim" -> handleAutoclaim(player, args);
             case "unclaim" -> handleUnclaim(player, args);
             case "spawn" -> handleSpawn(player);
+            case "go" -> handleGo(player);
             case "setspawn" -> handleSetSpawn(player);
             case "bank" -> handleBank(player, args);
             case "secret" -> handleSecret(player);
@@ -469,6 +470,15 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
             org.bukkit.World w = Bukkit.getWorld(rs.getString("world"));
             if (w == null) { player.sendMessage(formatMessage("&cMonde inexistant.")); return; }
             org.bukkit.Location destination = new org.bukkit.Location(w, rs.getDouble("x"), rs.getDouble("y"), rs.getDouble("z"));
+            int delay = plugin.getTeleportDelayManager().getTeleportDelay(player);
+            if (delay > 0) {
+                long ticksBefore = Math.max(0, (delay - 1) * 20L);
+                plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+                    if (destination.getWorld() != null) destination.getChunk().load(true);
+                }, ticksBefore);
+            } else {
+                destination.getChunk().load(true);
+            }
             plugin.getTeleportDelayManager().delayTeleport(player, () -> {
                 player.teleport(destination);
                 player.sendMessage(formatMessage("&aTéléporté au warp &e" + args[1] + "&a."));
@@ -692,6 +702,25 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
             return;
         }
 
+        teleportToFactionSpawn(player, faction, true);
+    }
+
+    private void handleGo(Player player) {
+        Faction faction = factionManager.getPlayerFaction(player.getUniqueId());
+        if (faction == null) {
+            player.sendMessage(formatMessage("&cVous n'êtes pas dans une faction."));
+            return;
+        }
+
+        if (faction.getSpawnX() == null) {
+            player.sendMessage(formatMessage("&cVotre faction n'a pas de spawn défini. Utilisez /f setspawn dans un claim."));
+            return;
+        }
+
+        teleportToFactionSpawn(player, faction, false);
+    }
+
+    private void teleportToFactionSpawn(Player player, Faction faction, boolean applyCooldown) {
         org.bukkit.World world = Bukkit.getWorld(faction.getSpawnWorld());
         if (world == null) {
             player.sendMessage(formatMessage("&cLe monde du spawn n'existe plus."));
@@ -704,11 +733,25 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
             faction.getSpawnY(),
             faction.getSpawnZ()
         );
-        player.teleport(spawnLoc);
-        player.sendMessage(formatMessage("&aTéléporté au spawn de votre faction."));
-        
-        // Définir le cooldown
-        cooldownManager.setCooldown(player, "fspawn");
+        int delay = plugin.getTeleportDelayManager().getTeleportDelay(player);
+        if (spawnLoc.getChunk() != null) {
+            if (delay > 0) {
+                long ticksBefore = Math.max(0, (delay - 1) * 20L);
+                plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+                    if (spawnLoc.getWorld() != null) spawnLoc.getChunk().load(true);
+                }, ticksBefore);
+            } else {
+                spawnLoc.getChunk().load(true);
+            }
+        }
+
+        plugin.getTeleportDelayManager().delayTeleport(player, () -> {
+            player.teleport(spawnLoc);
+            player.sendMessage(formatMessage("&aTéléporté au spawn de votre faction."));
+            if (applyCooldown) {
+                plugin.getCooldownManager().setCooldown(player, "fspawn");
+            }
+        });
     }
 
     private void handleSetSpawn(Player player) {
@@ -761,7 +804,7 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
         player.sendMessage(ChatColor.GRAY + "/f unclaim - Unclaim le chunk actuel");
         player.sendMessage(ChatColor.GRAY + "/f autoclaim on|off");
         player.sendMessage(ChatColor.GRAY + "/f map - Carte des claims autour");
-        player.sendMessage(ChatColor.GRAY + "/f spawn | /f setspawn - Spawn de faction");
+        player.sendMessage(ChatColor.GRAY + "/f spawn | /f go | /f setspawn - Spawn de faction");
         player.sendMessage(ChatColor.GRAY + "/f warp [nom] | /f setwarp <nom> | /f delwarp <nom>");
         player.sendMessage(ChatColor.GRAY + "/f home [nom] | /f sethome <nom>");
         player.sendMessage(ChatColor.GRAY + "/f bank - Banque de faction");
@@ -786,9 +829,8 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
         player.sendMessage(ChatColor.GRAY + "Claims: " + ChatColor.YELLOW + faction.getClaimCount());
         player.sendMessage(ChatColor.GRAY + "Type: " + ChatColor.YELLOW + faction.getType());
         
-        // Calculer le pouvoir (basé sur les membres pour l'instant)
-        int power = faction.getMemberCount() * 10;
-        player.sendMessage(ChatColor.GRAY + "Pouvoir: " + ChatColor.YELLOW + power);
+        player.sendMessage(ChatColor.GRAY + "Pouvoir: " + ChatColor.YELLOW + faction.getPower());
+        player.sendMessage(ChatColor.GRAY + "Claims max: " + ChatColor.YELLOW + faction.getMaxClaims());
     }
 
     private void handleMap(Player player) {
@@ -817,61 +859,62 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
         player.sendMessage(formatMessage("&6=== Carte des Claims ==="));
         player.sendMessage(formatMessage("&7■ &aVotre faction &7■ &cEnnemi &7■ &eAutre &7■ &9Vous &7■ &8Wilderness"));
 
-        // Construire la carte
-        StringBuilder[] lines = new StringBuilder[mapSize + 2];
-
-        // En-tête Nord
-        lines[0] = new StringBuilder("  ");
-        for (int dx = -radius; dx <= radius; dx++) {
-            lines[0].append(" ");
+        // Indicateur Nord au-dessus de la carte
+        StringBuilder header = new StringBuilder("        ");
+        for (int i = 0; i < mapSize; i++) {
+            header.append(" ");
         }
-        lines[0].append("  ");
+        header.replace(7 + radius, 7 + radius + 1, "§fN");
+        player.sendMessage(header.toString());
 
         for (int dz = -radius; dz <= radius; dz++) {
             int z = playerChunkZ + dz;
             StringBuilder line = new StringBuilder();
 
-            // Coordonnée Z sur le côté
-            if (dz == 0) line.append("N ");
-            else if (dz == -radius) line.append("  ");
-            else line.append("  ");
+            // Indicateur Ouest à gauche
+            if (dz == 0) {
+                line.append("§fW ");
+            } else {
+                line.append("  ");
+            }
 
             for (int dx = -radius; dx <= radius; dx++) {
                 int x = playerChunkX + dx;
 
                 if (dx == 0 && dz == 0) {
-                    // Position du joueur
                     line.append("§9■");
                 } else {
                     Claim claim = factionManager.getClaimAt(world, x, z);
                     if (claim == null) {
-                        // Wilderness
                         line.append("§8■");
                     } else {
                         Faction claimFaction = factionManager.getFaction(claim.getFactionId());
                         if (claimFaction == null) {
                             line.append("§8■");
                         } else if (playerFaction != null && claimFaction.getId() == playerFaction.getId()) {
-                            // Ma faction
                             line.append("§a■");
                         } else {
-                            // Autre faction
+                            // Relation ennemie/ally à affiner plus tard
                             line.append("§e■");
                         }
                     }
                 }
             }
 
-            if (dz == 0) line.append(" §7S");
-            lines[dz + radius + 1] = line;
+            // Indicateur Est à droite
+            if (dz == 0) {
+                line.append(" §fE");
+            }
+            player.sendMessage(line.toString());
         }
 
-        // Envoyer les lignes
-        for (int i = 1; i < lines.length; i++) {
-            if (lines[i] != null) {
-                player.sendMessage(lines[i].toString());
-            }
+        // Indicateur Sud en dessous de la carte
+        StringBuilder footer = new StringBuilder("        ");
+        for (int i = 0; i < mapSize; i++) {
+            footer.append(" ");
         }
+        footer.replace(7 + radius, 7 + radius + 1, "§fS");
+        player.sendMessage(footer.toString());
 
         // Infos complémentaires
         player.sendMessage(formatMessage("&7Position: &e" + playerChunkX + ", " + playerChunkZ));
@@ -1010,7 +1053,7 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
             String prefix = args[0].toLowerCase();
             return Arrays.asList("create", "invite", "accept", "deny", "leave", "info", "list", "members",
                     "join", "kick", "ban", "promote", "demote", "claim", "unclaim", "autoclaim",
-                    "spawn", "setspawn", "warp", "setwarp", "delwarp", "home", "sethome",
+                    "spawn", "go", "setspawn", "warp", "setwarp", "delwarp", "home", "sethome",
                     "map", "bank", "secret", "perms", "help")
                     .stream().filter(s -> s.startsWith(prefix)).collect(Collectors.toList());
         }

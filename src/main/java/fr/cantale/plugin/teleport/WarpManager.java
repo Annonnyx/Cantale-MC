@@ -86,6 +86,27 @@ public class WarpManager {
         }
 
         final Warp finalWarp = warp;
+
+        int delay = plugin.getTeleportDelayManager().getTeleportDelay(player);
+
+        if (finalWarp.getLocation() != null && finalWarp.getLocation().getWorld() != null) {
+            plugin.getChunkLoader().preloadChunksAround(finalWarp.getLocation(), 1);
+            if (delay > 0) {
+                long ticksBefore = Math.max(0, (delay - 1) * 20L);
+                plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+                    if (finalWarp.getLocation() != null && finalWarp.getLocation().getWorld() != null) {
+                        finalWarp.getLocation().getWorld().getChunkAtAsync(
+                                finalWarp.getLocation().getBlockX() >> 4,
+                                finalWarp.getLocation().getBlockZ() >> 4);
+                    }
+                }, ticksBefore);
+            } else {
+                finalWarp.getLocation().getWorld().getChunkAtAsync(
+                        finalWarp.getLocation().getBlockX() >> 4,
+                        finalWarp.getLocation().getBlockZ() >> 4);
+            }
+        }
+
         plugin.getTeleportDelayManager().delayTeleport(player, () -> {
             player.teleport(finalWarp.getLocation());
             player.sendMessage("§8[§6Cantale§8] §aTéléporté au warp §e" + finalWarp.getName() + "§a.");

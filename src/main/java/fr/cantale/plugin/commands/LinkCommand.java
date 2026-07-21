@@ -9,6 +9,7 @@ import org.bukkit.entity.Player;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import org.bukkit.Bukkit;
 import java.util.Random;
 
 /**
@@ -29,50 +30,60 @@ public class LinkCommand implements CommandExecutor {
             sender.sendMessage("§cSeuls les joueurs peuvent utiliser cette commande.");
             return true;
         }
+        // Exécuter les opérations BD en asynchrone pour éviter de bloquer le thread principal
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+            String uuid = player.getUniqueId().toString();
 
-        // Vérifier si le compte est déjà lié
-        String existingDiscordId = getLinkedDiscordId(player.getUniqueId().toString());
-        if (existingDiscordId != null) {
-            player.sendMessage("§8[§6Cantale§8] §cTon compte est déjà lié à Discord !");
-            player.sendMessage("§7ID Discord : §f" + existingDiscordId);
-            player.sendMessage("§7Si tu veux changer de compte Discord, contacte un administrateur.");
-            return true;
-        }
+            // Vérifier si déjà lié
+            String existingDiscordId = getLinkedDiscordId(uuid);
+            if (existingDiscordId != null) {
+                Bukkit.getScheduler().runTask(plugin, () -> {
+                    player.sendMessage("§8[§6Cantale§8] §cTon compte est déjà lié à Discord !");
+                    player.sendMessage("§7ID Discord : §f" + existingDiscordId);
+                    player.sendMessage("§7Si tu veux changer de compte Discord, contacte un administrateur.");
+                });
+                return;
+            }
 
-        // Supprimer anciens codes expirés
-        cleanupExpiredCodes();
+            // Cleanup et vérification de code actif
+            cleanupExpiredCodes();
+            String existing = getActiveCode(uuid);
+            if (existing != null) {
+                Bukkit.getScheduler().runTask(plugin, () -> {
+                    player.sendMessage("§8[§6Cantale§8] §eTon code de liaison : §f" + existing);
+                    player.sendMessage("§7Rejoins notre Discord : §bhttps://discord.gg/eDTfYWtuYp");
+                    player.sendMessage("§7Et utilise le code avec §f/link " + existing + " <ton_pseudo> §7sur Discord.");
+                    player.sendMessage("§7Le code expire dans 10 minutes.");
+                });
+                return;
+            }
 
-        // Vérifier s'il existe déjà un code actif
-        String existing = getActiveCode(player.getUniqueId().toString());
-        if (existing != null) {
-            player.sendMessage("§8[§6Cantale§8] §eTon code de liaison : §f" + existing);
-            player.sendMessage("§7Utilise §f/link <code> §7sur Discord pour lier ton compte.");
-            player.sendMessage("§7Le code expire dans 10 minutes.");
-            return true;
-        }
+            String code = generateCode();
+            long now = System.currentTimeMillis() / 1000;
+            long expires = now + 600; // 10 minutes
 
-        String code = generateCode();
-        long now = System.currentTimeMillis() / 1000;
-        long expires = now + 600; // 10 minutes
+            try (Connection conn = plugin.getDatabaseManager().getConnection();
+                 PreparedStatement stmt = conn.prepareStatement(
+                     "INSERT INTO link_codes (code, uuid, player_name, created_at, expires_at, used) VALUES (?, ?, ?, ?, ?, 0)")) {
+                stmt.setString(1, code);
+                stmt.setString(2, uuid);
+                stmt.setString(3, player.getName());
+                stmt.setLong(4, now);
+                stmt.setLong(5, expires);
+                stmt.executeUpdate();
 
-        try (Connection conn = plugin.getDatabaseManager().getConnection();
-             PreparedStatement stmt = conn.prepareStatement(
-                 "INSERT INTO link_codes (code, uuid, player_name, created_at, expires_at, used) VALUES (?, ?, ?, ?, ?, 0)")) {
-            stmt.setString(1, code);
-            stmt.setString(2, player.getUniqueId().toString());
-            stmt.setString(3, player.getName());
-            stmt.setLong(4, now);
-            stmt.setLong(5, expires);
-            stmt.executeUpdate();
-        } catch (Exception e) {
-            plugin.getLogger().warning("[Link] Erreur création code: " + e.getMessage());
-            player.sendMessage("§cErreur lors de la génération du code.");
-            return true;
-        }
+                Bukkit.getScheduler().runTask(plugin, () -> {
+                    player.sendMessage("§8[§6Cantale§8] §eTon code de liaison : §f§l" + code);
+                    player.sendMessage("§7Rejoins notre Discord : §bhttps://discord.gg/eDTfYWtuYp");
+                    player.sendMessage("§7Et utilise le code avec §f/link " + code + " <ton_pseudo> §7sur Discord pour lier ton compte.");
+                    player.sendMessage("§7Le code expire dans 10 minutes.");
+                });
+            } catch (Exception e) {
+                plugin.getLogger().warning("[Link] Erreur création code: " + e.getMessage());
+                Bukkit.getScheduler().runTask(plugin, () -> player.sendMessage("§cErreur lors de la génération du code."));
+            }
+        });
 
-        player.sendMessage("§8[§6Cantale§8] §eTon code de liaison : §f§l" + code);
-        player.sendMessage("§7Va sur Discord et fais §f/link " + code + " §7pour lier ton compte.");
-        player.sendMessage("§7Le code expire dans 10 minutes.");
         return true;
     }
 

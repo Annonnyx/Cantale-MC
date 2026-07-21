@@ -4,11 +4,14 @@ import fr.cantale.plugin.CantalePlugin;
 import fr.cantale.plugin.config.ConfigManager;
 
 import java.io.File;
+import java.lang.reflect.InvocationHandler;
+import java.lang.reflect.Proxy;
 import java.sql.*;
 
 public class DatabaseManager {
 
     private final CantalePlugin plugin;
+    private final Object connectionLock = new Object();
     private Connection connection;
     private String databaseType;
 
@@ -27,38 +30,59 @@ public class DatabaseManager {
     }
 
     private void connect() {
-        try {
-            if (databaseType.equalsIgnoreCase("mysql")) {
-                ConfigManager cfg = plugin.getConfigManager();
-                String url = String.format("jdbc:mysql://%s:%d/%s?useSSL=false&autoReconnect=true",
-                        cfg.getMysqlHost(), cfg.getMysqlPort(), cfg.getMysqlDatabase());
-                this.connection = DriverManager.getConnection(url, cfg.getMysqlUsername(), cfg.getMysqlPassword());
-            } else {
-                // Créer le dossier du plugin s'il n'existe pas
-                File dataFolder = plugin.getDataFolder();
-                if (!dataFolder.exists()) {
-                    boolean created = dataFolder.mkdirs();
-                    if (!created) {
-                        plugin.getLogger().severe("Impossible de créer le dossier du plugin: " + dataFolder.getAbsolutePath());
-                    } else {
-                        plugin.getLogger().info("Dossier du plugin créé: " + dataFolder.getAbsolutePath());
+        synchronized (connectionLock) {
+            try {
+                if (connection != null && !connection.isClosed()) {
+                    return;
+                }
+                if (connection != null) {
+                    try {
+                        connection.close();
+                    } catch (SQLException ignored) {
                     }
                 }
-                File dbFile = new File(dataFolder, plugin.getConfigManager().getDatabaseFile());
-                String url = "jdbc:sqlite:" + dbFile.getAbsolutePath();
-                this.connection = DriverManager.getConnection(url);
-                
-                // Optimisations SQLite pour éviter les blocages
-                try (Statement stmt = connection.createStatement()) {
-                    stmt.execute("PRAGMA busy_timeout = 5000"); // Timeout 5 secondes
-                    stmt.execute("PRAGMA journal_mode = WAL");  // Write-Ahead Logging pour meilleures performances
-                    stmt.execute("PRAGMA synchronous = NORMAL"); // Sync normal pour équilibre perf/sécurité
-                }
+                this.connection = openConnection();
+            } catch (SQLException e) {
+                plugin.getLogger().severe("Impossible de se connecter à la base de données : " + e.getMessage());
+                this.connection = null;
             }
-        } catch (SQLException e) {
-            plugin.getLogger().severe("Impossible de se connecter à la base de données : " + e.getMessage());
-            e.printStackTrace();
         }
+    }
+
+    private Connection openConnection() throws SQLException {
+        if (databaseType == null) {
+            this.databaseType = plugin.getConfigManager().getDatabaseType();
+        }
+
+        if (databaseType.equalsIgnoreCase("mysql")) {
+            ConfigManager cfg = plugin.getConfigManager();
+            String url = String.format("jdbc:mysql://%s:%d/%s?useSSL=false&autoReconnect=true",
+                    cfg.getMysqlHost(), cfg.getMysqlPort(), cfg.getMysqlDatabase());
+            Connection newConnection = DriverManager.getConnection(url, cfg.getMysqlUsername(), cfg.getMysqlPassword());
+            plugin.getLogger().info("Connexion MySQL établie sur " + cfg.getMysqlHost() + ":" + cfg.getMysqlPort() + "/" + cfg.getMysqlDatabase());
+            return newConnection;
+        }
+
+        File dataFolder = plugin.getDataFolder();
+        if (!dataFolder.exists()) {
+            boolean created = dataFolder.mkdirs();
+            if (!created) {
+                plugin.getLogger().severe("Impossible de créer le dossier du plugin: " + dataFolder.getAbsolutePath());
+            } else {
+                plugin.getLogger().info("Dossier du plugin créé: " + dataFolder.getAbsolutePath());
+            }
+        }
+        File dbFile = new File(dataFolder, plugin.getConfigManager().getDatabaseFile());
+        String url = "jdbc:sqlite:" + dbFile.getAbsolutePath();
+        Connection newConnection = DriverManager.getConnection(url);
+
+        try (Statement stmt = newConnection.createStatement()) {
+            stmt.execute("PRAGMA busy_timeout = 5000");
+            stmt.execute("PRAGMA journal_mode = WAL");
+            stmt.execute("PRAGMA synchronous = NORMAL");
+        }
+
+        return newConnection;
     }
 
     private void createTables() {
@@ -242,16 +266,6 @@ public class DatabaseManager {
                 )
                 """);
 
-            // Coffres privés
-            stmt.execute("""
-                CREATE TABLE IF NOT EXISTS private_chests (
-                    id INTEGER PRIMARY KEY AUTO_INCREMENT,
-                    owner_uuid VARCHAR(36) NOT NULL,
-                    location VARCHAR(255) NOT NULL,
-                    items TEXT NOT NULL,
-                    created_at INTEGER DEFAULT 0
-                )
-                """);
 
             // Blocks fortifiés (runes) - LEGACY (par bloc)
             stmt.execute("""
@@ -397,13 +411,15 @@ public class DatabaseManager {
                 )
                 """);
 
-            // Private Chests
+            // Private Chests (PC1, PC2, PC3, EC)
             stmt.execute("""
                 CREATE TABLE IF NOT EXISTS private_chests (
-                    owner_uuid VARCHAR(36) PRIMARY KEY,
+                    owner_uuid VARCHAR(36) NOT NULL,
+                    chest_type VARCHAR(16) NOT NULL,
                     contents TEXT NOT NULL,
                     size INTEGER DEFAULT 27,
-                    updated_at INTEGER DEFAULT 0
+                    updated_at INTEGER DEFAULT 0,
+                    PRIMARY KEY (owner_uuid, chest_type)
                 )
                 """);
 
@@ -465,7 +481,10 @@ public class DatabaseManager {
                     reward_summary TEXT,
                     voted_at INTEGER DEFAULT 0,
                     delivered INTEGER DEFAULT 0,
-                    delivered_at INTEGER
+                    delivered_at INTEGER,
+                    INDEX idx_votes_player (player_uuid),
+                    INDEX idx_votes_address_site (address, site),
+                    INDEX idx_votes_voted_at (voted_at)
                 )
                 """);
 
@@ -477,9 +496,28 @@ public class DatabaseManager {
                     total_votes INTEGER DEFAULT 0,
                     streak_days INTEGER DEFAULT 0,
                     last_vote_day INTEGER DEFAULT 0,
-                    last_vote_at INTEGER DEFAULT 0
+                    last_vote_at INTEGER DEFAULT 0,
+                    monthly_votes INTEGER DEFAULT 0,
+                    last_month INTEGER DEFAULT 0
                 )
                 """);
+
+            // Vote party : compteur journalier
+            stmt.execute("""
+                CREATE TABLE IF NOT EXISTS vote_party (
+                    id INTEGER PRIMARY KEY,
+                    day INTEGER DEFAULT 0,
+                    count INTEGER DEFAULT 0,
+                    goal INTEGER DEFAULT 50
+                )
+                """);
+            // S'assurer qu'il y ait toujours une ligne
+            try (PreparedStatement ps = connection.prepareStatement(
+                    "INSERT INTO vote_party (id, day, count, goal) VALUES (1, 0, 0, 50) ON DUPLICATE KEY UPDATE id=id")) {
+                ps.executeUpdate();
+            } catch (SQLException sqle) {
+                // SQLite ne supporte pas ON DUPLICATE KEY ; ignorer silencieusement
+            }
 
             // Codes de liaison Discord (temporaires)
             stmt.execute("""
@@ -490,6 +528,16 @@ public class DatabaseManager {
                     created_at INTEGER DEFAULT 0,
                     expires_at INTEGER DEFAULT 0,
                     used INTEGER DEFAULT 0
+                )
+                """);
+
+            // Milestones de votes (paliers déjà réclamés)
+            stmt.execute("""
+                CREATE TABLE IF NOT EXISTS vote_milestones (
+                    player_uuid VARCHAR(36) NOT NULL,
+                    milestone INTEGER NOT NULL,
+                    claimed_at INTEGER DEFAULT 0,
+                    PRIMARY KEY (player_uuid, milestone)
                 )
                 """);
 
@@ -505,9 +553,37 @@ public class DatabaseManager {
                 CREATE TABLE IF NOT EXISTS discord_links (
                     discord_id VARCHAR(32) PRIMARY KEY,
                     uuid VARCHAR(36) NOT NULL,
-                    linked_at INTEGER DEFAULT 0
+                    linked_at INTEGER DEFAULT 0,
+                    discord_username VARCHAR(64) DEFAULT NULL,
+                    discord_display_name VARCHAR(64) DEFAULT NULL
                 )
                 """);
+
+            // Colonnes ajoutées pour la recherche par nom Discord
+            try {
+                stmt.execute("ALTER TABLE discord_links ADD COLUMN discord_username VARCHAR(64) DEFAULT NULL");
+            } catch (java.sql.SQLException ignored) {}
+            try {
+                stmt.execute("ALTER TABLE discord_links ADD COLUMN discord_display_name VARCHAR(64) DEFAULT NULL");
+            } catch (java.sql.SQLException ignored) {}
+
+            // Table des récompenses de giveaway en attente de connexion
+            stmt.execute("""
+                CREATE TABLE IF NOT EXISTS pending_rewards (
+                    id INTEGER PRIMARY KEY AUTO_INCREMENT,
+                    player_uuid VARCHAR(36) NOT NULL,
+                    reward_type VARCHAR(32) NOT NULL,
+                    reward_value TEXT NOT NULL,
+                    quantity INTEGER DEFAULT 1,
+                    claimed INTEGER DEFAULT 0,
+                    created_at INTEGER DEFAULT 0
+                )
+                """);
+
+            // Migration : ajouter colonne playtime à la table players
+            try {
+                stmt.execute("ALTER TABLE players ADD COLUMN playtime INTEGER DEFAULT 0");
+            } catch (java.sql.SQLException ignored) {}
 
             plugin.getLogger().info("Tables créées / vérifiées avec succès.");
         } catch (SQLException e) {
@@ -517,14 +593,83 @@ public class DatabaseManager {
     }
 
     public Connection getConnection() {
-        try {
-            if (connection == null || connection.isClosed()) {
-                connect();
+        synchronized (connectionLock) {
+            try {
+                if (connection == null || connection.isClosed() || !connection.isValid(2)) {
+                    plugin.getLogger().info("Connexion DB fermée ou nulle, tentative de reconnexion...");
+                    connect();
+                    if (connection != null && !connection.isClosed()) {
+                        plugin.getLogger().info("Reconnexion DB réussie.");
+                    }
+                }
+
+                if (connection != null && !connection.isClosed()) {
+                    return wrapConnection(connection);
+                }
+            } catch (SQLException e) {
+                plugin.getLogger().severe("Erreur de connexion : " + e.getMessage());
             }
-        } catch (SQLException e) {
-            plugin.getLogger().severe("Erreur de connexion : " + e.getMessage());
+            return null;
         }
-        return connection;
+    }
+
+    private Connection wrapConnection(Connection baseConnection) {
+        InvocationHandler handler = (proxy, method, args) -> {
+            if (method.getName().equals("close")) {
+                return null;
+            }
+            return method.invoke(baseConnection, args);
+        };
+
+        return (Connection) Proxy.newProxyInstance(
+                Connection.class.getClassLoader(),
+                new Class<?>[]{Connection.class},
+                handler
+        );
+    }
+
+    /**
+     * Indique si la connexion à la base est active et utilisable.
+     */
+    public boolean isConnected() {
+        try {
+            return connection != null && !connection.isClosed() && connection.isValid(2);
+        } catch (SQLException e) {
+            plugin.getLogger().warning("Erreur lors de la vérification de la connexion DB : " + e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Planifie des tentatives de reconnexion asynchrones. Utile si la DB est temporairement indisponible.
+     * @param maxAttempts nombre maximum de tentatives
+     * @param initialDelayTicks délai initial avant la première tentative (en ticks)
+     * @param intervalTicks intervalle entre tentatives (en ticks)
+     */
+    public void scheduleReconnect(int maxAttempts, long initialDelayTicks, long intervalTicks) {
+        new org.bukkit.scheduler.BukkitRunnable() {
+            private int attempts = 0;
+
+            @Override
+            public void run() {
+                attempts++;
+                if (isConnected()) {
+                    this.cancel();
+                    return;
+                }
+                plugin.getLogger().info("Tentative de reconnexion DB (" + attempts + "/" + maxAttempts + ")...");
+                connect();
+                if (isConnected()) {
+                    plugin.getLogger().info("Reconnéxion DB réussie après tentative " + attempts + ".");
+                    this.cancel();
+                    return;
+                }
+                if (attempts >= maxAttempts) {
+                    plugin.getLogger().severe("Échec des tentatives de reconnexion DB après " + attempts + " essais.");
+                    this.cancel();
+                }
+            }
+        }.runTaskTimerAsynchronously(plugin, initialDelayTicks, intervalTicks);
     }
 
     public void close() {

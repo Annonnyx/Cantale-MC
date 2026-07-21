@@ -16,7 +16,7 @@ public class VanishCommand implements CommandExecutor {
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
-        if (!sender.hasPermission("cantale.admin")) {
+        if (!sender.hasPermission("cantale.admin") && !sender.hasPermission("cantale.moderator")) {
             sender.sendMessage("§cVous n'avez pas la permission.");
             return true;
         }

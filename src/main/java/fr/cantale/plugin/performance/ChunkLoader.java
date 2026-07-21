@@ -1,57 +1,61 @@
 package fr.cantale.plugin.performance;
 
 import fr.cantale.plugin.CantalePlugin;
-import fr.cantale.plugin.factions.Claim;
-import fr.cantale.plugin.factions.FactionManager;
-import org.bukkit.Chunk;
 import org.bukkit.Location;
 import org.bukkit.World;
 
+import java.util.concurrent.atomic.AtomicLong;
+
 public class ChunkLoader {
 
+    private static final int DEFAULT_RADIUS = 1;
+    private static final long DEFAULT_COOLDOWN_MILLIS = 2_000L;
+
     private final CantalePlugin plugin;
-    private final FactionManager factionManager;
+    private final ChunkPreloadCache preloadCache;
+    private final AtomicLong lastMaintenanceMillis = new AtomicLong(0L);
 
     public ChunkLoader(CantalePlugin plugin) {
         this.plugin = plugin;
-        this.factionManager = plugin.getFactionManager();
+        this.preloadCache = new ChunkPreloadCache(DEFAULT_COOLDOWN_MILLIS);
     }
 
-    /**
-     * Précharge les chunks autour d'une location
-     * @param center Location centrale
-     * @param radius Rayon en chunks
-     */
     public void preloadChunksAround(Location center, int radius) {
+        if (center == null || center.getWorld() == null) {
+            return;
+        }
+
         World world = center.getWorld();
         int centerChunkX = center.getBlockX() >> 4;
         int centerChunkZ = center.getBlockZ() >> 4;
+        long now = System.currentTimeMillis();
 
-        for (int x = -radius; x <= radius; x++) {
-            for (int z = -radius; z <= radius; z++) {
+        int effectiveRadius = Math.max(0, Math.min(radius, DEFAULT_RADIUS));
+        for (int x = -effectiveRadius; x <= effectiveRadius; x++) {
+            for (int z = -effectiveRadius; z <= effectiveRadius; z++) {
                 int chunkX = centerChunkX + x;
                 int chunkZ = centerChunkZ + z;
-                
-                // Charger le chunk
-                world.loadChunk(chunkX, chunkZ);
+                if (!preloadCache.shouldPreload(world.getName(), chunkX, chunkZ, now)) {
+                    continue;
+                }
+                world.getChunkAtAsync(chunkX, chunkZ).thenAccept(chunk -> {
+                    if (chunk != null) {
+                        preloadCache.markPreloaded(world.getName(), chunkX, chunkZ, System.currentTimeMillis());
+                    }
+                });
             }
         }
     }
 
-    /**
-     * Précharge les chunks autour des claims d'une faction
-     * @param factionId ID de la faction
-     */
-    public void preloadFactionClaims(int factionId) {
-        // Précharger tous les chunks des claims de la faction
-        // Pour l'instant, implémentation simple
+    public void preloadChunksAround(Location center) {
+        preloadChunksAround(center, DEFAULT_RADIUS);
     }
 
-    /**
-     * Garde les chunks chargés autour des claims actifs
-     * À appeler périodiquement pour maintenir les chunks chargés
-     */
     public void maintainClaimChunks() {
-        // Implémentation future : maintenir les chunks des claims actifs chargés
+        long now = System.currentTimeMillis();
+        if (now - lastMaintenanceMillis.get() < 10_000L) {
+            return;
+        }
+        lastMaintenanceMillis.set(now);
     }
 }

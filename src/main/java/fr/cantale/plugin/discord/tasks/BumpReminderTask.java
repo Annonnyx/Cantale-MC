@@ -3,6 +3,9 @@ package fr.cantale.plugin.discord.tasks;
 import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
+import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
+import net.dv8tion.jda.api.hooks.ListenerAdapter;
+import org.jetbrains.annotations.NotNull;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.awt.Color;
@@ -39,7 +42,45 @@ public class BumpReminderTask implements Runnable {
 
     /** À appeler une fois au démarrage du plugin pour lancer le cycle de rappels. */
     public void start() {
-        plugin.getServer().getScheduler().runTaskTimerAsynchronously(plugin, this, PERIOD_TICKS, PERIOD_TICKS);
+        // Register a lightweight listener to detect an actual bump message from Disboard (or similar)
+        // When a bump is detected we reschedule the next reminder to PERIOD_TICKS after that event.
+        jda.addEventListener(new ListenerAdapter() {
+            @Override
+            public void onMessageReceived(@NotNull MessageReceivedEvent event) {
+                if (event.getChannel().getIdLong() != BUMP_CHANNEL_ID) return;
+                if (jda.getSelfUser() != null && event.getAuthor().getIdLong() == jda.getSelfUser().getIdLong()) return;
+
+                String raw = event.getMessage().getContentRaw().toLowerCase();
+                boolean looksLikeBump = raw.contains("bump") || raw.contains("bumped") || raw.contains("bumped the server");
+
+                if (!looksLikeBump) {
+                    for (var embed : event.getMessage().getEmbeds()) {
+                        String title = embed.getTitle();
+                        String desc = embed.getDescription();
+                        if ((title != null && title.toLowerCase().contains("bump")) ||
+                            (desc != null && desc.toLowerCase().contains("bump"))) {
+                            looksLikeBump = true;
+                            break;
+                        }
+                    }
+                }
+
+                if (looksLikeBump) {
+                    // Reschedule next reminder relative to now
+                    plugin.getServer().getScheduler().runTask(plugin, BumpReminderTask.this::scheduleNext);
+                }
+            }
+        });
+
+        // Schedule the first reminder
+        scheduleNext();
+    }
+
+    private org.bukkit.scheduler.BukkitTask scheduledTask;
+
+    private void scheduleNext() {
+        if (scheduledTask != null) scheduledTask.cancel();
+        scheduledTask = plugin.getServer().getScheduler().runTaskLaterAsynchronously(plugin, this, PERIOD_TICKS);
     }
 
     @Override
@@ -58,5 +99,8 @@ public class BumpReminderTask implements Runnable {
         channel.sendMessage("@here")
             .setEmbeds(embed.build())
             .queue();
+
+        // After sending a reminder, schedule the next one relative to now.
+        scheduleNext();
     }
 }

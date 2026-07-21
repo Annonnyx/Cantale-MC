@@ -1,9 +1,11 @@
 package fr.cantale.plugin.vote;
 
 import fr.cantale.plugin.CantalePlugin;
+import fr.cantale.plugin.crate.CrateManager;
+import fr.cantale.plugin.crate.CrateType;
 import fr.cantale.plugin.custom.CustomItemManager;
 import fr.cantale.plugin.custom.CustomItemType;
-import fr.cantale.plugin.privatechest.PrivateChest;
+import fr.cantale.plugin.privatechest.ChestType;
 import fr.cantale.plugin.privatechest.PrivateChestDAO;
 import org.bukkit.Material;
 import org.bukkit.enchantments.Enchantment;
@@ -46,9 +48,19 @@ public class VoteRewardManager {
      * @param streakDays nombre de jours consécutifs de votes (>= 1)
      */
     public VoteReward roll(int streakDays) {
+        return roll(streakDays, null);
+    }
+
+    /**
+     * Génère une récompense aléatoire en fonction de la streak et du site voté.
+     * Si site est fourni, des Cadeaux du Roi sont ajoutés selon le cooldown du site.
+     * @param streakDays nombre de jours consécutifs de votes (>= 1)
+     * @param site       site de vote (peut être null)
+     */
+    public VoteReward roll(int streakDays, VoteSite site) {
         // Chance ultra-faible de vie indépendante du tier : 0.3% (3/1000)
         if (random.nextInt(1000) < 3) {
-            return new VoteReward(VoteReward.Tier.LEGENDAIRE, 0, List.of(), "1 Vie");
+            return buildLifeReward(site);
         }
 
         VoteReward.Tier minTier = VoteReward.Tier.COMMUN;
@@ -56,7 +68,40 @@ public class VoteRewardManager {
         else if (streakDays >= 7) minTier = VoteReward.Tier.RARE;
 
         VoteReward.Tier tier = rollTier(minTier);
-        return buildReward(tier);
+        VoteReward base = buildReward(tier);
+
+        if (site == null) {
+            return base;
+        }
+
+        // Ajoute les Cadeaux du Roi liés au cooldown du site
+        return mergeWithCrates(base, site.crateCount());
+    }
+
+    private VoteReward buildLifeReward(VoteSite site) {
+        if (site == null) {
+            return new VoteReward(VoteReward.Tier.LEGENDAIRE, 0, List.of(), "1 Vie");
+        }
+        return mergeWithCrates(
+                new VoteReward(VoteReward.Tier.LEGENDAIRE, 0, List.of(), "1 Vie"),
+                site.crateCount()
+        );
+    }
+
+    private VoteReward mergeWithCrates(VoteReward base, int crateCount) {
+        if (crateCount <= 0) return base;
+
+        CrateManager crateManager = plugin.getCrateManager();
+        if (crateManager == null) return base;
+
+        List<ItemStack> mergedItems = new ArrayList<>(base.getItems());
+        for (int i = 0; i < crateCount; i++) {
+            mergedItems.add(crateManager.createCrateItem(CrateType.VOTE));
+        }
+
+        String crateSuffix = crateCount + "× Cadeau du Roi";
+        String summary = base.getSummary() + " + " + crateSuffix;
+        return new VoteReward(base.getTier(), base.getCantox(), mergedItems, summary);
     }
 
     /** Tirage pondéré : COMMUN 60 / RARE 25 / EPIQUE 12 / LEGENDAIRE 3. */
@@ -111,8 +156,8 @@ public class VoteRewardManager {
             ItemStack sword = new ItemStack(Material.IRON_SWORD);
             ItemMeta meta = sword.getItemMeta();
             if (meta != null) {
-                meta.addEnchant(Enchantment.DAMAGE_ALL, 2, true); // Sharpness II
-                meta.addEnchant(Enchantment.DURABILITY, 1, true); // Unbreaking I
+                meta.addEnchant(Enchantment.SHARPNESS, 2, true); // Sharpness II
+                meta.addEnchant(Enchantment.UNBREAKING, 1, true); // Unbreaking I
                 sword.setItemMeta(meta);
             }
             return new VoteReward(VoteReward.Tier.RARE, 0, List.of(sword), "Epee en fer (Tranchant II)");
@@ -120,8 +165,8 @@ public class VoteRewardManager {
             ItemStack chest = new ItemStack(Material.IRON_CHESTPLATE);
             ItemMeta meta = chest.getItemMeta();
             if (meta != null) {
-                meta.addEnchant(Enchantment.PROTECTION_ENVIRONMENTAL, 2, true); // Protection II
-                meta.addEnchant(Enchantment.DURABILITY, 1, true); // Unbreaking I
+                meta.addEnchant(Enchantment.PROTECTION, 2, true); // Protection II
+                meta.addEnchant(Enchantment.UNBREAKING, 1, true); // Unbreaking I
                 chest.setItemMeta(meta);
             }
             return new VoteReward(VoteReward.Tier.RARE, 0, List.of(chest), "Plastron en fer (Protection II)");
@@ -136,8 +181,8 @@ public class VoteRewardManager {
             ItemStack sword = new ItemStack(Material.DIAMOND_SWORD);
             ItemMeta meta = sword.getItemMeta();
             if (meta != null) {
-                meta.addEnchant(Enchantment.DAMAGE_ALL, 3, true); // Sharpness III
-                meta.addEnchant(Enchantment.DURABILITY, 2, true); // Unbreaking II
+                meta.addEnchant(Enchantment.SHARPNESS, 3, true); // Sharpness III
+                meta.addEnchant(Enchantment.UNBREAKING, 2, true); // Unbreaking II
                 meta.addEnchant(Enchantment.FIRE_ASPECT, 1, true); // Fire Aspect I
                 sword.setItemMeta(meta);
             }
@@ -146,8 +191,8 @@ public class VoteRewardManager {
             ItemStack chest = new ItemStack(Material.DIAMOND_CHESTPLATE);
             ItemMeta meta = chest.getItemMeta();
             if (meta != null) {
-                meta.addEnchant(Enchantment.PROTECTION_ENVIRONMENTAL, 3, true); // Protection III
-                meta.addEnchant(Enchantment.DURABILITY, 2, true); // Unbreaking II
+                meta.addEnchant(Enchantment.PROTECTION, 3, true); // Protection III
+                meta.addEnchant(Enchantment.UNBREAKING, 2, true); // Unbreaking II
                 chest.setItemMeta(meta);
             }
             return new VoteReward(VoteReward.Tier.EPIQUE, 0, List.of(chest), "Plastron en diamant (Protection III)");
@@ -162,8 +207,8 @@ public class VoteRewardManager {
             ItemStack chest = new ItemStack(Material.DIAMOND_CHESTPLATE);
             ItemMeta meta = chest.getItemMeta();
             if (meta != null) {
-                meta.addEnchant(Enchantment.PROTECTION_ENVIRONMENTAL, 4, true); // Protection IV
-                meta.addEnchant(Enchantment.DURABILITY, 3, true); // Unbreaking III
+                meta.addEnchant(Enchantment.PROTECTION, 4, true); // Protection IV
+                meta.addEnchant(Enchantment.UNBREAKING, 3, true); // Unbreaking III
                 meta.addEnchant(Enchantment.MENDING, 1, true); // Mending
                 chest.setItemMeta(meta);
             }
@@ -200,15 +245,19 @@ public class VoteRewardManager {
             boolean pcSuccess = false;
             try {
                 PrivateChestDAO dao = new PrivateChestDAO(plugin);
-                PrivateChest pc = dao.loadPrivateChest(player.getUniqueId());
-                var leftoverPc = pc.getInventory().addItem(leftoverInv.values().toArray(new ItemStack[0]));
+                var snapshot = dao.loadChest(player.getUniqueId(), ChestType.PC1, 27);
+                org.bukkit.inventory.Inventory pcInventory = org.bukkit.Bukkit.createInventory(null, snapshot.size(), ChestType.PC1.getTitle());
+                if (snapshot.contents() != null && snapshot.contents().length == snapshot.size()) {
+                    pcInventory.setContents(snapshot.contents());
+                }
+                var leftoverPc = pcInventory.addItem(leftoverInv.values().toArray(new ItemStack[0]));
                 if (leftoverPc.isEmpty()) {
-                    dao.savePrivateChest(player.getUniqueId(), pc.getContents());
+                    dao.saveChest(player.getUniqueId(), ChestType.PC1, pcInventory.getContents());
                     pcSuccess = true;
                     player.sendMessage("§8[§6Vote§8] §7Item envoyé dans votre §eCoffre Privé §7(faute de place).");
                 } else {
                     // PC plein aussi → save ce qui a tenu, drop le reste
-                    dao.savePrivateChest(player.getUniqueId(), pc.getContents());
+                    dao.saveChest(player.getUniqueId(), ChestType.PC1, pcInventory.getContents());
                     leftoverInv = leftoverPc;
                 }
             } catch (Exception e) {

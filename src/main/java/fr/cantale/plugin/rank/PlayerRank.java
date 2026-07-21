@@ -5,7 +5,10 @@ public enum PlayerRank {
     NONE("Aucun",           0,      0, 27,  0,  0,  3,  3),
     AVENTURIER("Aventurier",2500,   0, 27,  0,  1,  5,  5),
     VIP("VIP",              10000,  1, 54,  0,  2, 10, 12),
-    CHEVRE("Chèvre",        100000, 1, 54, 54,  3,999, 20);
+    CHEVRE("Chèvre",        100000, 1, 54, 54,  3,999, 20),
+    MODERATOR("Modérateur", 100000, 1, 54, 54,  3,999, 20),
+    ADMIN("Admin",          100000, 1, 54, 54,  3,999, 20),
+    OWNER("Owner",          100000, 1, 54, 54,  3,999, 20);
 
     private final String displayName;
     private final int dailyCantox;
@@ -36,19 +39,24 @@ public enum PlayerRank {
     public int getMaxHomes() { return maxHomes; }
     public int getMaxAhListings() { return maxAhListings; }
 
-    public boolean hasNoTpCooldown() { return this == CHEVRE; }
-    public boolean hasUnlimitedFlight() { return this == CHEVRE; }
-    public boolean hasSecondChest() { return this == CHEVRE; }
-    public boolean isAtLeastVIP() { return this == VIP || this == CHEVRE; }
+    public boolean hasNoTpCooldown() { return this == CHEVRE || this == MODERATOR || this == ADMIN || this == OWNER; }
+    public boolean hasUnlimitedFlight() { return this == CHEVRE || this == MODERATOR || this == ADMIN || this == OWNER; }
+    public boolean hasSecondChest() { return this == CHEVRE || this == MODERATOR || this == ADMIN || this == OWNER; }
+    public boolean isAtLeastVIP() { return this == VIP || this == CHEVRE || this == MODERATOR || this == ADMIN || this == OWNER; }
     public boolean isAtLeastAventurier() { return this != NONE; }
     public boolean hasMonthlyLives() { return this.monthlyLives > 0; }
+    public boolean isStaff() { return this == MODERATOR || this == ADMIN || this == OWNER; }
 
     public static PlayerRank fromString(String name) {
         if (name == null) return NONE;
         return switch (name.toUpperCase()) {
             case "AVENTURIER", "ADVENTURER" -> AVENTURIER;
             case "VIP" -> VIP;
-            case "CHEVRE", "GOAT", "HEROS", "HERO" -> CHEVRE; // Héros = ancien nom de Chèvre
+            case "CHEVRE", "GOAT", "HEROS", "HERO" -> CHEVRE;
+            case "MODERATOR", "MODERATEUR", "MOD", "MODO" -> MODERATOR;
+            case "ADMIN", "ADMINISTRATEUR" -> ADMIN;
+            case "OWNER", "FONDATEUR", "FONDA" -> OWNER;
+            case "PLAYER", "JOUEUR", "NONE" -> NONE;
             default -> NONE;
         };
     }

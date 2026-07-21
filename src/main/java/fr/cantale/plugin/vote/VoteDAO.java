@@ -7,6 +7,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
+import static java.util.Objects.requireNonNull;
+
 /**
  * DAO du système de votes (Votifier).
  * Gère la persistance des votes individuels, des stats agrégées par joueur,
@@ -119,9 +121,18 @@ public class VoteDAO {
 
         int newTotal = (current == null ? 0 : current.totalVotes) + 1;
 
-        // Upsert (SQLite friendly)
-        String sql = "INSERT OR REPLACE INTO vote_stats (player_uuid, player_name, total_votes, streak_days, last_vote_day, last_vote_at) " +
-                "VALUES (?, ?, ?, ?, ?, ?)";
+        // Upsert compatible MariaDB (ON DUPLICATE KEY UPDATE) et SQLite (INSERT OR REPLACE)
+        String sql;
+        boolean isMariaDB = isMariaDB();
+        if (isMariaDB) {
+            sql = "INSERT INTO vote_stats (player_uuid, player_name, total_votes, streak_days, last_vote_day, last_vote_at) " +
+                    "VALUES (?, ?, ?, ?, ?, ?) " +
+                    "ON DUPLICATE KEY UPDATE player_name=VALUES(player_name), total_votes=VALUES(total_votes), " +
+                    "streak_days=VALUES(streak_days), last_vote_day=VALUES(last_vote_day), last_vote_at=VALUES(last_vote_at)";
+        } else {
+            sql = "INSERT OR REPLACE INTO vote_stats (player_uuid, player_name, total_votes, streak_days, last_vote_day, last_vote_at) " +
+                    "VALUES (?, ?, ?, ?, ?, ?)";
+        }
         try (Connection conn = plugin.getDatabaseManager().getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setString(1, playerUuid.toString());
@@ -131,11 +142,11 @@ public class VoteDAO {
             stmt.setLong(5, currentDay);
             stmt.setLong(6, now);
             stmt.executeUpdate();
+            return new VoteStats(playerUuid, playerName, newTotal, newStreak, currentDay, now);
         } catch (SQLException e) {
             plugin.getLogger().severe("VoteDAO.applyVote : " + e.getMessage());
+            return null;
         }
-
-        return new VoteStats(playerUuid, playerName, newTotal, newStreak, currentDay, now);
     }
 
     public VoteStats getStats(UUID playerUuid) {
@@ -195,10 +206,119 @@ public class VoteDAO {
         return 0;
     }
 
+    /**
+     * Vérifie si la même IP a déjà voté sur ce site dans les dernières heures.
+     */
+    public boolean hasRecentVoteFromIp(String address, VoteSite site, int cooldownHours) {
+        if (address == null || address.isBlank() || cooldownHours <= 0) return false;
+        long since = System.currentTimeMillis() / 1000L - (cooldownHours * 3600L);
+        String sql = "SELECT COUNT(*) FROM votes WHERE address = ? AND site = ? AND voted_at > ?";
+        try (Connection conn = plugin.getDatabaseManager().getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, address);
+            stmt.setString(2, site.displayName());
+            stmt.setLong(3, since);
+            ResultSet rs = stmt.executeQuery();
+            if (rs.next()) return rs.getInt(1) > 0;
+        } catch (SQLException e) {
+            plugin.getLogger().severe("VoteDAO.hasRecentVoteFromIp : " + e.getMessage());
+        }
+        return false;
+    }
+
+    /**
+     * Met à jour le compteur mensuel d'un joueur.
+     */
+    public void updateMonthlyVotes(UUID playerUuid, String playerName, int currentMonth, int monthlyVotes) {
+        String sql;
+        boolean isMariaDB = isMariaDB();
+        if (isMariaDB) {
+            sql = "INSERT INTO vote_stats " +
+                    "(player_uuid, player_name, total_votes, streak_days, last_vote_day, last_vote_at, monthly_votes, last_month) " +
+                    "VALUES (?, ?, COALESCE((SELECT total_votes FROM vote_stats WHERE player_uuid = ?), 0), " +
+                    "COALESCE((SELECT streak_days FROM vote_stats WHERE player_uuid = ?), 0), " +
+                    "COALESCE((SELECT last_vote_day FROM vote_stats WHERE player_uuid = ?), 0), " +
+                    "COALESCE((SELECT last_vote_at FROM vote_stats WHERE player_uuid = ?), 0), ?, ?) " +
+                    "ON DUPLICATE KEY UPDATE player_name=VALUES(player_name), total_votes=VALUES(total_votes), " +
+                    "streak_days=VALUES(streak_days), last_vote_day=VALUES(last_vote_day), last_vote_at=VALUES(last_vote_at), " +
+                    "monthly_votes=VALUES(monthly_votes), last_month=VALUES(last_month)";
+        } else {
+            sql = "INSERT OR REPLACE INTO vote_stats " +
+                    "(player_uuid, player_name, total_votes, streak_days, last_vote_day, last_vote_at, monthly_votes, last_month) " +
+                    "VALUES (?, ?, COALESCE((SELECT total_votes FROM vote_stats WHERE player_uuid = ?), 0), " +
+                    "COALESCE((SELECT streak_days FROM vote_stats WHERE player_uuid = ?), 0), " +
+                    "COALESCE((SELECT last_vote_day FROM vote_stats WHERE player_uuid = ?), 0), " +
+                    "COALESCE((SELECT last_vote_at FROM vote_stats WHERE player_uuid = ?), 0), ?, ?)";
+        }
+        try (Connection conn = plugin.getDatabaseManager().getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, playerUuid.toString());
+            stmt.setString(2, playerName);
+            stmt.setString(3, playerUuid.toString());
+            stmt.setString(4, playerUuid.toString());
+            stmt.setString(5, playerUuid.toString());
+            stmt.setString(6, playerUuid.toString());
+            stmt.setInt(7, monthlyVotes);
+            stmt.setInt(8, currentMonth);
+            stmt.executeUpdate();
+        } catch (SQLException e) {
+            plugin.getLogger().severe("VoteDAO.updateMonthlyVotes : " + e.getMessage());
+        }
+    }
+
+    /**
+     * Récupère le top mensuel pour un mois donné (format YYYYMM).
+     */
+    public List<VoteStats> getMonthlyTop(int month, int limit) {
+        List<VoteStats> result = new ArrayList<>();
+        String sql = "SELECT * FROM vote_stats WHERE last_month = ? ORDER BY monthly_votes DESC LIMIT ?";
+        try (Connection conn = plugin.getDatabaseManager().getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setInt(1, month);
+            stmt.setInt(2, limit);
+            ResultSet rs = stmt.executeQuery();
+            while (rs.next()) {
+                result.add(new VoteStats(
+                        UUID.fromString(rs.getString("player_uuid")),
+                        rs.getString("player_name"),
+                        rs.getInt("total_votes"),
+                        rs.getInt("streak_days"),
+                        rs.getLong("last_vote_day"),
+                        rs.getLong("last_vote_at"),
+                        rs.getInt("monthly_votes"),
+                        rs.getInt("last_month")
+                ));
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().severe("VoteDAO.getMonthlyTop : " + e.getMessage());
+        }
+        return result;
+    }
+
+    /**
+     * Détecte si la base de données utilise le dialecte MariaDB/MySQL.
+     */
+    private boolean isMariaDB() {
+        try (Connection conn = plugin.getDatabaseManager().getConnection()) {
+            DatabaseMetaData meta = conn.getMetaData();
+            String name = meta.getDatabaseProductName();
+            return name != null && (name.toLowerCase().contains("mariadb") || name.toLowerCase().contains("mysql"));
+        } catch (SQLException e) {
+            plugin.getLogger().warning("VoteDAO.isMariaDB : " + e.getMessage());
+            return false;
+        }
+    }
+
     /** Vote livré au joueur quand il revient en ligne. */
     public record PendingVote(long id, String site, String tier, String rewardSummary, long votedAt) {}
 
     /** Stats agrégées par joueur. */
     public record VoteStats(UUID uuid, String name, int totalVotes, int streakDays,
-                            long lastVoteDay, long lastVoteAt) {}
+                            long lastVoteDay, long lastVoteAt, int monthlyVotes, int lastMonth) {
+
+        public VoteStats(UUID uuid, String name, int totalVotes, int streakDays,
+                         long lastVoteDay, long lastVoteAt) {
+            this(uuid, name, totalVotes, streakDays, lastVoteDay, lastVoteAt, 0, 0);
+        }
+    }
 }

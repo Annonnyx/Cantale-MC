@@ -64,7 +64,7 @@ public class MainMenuUI extends BaseUI {
             case 25 -> { close(); player.performCommand("customitem"); }
             case 29 -> { close(); player.performCommand("pc"); }
             case 30 -> {
-                if (player.hasPermission("cantale.admin")) { close(); player.performCommand("moderation"); }
+                if (player.hasPermission("cantale.admin") || player.hasPermission("cantale.moderator")) { close(); player.performCommand("moderation"); }
                 else player.sendMessage("§cPermission refusée.");
             }
             case 31 -> {

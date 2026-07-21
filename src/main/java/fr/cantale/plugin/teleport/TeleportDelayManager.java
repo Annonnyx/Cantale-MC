@@ -39,12 +39,10 @@ public class TeleportDelayManager implements Listener {
         }
 
         PlayerRank rank = plugin.getRankManager().getRank(player);
-        if (rank == PlayerRank.CHEVRE || rank == PlayerRank.VIP) {
+        if (rank == PlayerRank.CHEVRE || rank == PlayerRank.VIP || rank == PlayerRank.MODERATOR || rank == PlayerRank.ADMIN || rank == PlayerRank.OWNER) {
             return 0;
-        } else if (rank == PlayerRank.AVENTURIER) {
-            return 2;
         }
-        return 5;
+        return 3;
     }
 
     public void delayTeleport(Player player, Runnable teleportAction) {

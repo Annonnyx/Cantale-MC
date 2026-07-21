@@ -26,6 +26,7 @@ public abstract class BaseUI implements Listener {
     protected final Inventory inventory;
     protected final String title;
     protected final int size;
+    private boolean registered = false;
 
     public BaseUI(CantalePlugin plugin, Player player, String title, int rows) {
         this.plugin = plugin;
@@ -33,11 +34,14 @@ public abstract class BaseUI implements Listener {
         this.title = ChatColor.translateAlternateColorCodes('&', title);
         this.size = rows * 9;
         this.inventory = Bukkit.createInventory(null, size, this.title);
-        Bukkit.getPluginManager().registerEvents(this, plugin);
     }
 
     public void open() {
         init();
+        if (!registered) {
+            Bukkit.getPluginManager().registerEvents(this, plugin);
+            registered = true;
+        }
         player.openInventory(inventory);
     }
 
@@ -98,8 +102,17 @@ public abstract class BaseUI implements Listener {
     public void onClick(InventoryClickEvent event) {
         if (!event.getView().getTitle().equals(title)) return;
         if (!event.getWhoClicked().equals(player)) return;
-        event.setCancelled(true);
-        if (event.getClickedInventory() != event.getView().getTopInventory()) return;
+
+        Inventory top = event.getView().getTopInventory();
+        Inventory clicked = event.getClickedInventory();
+
+        // Empêcher tout déplacement d'item vers le menu ou à l'intérieur du menu
+        if (clicked == top || event.isShiftClick()) {
+            event.setCancelled(true);
+        }
+
+        if (clicked != top) return;
+
         int slot = event.getSlot();
         if (slot < 0 || slot >= size) return;
 

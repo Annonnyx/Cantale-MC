@@ -287,6 +287,18 @@ public class PlayerDAO {
         return deadPlayers;
     }
 
+    public void updatePlaytime(UUID uuid, long playtimeSeconds) {
+        String sql = "UPDATE players SET playtime = ? WHERE uuid = ?";
+        try (Connection conn = databaseManager.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setInt(1, (int) playtimeSeconds);
+            stmt.setString(2, uuid.toString());
+            stmt.executeUpdate();
+        } catch (SQLException e) {
+            plugin.getLogger().severe("Erreur updatePlaytime : " + e.getMessage());
+        }
+    }
+
     /**
      * Classe interne représentant un joueur mort définitivement
      */

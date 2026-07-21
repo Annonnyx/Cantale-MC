@@ -6,10 +6,11 @@ Décrire ici ce que fait CANTALE.
 
 ## Technologies utilisées
 
-- Langage : Java
-- Framework : A completer par la prochaine LLM
-- Base de données : a completer
-- Outils : A completer
+- Langage : Java (v21)
+- Framework : Paper API 1.21.4-R0.1-SNAPSHOT (Minecraft)
+- Base de données : MySQL (PixelHorizons/partagée), Redis Cache, SQLite
+- Outils : Maven (3.9.6 / 3.9.9), JDA (v5 pour l'intégration Discord)
+- Module Anti-Cheat : Système modulable natif (sans dépendances) avec 10+ checks (Movement, Combat, Rotation, Inventory, Trust score)
 ## Objectif du projet
 
 Décrire ici ce que fait CANTALE.
