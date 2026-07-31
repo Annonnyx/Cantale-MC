@@ -358,8 +358,7 @@ entries:
       - "comment avoir un multi cantool"
       - "multi cantool netherite"
     response: |
-      Le Multi-Cantool est un outil multifonction qui s'adapte au bloc : il fait office de pioche, hache, pelle et cisailles.
-      Il existe en mode 1x1 (un seul bloc) ou mode 3x3 / arbre entier.
+      Le Multi-Cantool est un outil multifonction 1x1 qui s'adapte au bloc : il fait office de pioche, hache, pelle et cisailles.
       Disponible en Fer, Diamant et Netherite (efficacité 10 en Netherite).
       On l'obtient dans les caisses, giveaways et classements.
 

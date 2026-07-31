@@ -102,7 +102,7 @@ public class CrateRewardTable {
         table.add(reward("Trésor du Peuple", 6, 8000, List.of(itemManager.createCustomItem(CustomItemType.VIE)), 1, "§5+1 Vie et 8000 Cantox !"));
         table.add(reward("Fortune Oubliée", 3, 12000, List.of(itemManager.createCustomItem(CustomItemType.CANTALAME)), 0, "§6Une Cantalame t'obéit !"));
         table.add(reward("Légende Rapprochée", 1, 15000, List.of(
-                itemManager.createCustomItem(CustomItemType.MULTI_CANTOOL_DIAMOND),
+                itemManager.createCustomItem(CustomItemType.MULTI_CANTOOL_DIAMOND_1X1),
                 itemManager.createCustomItem(CustomItemType.VIE)
         ), 1, "§5Multi-Cantool Diamant + 1 Vie + 15000 Cantox !"));
         return table;
@@ -114,7 +114,7 @@ public class CrateRewardTable {
         table.add(reward("Prix d'Honneur", 20, randomCantox(1000, 3000), bigOreStack(), 0));
         table.add(reward("Mérite du Combattant", 20, 4000, List.of(itemManager.createCustomItem(CustomItemType.CANTAXE_IRON)), 0));
         table.add(reward("Pic de Maître", 18, 8000, List.of(itemManager.createCustomItem(CustomItemType.PICKANTAXE_DIAMOND_1X1)), 0));
-        table.add(reward("Multi-Outil Épique", 15, 10000, List.of(itemManager.createCustomItem(CustomItemType.MULTI_CANTOOL_DIAMOND)), 0));
+        table.add(reward("Multi-Outil Épique", 15, 10000, List.of(itemManager.createCustomItem(CustomItemType.MULTI_CANTOOL_DIAMOND_1X1)), 0));
         table.add(reward("Bénédiction Épique", 12, 15000, List.of(
                 itemManager.createCustomItem(CustomItemType.CANTAXE_DIAMOND),
                 new ItemStack(Material.DIAMOND, 8 + random.nextInt(9))
@@ -157,7 +157,7 @@ public class CrateRewardTable {
         ), 1, "§6Cantalame + Cantaxe Netherite + 1 Vie + 60000 Cantox !"));
         table.add(reward("Vœu Suprême", 10, 100000, List.of(
                 itemManager.createCustomItem(CustomItemType.CANTALAME),
-                itemManager.createCustomItem(CustomItemType.MULTI_CANTOOL_NETHERITE),
+                itemManager.createCustomItem(CustomItemType.MULTI_CANTOOL_NETHERITE_1X1),
                 itemManager.createCustomItem(CustomItemType.PICKANTAXE_NETHERITE_5X5),
                 itemManager.createCustomItem(CustomItemType.VIE),
                 itemManager.createCustomItem(CustomItemType.VIE)

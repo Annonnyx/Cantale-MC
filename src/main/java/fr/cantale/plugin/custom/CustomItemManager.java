@@ -92,11 +92,7 @@ public class CustomItemManager {
     private void addMultiCantoolLore(CustomItemType type, List<String> lore) {
         lore.add(ChatColor.AQUA + "Outil multifonction");
         lore.add(ChatColor.GRAY + "S'adapte au block : Pioche + Hache + Pelle + Cisailles");
-        if (type.getMiningRadius() == 1) {
-            lore.add(ChatColor.GRAY + "Mode 1x1 (un seul bloc)");
-        } else {
-            lore.add(ChatColor.GRAY + "Zone 3x3 / Arbre entier");
-        }
+        lore.add(ChatColor.GRAY + "Mode 1x1 (un seul bloc)");
     }
 
     private void addCantalameLore(List<String> lore) {

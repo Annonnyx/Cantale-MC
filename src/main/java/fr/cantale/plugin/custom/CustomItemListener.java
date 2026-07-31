@@ -12,10 +12,9 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
+import org.bukkit.event.block.BlockDamageAbortEvent;
 import org.bukkit.event.block.BlockDamageEvent;
 import org.bukkit.event.entity.EntityToggleGlideEvent;
-import org.bukkit.potion.PotionEffect;
-import org.bukkit.potion.PotionEffectType;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.inventory.PrepareAnvilEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
@@ -57,56 +56,43 @@ public class CustomItemListener implements Listener {
     }
 
     /**
-     * Lorsqu'un joueur commence à miner un block avec un Multi-Cantool,
-     * applique un effet HASTE calibré pour égaliser la vitesse sur les blocks
-     * non-pioche (bois, feuilles, dirt, etc.). Sans ça, la pioche de base
-     * mine bois/dirt/feuilles plus lentement qu'une hache/pelle/cisailles.
+     * Adapte réellement l'outil en main (pioche → hache/pelle/cisailles)
+     * selon le bloc visé. Client et serveur voient le même outil : pas de
+     * désync de vitesse / blocs fantômes (contrairement aux faux packets).
      */
-    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onBlockDamage(BlockDamageEvent event) {
-        Player player = event.getPlayer();
+        adaptMultiCantool(event.getPlayer(), event.getBlock().getType());
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onBlockDamageAbort(BlockDamageAbortEvent event) {
+        restoreMultiCantoolBase(event.getPlayer());
+    }
+
+    private void adaptMultiCantool(Player player, Material blockType) {
         ItemStack tool = player.getInventory().getItemInMainHand();
         if (!customItemManager.isCustomItem(tool)) return;
 
         CustomItemType type = customItemManager.getCustomItemType(tool);
         if (type == null || !type.isMultiCantool()) return;
 
-        Material mat = event.getBlock().getType();
-        String matName = mat.name();
-
-        boolean isPickaxeBlock =
-            matName.contains("STONE") || matName.contains("ORE")
-            || matName.contains("COBBLE") || matName.contains("DEEPSLATE")
-            || matName.contains("GRANITE") || matName.contains("DIORITE")
-            || matName.contains("ANDESITE") || matName.contains("TUFF")
-            || matName.contains("BASALT") || matName.contains("BLACKSTONE")
-            || matName.contains("OBSIDIAN") || matName.contains("END_STONE")
-            || matName.contains("NETHERRACK") || matName.contains("QUARTZ")
-            || matName.contains("AMETHYST") || matName.contains("CALCITE")
-            || matName.contains("COPPER") || matName.contains("ANCIENT");
-
-        if (isPickaxeBlock) {
-            player.removePotionEffect(PotionEffectType.HASTE);
-            return;
+        Material adapted = getAdaptedToolMaterial(blockType, type);
+        if (tool.getType() != adapted) {
+            tool.setType(adapted);
         }
+    }
 
-        int hasteLevel;
-        String typeName = type.name();
-        if (matName.contains("LEAVES") || matName.contains("WOOL")
-                || matName.contains("CARPET") || matName.contains("VINE")) {
-            hasteLevel = typeName.contains("NETHERITE") ? 3 : typeName.contains("DIAMOND") ? 2 : 1;
-        } else if (matName.contains("LOG") || matName.contains("WOOD") || matName.contains("STEM")) {
-            hasteLevel = typeName.contains("NETHERITE") ? 4 : typeName.contains("DIAMOND") ? 3 : 2;
-        } else {
-            hasteLevel = typeName.contains("NETHERITE") ? 3 : typeName.contains("DIAMOND") ? 2 : 1;
+    private void restoreMultiCantoolBase(Player player) {
+        ItemStack tool = player.getInventory().getItemInMainHand();
+        if (!customItemManager.isCustomItem(tool)) return;
+
+        CustomItemType type = customItemManager.getCustomItemType(tool);
+        if (type == null || !type.isMultiCantool()) return;
+
+        if (tool.getType() != type.getMaterial()) {
+            tool.setType(type.getMaterial());
         }
-
-        player.addPotionEffect(new PotionEffect(
-            PotionEffectType.HASTE,
-            40,
-            hasteLevel,
-            true, false, false
-        ));
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
@@ -275,71 +261,86 @@ public class CustomItemListener implements Listener {
         Player player = event.getPlayer();
         ItemStack tool = player.getInventory().getItemInMainHand();
 
-        // Vérifier la protection de zone (spawn / warps / claims)
-        if (!plugin.getSpawnProtection().canBuild(block.getLocation())) {
-            event.setCancelled(true);
-            return;
-        }
-        var claimFaction = factionManager.getFactionAtClaim(block.getWorld().getName(), block.getChunk().getX(), block.getChunk().getZ());
-        if (claimFaction != null && !claimFaction.isMember(player.getUniqueId()) && !player.isOp()) {
-            event.setCancelled(true);
-            return;
-        }
-
         CustomItemType type = customItemManager.getCustomItemType(tool);
         if (type == null) return;
 
-        String matName = mat.name();
+        // Ne PAS re-bloquer spawn/claims ici : ClaimListener gère déjà les claims
+        // pour tous les outils. Un check spawn unique au Multi-Cantool (rayon 16 chunks)
+        // empêchait de miner partout près du spawn / des warps.
 
-        // Si c'est un bloc nécessitant des cisailles (feuilles, laine, lianes, tapis, fleurs)
-        if (matName.contains("LEAVES") || matName.contains("WOOL") || matName.contains("CARPET")
+        // Multi-Cantool : uniquement 1x1 (pas de zone 3x3 / arbre)
+        String matName = mat.name();
+        boolean isShears = isShearsBlock(matName);
+        ItemStack virtualTool = isShears ? createShearsTool(type) : getVirtualTool(mat, type);
+
+        // Casse manuelle avec l'outil adapté (drops corrects)
+        event.setCancelled(true);
+        event.setDropItems(false);
+
+        if (matName.contains("SAND") || matName.contains("GRAVEL") || matName.contains("CONCRETE_POWDER")) {
+            block.setType(Material.AIR);
+        } else {
+            breakNaturallyWithDrops(block, virtualTool);
+        }
+
+        damageItem(player, tool, 1);
+        restoreMultiCantoolBase(player);
+    }
+
+    private boolean isShearsBlock(String matName) {
+        return matName.contains("LEAVES") || matName.contains("WOOL") || matName.contains("CARPET")
                 || matName.contains("VINE") || matName.contains("FLOWER") || matName.contains("MUSHROOM")
                 || matName.contains("FERN") || matName.contains("TALL_GRASS") || matName.contains("SHORT_GRASS")
                 || matName.contains("LILY") || matName.contains("MOSS_BLOCK") || matName.contains("SPORE")
-                || matName.contains("HANGING") || matName.contains("AZALEA") || matName.contains("BLOSSOM")) {
-            
-            ItemStack shears = new ItemStack(Material.SHEARS);
-            ItemMeta shearMeta = shears.getItemMeta();
-            if (shearMeta != null) {
-                shearMeta.addEnchant(Enchantment.EFFICIENCY, 5, true);
-                shears.setItemMeta(shearMeta);
-            }
+                || matName.contains("HANGING") || matName.contains("AZALEA") || matName.contains("BLOSSOM");
+    }
 
-            event.setDropItems(false);
-            breakNaturallyWithDrops(block, shears);
-            damageItem(player, tool, 1);
+    private boolean isWoodBlock(String matName) {
+        return matName.contains("LOG") || matName.contains("WOOD") || matName.contains("STEM")
+                || matName.contains("PLANK") || matName.contains("FENCE") || matName.contains("DOOR");
+    }
+
+    private boolean isSoftBlock(String matName) {
+        return matName.contains("DIRT") || matName.contains("GRASS") || matName.contains("SAND")
+                || matName.contains("GRAVEL") || matName.contains("CLAY") || matName.contains("PODZOL")
+                || matName.contains("MYCELIUM") || matName.contains("FARMLAND") || matName.contains("SOUL_SAND")
+                || matName.contains("SOUL_SOIL") || matName.contains("ROOTED") || matName.contains("MOSS");
+    }
+
+    private ItemStack createShearsTool(CustomItemType type) {
+        ItemStack shears = new ItemStack(Material.SHEARS);
+        ItemMeta shearMeta = shears.getItemMeta();
+        if (shearMeta != null) {
+            int effLevel = type.name().contains("NETHERITE") ? 10
+                    : type.name().contains("DIAMOND") ? 7 : 5;
+            shearMeta.addEnchant(Enchantment.EFFICIENCY, effLevel, true);
+            shears.setItemMeta(shearMeta);
         }
+        return shears;
+    }
+
+    private Material getAdaptedToolMaterial(Material blockMaterial, CustomItemType type) {
+        String matName = blockMaterial.name();
+        if (isShearsBlock(matName)) {
+            return Material.SHEARS;
+        }
+        if (isWoodBlock(matName)) {
+            if (type.name().contains("NETHERITE")) return Material.NETHERITE_AXE;
+            if (type.name().contains("DIAMOND")) return Material.DIAMOND_AXE;
+            return Material.IRON_AXE;
+        }
+        if (isSoftBlock(matName)) {
+            if (type.name().contains("NETHERITE")) return Material.NETHERITE_SHOVEL;
+            if (type.name().contains("DIAMOND")) return Material.DIAMOND_SHOVEL;
+            return Material.IRON_SHOVEL;
+        }
+        if (type.name().contains("NETHERITE")) return Material.NETHERITE_PICKAXE;
+        if (type.name().contains("DIAMOND")) return Material.DIAMOND_PICKAXE;
+        return Material.IRON_PICKAXE;
     }
 
     private ItemStack getVirtualTool(Material blockMaterial, CustomItemType type) {
-        String matName = blockMaterial.name();
-        Material toolMaterial;
-        
-        // Choisir le bon type d'outil
-        if (matName.contains("LOG") || matName.contains("WOOD") || matName.contains("STEM") 
-                || matName.contains("PLANK") || matName.contains("FENCE") || matName.contains("DOOR")) {
-            // Hache
-            if (type.name().contains("NETHERITE")) toolMaterial = Material.NETHERITE_AXE;
-            else if (type.name().contains("DIAMOND")) toolMaterial = Material.DIAMOND_AXE;
-            else toolMaterial = Material.IRON_AXE;
-        } else if (matName.contains("DIRT") || matName.contains("GRASS") || matName.contains("SAND")
-                || matName.contains("GRAVEL") || matName.contains("CLAY") || matName.contains("PODZOL")
-                || matName.contains("MYCELIUM") || matName.contains("FARMLAND") || matName.contains("SOUL_SAND")
-                || matName.contains("SOUL_SOIL") || matName.contains("ROOTED") || matName.contains("MOSS")) {
-            // Pelle
-            if (type.name().contains("NETHERITE")) toolMaterial = Material.NETHERITE_SHOVEL;
-            else if (type.name().contains("DIAMOND")) toolMaterial = Material.DIAMOND_SHOVEL;
-            else toolMaterial = Material.IRON_SHOVEL;
-        } else {
-            // Pioche (par défaut)
-            if (type.name().contains("NETHERITE")) toolMaterial = Material.NETHERITE_PICKAXE;
-            else if (type.name().contains("DIAMOND")) toolMaterial = Material.DIAMOND_PICKAXE;
-            else toolMaterial = Material.IRON_PICKAXE;
-        }
-        
-        ItemStack virtualTool = new ItemStack(toolMaterial);
-        // Transférer les enchantements de l'outil original
-        ItemStack original = null; // on n'a pas accès à l'original ici, mais les enchantements sont gérés par le type
+        ItemStack virtualTool = new ItemStack(getAdaptedToolMaterial(blockMaterial, type));
         ItemMeta meta = virtualTool.getItemMeta();
         if (meta != null) {
             int effLevel;
@@ -351,6 +352,14 @@ public class CustomItemListener implements Listener {
             virtualTool.setItemMeta(meta);
         }
         return virtualTool;
+    }
+
+    private boolean canBreakExtraBlock(Player player, Block block) {
+        if (player.isOp() || player.hasPermission("cantale.admin")) return true;
+        var claimFaction = factionManager.getFactionAtClaim(
+                block.getWorld().getName(), block.getChunk().getX(), block.getChunk().getZ());
+        if (claimFaction == null) return true;
+        return claimFaction.isMember(player.getUniqueId());
     }
 
     private void breakTreeWithTool(Block startBlock, ItemStack tool) {
@@ -414,18 +423,19 @@ public class CustomItemListener implements Listener {
             }
         }
 
-        // Casser les blocks
+        // Casser les blocks (respect des claims sur les blocs annexes)
         for (Block target : blocksToBreak) {
             Material targetType = target.getType();
             if (targetType == Material.AIR || targetType == Material.BEDROCK) continue;
-            
+            if (!canBreakExtraBlock(player, target)) continue;
+
             // En mode non-soft (pioche), ne casser que les blocks minables
             if (!isSoft && !isMineable(targetType)) continue;
-            
-            // Optimisation : utiliser setType(AIR) pour les blocks de gravité pour éviter le crash
-            if (targetType.name().contains("SAND") || targetType.name().contains("GRAVEL") 
+
+            // Optimisation : setType(AIR) pour les blocks de gravité
+            if (targetType.name().contains("SAND") || targetType.name().contains("GRAVEL")
                     || targetType.name().contains("CONCRETE_POWDER")) {
-                target.setType(org.bukkit.Material.AIR);
+                target.setType(Material.AIR);
             } else {
                 target.breakNaturally(tool);
             }

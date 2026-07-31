@@ -422,6 +422,7 @@ public class DatabaseManager {
                     PRIMARY KEY (owner_uuid, chest_type)
                 )
                 """);
+            migratePrivateChestsSchema(connection);
 
             // Faction Permissions
             stmt.execute("""
@@ -604,6 +605,122 @@ public class DatabaseManager {
             plugin.getLogger().severe("Erreur lors de la création des tables : " + e.getMessage());
             e.printStackTrace();
         }
+    }
+
+    /**
+     * Migre les anciens schémas de private_chests vers
+     * (owner_uuid, chest_type, contents, size, updated_at).
+     * L'ancienne table est conservée en backup (jamais supprimée).
+     *
+     * Schémas legacy connus :
+     *  - id, owner_uuid, location, items, created_at
+     *  - owner_uuid PK, contents, size, updated_at (sans chest_type)
+     */
+    private void migratePrivateChestsSchema(Connection conn) {
+        try {
+            if (!tableExists(conn, "private_chests")) return;
+
+            boolean hasChestType = columnExists(conn, "private_chests", "chest_type");
+            boolean hasContents = columnExists(conn, "private_chests", "contents");
+            boolean hasItems = columnExists(conn, "private_chests", "items");
+
+            if (hasChestType && hasContents) {
+                return; // Schéma à jour
+            }
+
+            plugin.getLogger().warning("[DB] Migration private_chests détectée (schéma obsolète)...");
+
+            try (Statement stmt = conn.createStatement()) {
+                stmt.execute("""
+                    CREATE TABLE IF NOT EXISTS private_chests_new (
+                        owner_uuid VARCHAR(36) NOT NULL,
+                        chest_type VARCHAR(16) NOT NULL,
+                        contents TEXT NOT NULL,
+                        size INTEGER DEFAULT 27,
+                        updated_at INTEGER DEFAULT 0,
+                        PRIMARY KEY (owner_uuid, chest_type)
+                    )
+                    """);
+
+                if (hasContents && !hasChestType) {
+                    // Ancien schéma PC unique : owner_uuid + contents
+                    stmt.execute("""
+                        INSERT INTO private_chests_new (owner_uuid, chest_type, contents, size, updated_at)
+                        SELECT owner_uuid, 'pc1', contents,
+                               COALESCE(size, 27), COALESCE(updated_at, 0)
+                        FROM private_chests
+                        """);
+                } else if (hasItems) {
+                    // Schéma initial : items (+ éventuellement plusieurs lignes / owner)
+                    if (columnExists(conn, "private_chests", "id")) {
+                        stmt.execute("""
+                            INSERT INTO private_chests_new (owner_uuid, chest_type, contents, size, updated_at)
+                            SELECT t.owner_uuid, 'pc1', t.items, 27, COALESCE(t.created_at, 0)
+                            FROM private_chests t
+                            INNER JOIN (
+                                SELECT owner_uuid, MAX(id) AS max_id
+                                FROM private_chests
+                                GROUP BY owner_uuid
+                            ) latest ON t.owner_uuid = latest.owner_uuid AND t.id = latest.max_id
+                            """);
+                    } else {
+                        stmt.execute("""
+                            INSERT INTO private_chests_new (owner_uuid, chest_type, contents, size, updated_at)
+                            SELECT owner_uuid, 'pc1', items, 27, COALESCE(created_at, 0)
+                            FROM private_chests
+                            """);
+                    }
+                } else {
+                    plugin.getLogger().severe("[DB] private_chests : schéma inconnu, migration annulée.");
+                    return;
+                }
+
+                String backupName = "private_chests_legacy_" + (System.currentTimeMillis() / 1000);
+                if (isSQLite()) {
+                    stmt.execute("ALTER TABLE private_chests RENAME TO " + backupName);
+                    stmt.execute("ALTER TABLE private_chests_new RENAME TO private_chests");
+                } else {
+                    stmt.execute("RENAME TABLE private_chests TO " + backupName
+                            + ", private_chests_new TO private_chests");
+                }
+
+                plugin.getLogger().info("[DB] private_chests migré. Ancienne table conservée : " + backupName);
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().severe("[DB] Échec migration private_chests : " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    private boolean tableExists(Connection conn, String table) throws SQLException {
+        DatabaseMetaData meta = conn.getMetaData();
+        try (ResultSet rs = meta.getTables(conn.getCatalog(), null, table, new String[]{"TABLE"})) {
+            if (rs.next()) return true;
+        }
+        // MySQL sous Linux peut renvoyer des noms en minuscules selon le mode
+        try (ResultSet rs = meta.getTables(conn.getCatalog(), null, table.toLowerCase(), new String[]{"TABLE"})) {
+            if (rs.next()) return true;
+        }
+        try (ResultSet rs = meta.getTables(conn.getCatalog(), null, table.toUpperCase(), new String[]{"TABLE"})) {
+            return rs.next();
+        }
+    }
+
+    private boolean columnExists(Connection conn, String table, String column) throws SQLException {
+        DatabaseMetaData meta = conn.getMetaData();
+        String[] names = {table, table.toLowerCase(), table.toUpperCase()};
+        for (String name : names) {
+            try (ResultSet rs = meta.getColumns(conn.getCatalog(), null, name, column)) {
+                if (rs.next()) return true;
+            }
+            try (ResultSet rs = meta.getColumns(conn.getCatalog(), null, name, column.toLowerCase())) {
+                if (rs.next()) return true;
+            }
+            try (ResultSet rs = meta.getColumns(conn.getCatalog(), null, name, column.toUpperCase())) {
+                if (rs.next()) return true;
+            }
+        }
+        return false;
     }
 
     public Connection getConnection() {
