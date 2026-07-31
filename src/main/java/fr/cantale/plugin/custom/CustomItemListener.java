@@ -38,7 +38,6 @@ public class CustomItemListener implements Listener {
     private final FactionManager factionManager;
     private final CantalameManager cantalameManager;
     private final SerialKillerManager serialKillerManager;
-    private final MultiCantoolVisualAdapter visualAdapter;
 
     public CustomItemListener(CantalePlugin plugin) {
         this.plugin = plugin;
@@ -46,8 +45,15 @@ public class CustomItemListener implements Listener {
         this.factionManager = plugin.getFactionManager();
         this.cantalameManager = new CantalameManager(plugin);
         this.serialKillerManager = new SerialKillerManager(plugin);
-        this.visualAdapter = new MultiCantoolVisualAdapter(plugin, customItemManager);
-        this.visualAdapter.start();
+
+        // Adaptateur visuel désactivé par défaut : il envoie un faux outil au client
+        // (hache/pelle/cisailles) alors que le serveur voit une pioche, ce qui crée
+        // des blocs fantômes avec le Multi-Cantool. À réactiver via la config si
+        // une solution plus robuste est trouvée.
+        if (plugin.getConfigManager().isMultiCantoolVisualAdapterEnabled()) {
+            MultiCantoolVisualAdapter visualAdapter = new MultiCantoolVisualAdapter(plugin, customItemManager);
+            visualAdapter.start();
+        }
     }
 
     /**
@@ -97,13 +103,13 @@ public class CustomItemListener implements Listener {
 
         player.addPotionEffect(new PotionEffect(
             PotionEffectType.HASTE,
-            15,
+            40,
             hasteLevel,
             true, false, false
         ));
     }
 
-    @EventHandler(priority = EventPriority.HIGHEST)
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onBlockBreak(BlockBreakEvent event) {
         Player player = event.getPlayer();
         ItemStack tool = player.getInventory().getItemInMainHand();
@@ -262,68 +268,46 @@ public class CustomItemListener implements Listener {
     }
 
     private void handleMultiCantool(BlockBreakEvent event) {
+        if (event.isCancelled()) return;
+
         Block block = event.getBlock();
         Material mat = block.getType();
         Player player = event.getPlayer();
         ItemStack tool = player.getInventory().getItemInMainHand();
 
+        // Vérifier la protection de zone (spawn / warps / claims)
+        if (!plugin.getSpawnProtection().canBuild(block.getLocation())) {
+            event.setCancelled(true);
+            return;
+        }
+        var claimFaction = factionManager.getFactionAtClaim(block.getWorld().getName(), block.getChunk().getX(), block.getChunk().getZ());
+        if (claimFaction != null && !claimFaction.isMember(player.getUniqueId()) && !player.isOp()) {
+            event.setCancelled(true);
+            return;
+        }
+
         CustomItemType type = customItemManager.getCustomItemType(tool);
-        boolean is1x1 = true; // For Multi-Cantool, we want only a single block break instead of area mining.
+        if (type == null) return;
 
         String matName = mat.name();
 
-        // Annuler l'événement vanilla : le serveur voit une pioche, on casse manuellement avec le bon outil virtuel
-        event.setCancelled(true);
-        event.setDropItems(false);
-
-        ItemStack virtualTool;
-        boolean isSoft = false;
-
-        // 1. COMPORTEMENT CISAILLES - Feuillage, laine, tapis, fleurs
+        // Si c'est un bloc nécessitant des cisailles (feuilles, laine, lianes, tapis, fleurs)
         if (matName.contains("LEAVES") || matName.contains("WOOL") || matName.contains("CARPET")
                 || matName.contains("VINE") || matName.contains("FLOWER") || matName.contains("MUSHROOM")
                 || matName.contains("FERN") || matName.contains("TALL_GRASS") || matName.contains("SHORT_GRASS")
                 || matName.contains("LILY") || matName.contains("MOSS_BLOCK") || matName.contains("SPORE")
                 || matName.contains("HANGING") || matName.contains("AZALEA") || matName.contains("BLOSSOM")) {
-            virtualTool = new ItemStack(Material.SHEARS);
-            ItemMeta shearMeta = virtualTool.getItemMeta();
+            
+            ItemStack shears = new ItemStack(Material.SHEARS);
+            ItemMeta shearMeta = shears.getItemMeta();
             if (shearMeta != null) {
-                shearMeta.addEnchant(Enchantment.EFFICIENCY, 10, true);
-                virtualTool.setItemMeta(shearMeta);
+                shearMeta.addEnchant(Enchantment.EFFICIENCY, 5, true);
+                shears.setItemMeta(shearMeta);
             }
-            isSoft = true;
-        }
-        // 2. COMPORTEMENT HACHE - Logs et bois
-        else if (matName.contains("LOG") || matName.contains("WOOD") || matName.contains("STEM")
-                || matName.contains("PLANK") || matName.contains("FENCE") || matName.contains("DOOR")) {
-            virtualTool = getVirtualTool(mat, type);
-        }
-        // 3. COMPORTEMENT PELLE - Terre, sable, gravier, GRASS_BLOCK
-        else if (matName.contains("DIRT") || matName.contains("GRASS") || matName.contains("SAND")
-                || matName.contains("GRAVEL") || matName.contains("CLAY") || matName.contains("PODZOL")
-                || matName.contains("MYCELIUM") || matName.contains("FARMLAND") || matName.contains("SOUL_SAND")
-                || matName.contains("SOUL_SOIL") || matName.contains("ROOTED") || matName.contains("MOSS")) {
-            virtualTool = getVirtualTool(mat, type);
-            isSoft = true;
-        }
-        // 4. COMPORTEMENT PIOCHE - Pierre, minerais, etc (défaut)
-        else {
-            virtualTool = getVirtualTool(mat, type);
-        }
 
-        // Casser le bloc central avec l'outil virtuel approprié
-        if (matName.contains("SAND") || matName.contains("GRAVEL") || matName.contains("CONCRETE_POWDER")) {
-            block.setType(Material.AIR);
-        } else {
-            breakNaturallyWithDrops(block, virtualTool);
-        }
-
-        // Endommager l'outil original d'1 point de durabilité
-        damageItem(player, tool, 1);
-
-        // Zone 3x3 désactivée en mode 1x1
-        if (!is1x1) {
-            breakMultiZone(block, virtualTool, player, isSoft);
+            event.setDropItems(false);
+            breakNaturallyWithDrops(block, shears);
+            damageItem(player, tool, 1);
         }
     }
 

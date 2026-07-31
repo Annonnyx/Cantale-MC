@@ -40,6 +40,7 @@ public class DiscordConfig {
     private final long hostingAnnouncementsChannelId;
     private final long eventsChannelId;
     private final long antiBotChannelId;
+    private final long faqChannelId;
 
     // Rôles
     private final long unverifiedRoleId;
@@ -144,6 +145,7 @@ public class DiscordConfig {
             this.hostingAnnouncementsChannelId = 0L;
             this.eventsChannelId = 0L;
             this.antiBotChannelId = 0L;
+            this.faqChannelId = 0L;
             this.supabaseUrl = "";
             this.supabaseKey = "";
             this.syncIntervalMinutes = 0;
@@ -203,13 +205,14 @@ public class DiscordConfig {
             this.hostingAnnouncementsChannelId = parseLong(channels.getString("hosting-announcements", "0"));
             this.eventsChannelId = parseLong(channels.getString("events", "1504901579130798121"));
             this.antiBotChannelId = parseLong(channels.getString("anti-bot", "0"));
+            this.faqChannelId = parseLong(channels.getString("faq", "0"));
         } else {
             this.verificationChannelId = this.welcomeChannelId = this.rulesChannelId = this.roleSelectionChannelId = 0L;
             this.announcementsChannelId = this.supportChannelId = this.modLogsChannelId = 0L;
             this.minecraftStatusChannelId = this.partnershipsChannelId = this.mcChatChannelId = 0L;
             this.lbKillsChannelId = this.lbMoneyChannelId = this.lbWantedChannelId = this.lbFactionsChannelId = 0L;
             this.mcDeathsChannelId = this.mcFactionsChannelId = this.hostingAnnouncementsChannelId = 0L;
-            this.eventsChannelId = this.antiBotChannelId = 0L;
+            this.eventsChannelId = this.antiBotChannelId = this.faqChannelId = 0L;
         }
 
         ConfigurationSection roles = discord.getConfigurationSection("roles");
@@ -362,6 +365,7 @@ public class DiscordConfig {
     public long getHostingAnnouncementsChannelId() { return hostingAnnouncementsChannelId; }
     public long getEventsChannelId() { return eventsChannelId; }
     public long getAntiBotChannelId() { return antiBotChannelId; }
+    public long getFaqChannelId() { return faqChannelId; }
 
     public String getSupabaseUrl() { return supabaseUrl; }
     public String getSupabaseKey() { return supabaseKey; }

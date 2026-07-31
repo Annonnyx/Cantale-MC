@@ -11,7 +11,7 @@ import java.util.logging.Level;
 /**
  * Utilitaire d'envoi de packets visuels.
  * <p>
- * En Paper 1.21.4, l'envoi de changement d'item en main se fait via
+ * En Paper 1.21+, l'envoi de changement d'item en main se fait via
  * {@link Player#sendEquipmentChange(EquipmentSlot, ItemStack)} qui reste
  * purement visuel côté client sans toucher à l'inventaire serveur.
  *

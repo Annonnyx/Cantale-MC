@@ -1,6 +1,7 @@
 package fr.cantale.plugin.discord.commands;
 
 import fr.cantale.plugin.CantalePlugin;
+import fr.cantale.plugin.chatbot.faq.FaqCore;
 import fr.cantale.plugin.discord.DiscordConfig;
 import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.Permission;
@@ -8,6 +9,7 @@ import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.entities.Role;
 import net.dv8tion.jda.api.entities.User;
+import net.dv8tion.jda.api.entities.channel.middleman.GuildMessageChannel;
 import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
 import net.dv8tion.jda.api.events.interaction.ModalInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
@@ -24,9 +26,17 @@ import net.dv8tion.jda.api.interactions.modals.Modal;
 import org.jetbrains.annotations.NotNull;
 
 import java.awt.Color;
+import java.io.File;
+import java.io.IOException;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
+
+import org.bukkit.configuration.file.YamlConfiguration;
 
 /**
  * Enregistre et gère les slash commands de modération.
@@ -35,12 +45,14 @@ public class SlashCommandManager extends ListenerAdapter {
 
     private final CantalePlugin plugin;
     private final DiscordConfig config;
+    private final FaqCore faqCore;
     private final fr.cantale.plugin.discord.commands.GiveawayManager giveawayManager;
     private fr.cantale.plugin.discord.listeners.ModConfigPanelListener modConfigPanel;
 
-    public SlashCommandManager(CantalePlugin plugin, DiscordConfig config) {
+    public SlashCommandManager(CantalePlugin plugin, DiscordConfig config, FaqCore faqCore) {
         this.plugin = plugin;
         this.config = config;
+        this.faqCore = faqCore;
         this.giveawayManager = new fr.cantale.plugin.discord.commands.GiveawayManager(plugin);
     }
 
@@ -187,7 +199,17 @@ public class SlashCommandManager extends ListenerAdapter {
                 .setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.ADMINISTRATOR)),
 
             Commands.slash("off", "[Owner] Annonce le shutdown et arrête le serveur")
-                .setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.ADMINISTRATOR))
+                .setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.ADMINISTRATOR)),
+
+            Commands.slash("faq-admin", "Gérer la FAQ du bot")
+                .addOptions(new OptionData(OptionType.STRING, "action", "Action à effectuer", true)
+                    .addChoice("Recharger", "reload")
+                    .addChoice("Ajouter", "add")
+                    .addChoice("Supprimer", "remove"))
+                .addOption(OptionType.STRING, "id", "Identifiant de l'entrée FAQ", true)
+                .addOption(OptionType.STRING, "triggers", "Triggers séparés par des virgules (pour add)", false)
+                .addOption(OptionType.STRING, "response", "Réponse (pour add)", false)
+                .setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.MODERATE_MEMBERS))
         ).queue(
             success -> plugin.getLogger().info("[Discord] Slash commands enregistrés avec succès (" + success.size() + " commandes)"),
             error -> plugin.getLogger().severe("[Discord] Erreur lors de l'enregistrement des slash commands: " + error.getMessage())
@@ -230,6 +252,7 @@ public class SlashCommandManager extends ListenerAdapter {
             case "daily", "journalier" -> handleDaily(event, member);
             case "say" -> handleSay(event, member);
             case "off" -> handleOff(event, member);
+            case "faq-admin" -> handleFaqAdmin(event, member);
         }
     }
 
@@ -237,6 +260,101 @@ public class SlashCommandManager extends ListenerAdapter {
 
     private boolean isOwner(Member member) {
         return member != null && member.getIdLong() == OWNER_DISCORD_ID;
+    }
+
+    private boolean isStaff(Member member) {
+        if (member == null) return false;
+        if (isOwner(member)) return true;
+        return member.getRoles().stream().anyMatch(r -> config.getStaffRoleIds().contains(r.getIdLong()));
+    }
+
+    private void handleFaqAdmin(SlashCommandInteractionEvent event, Member member) {
+        if (!isStaff(member)) {
+            event.reply("Cette commande est réservée au staff.").setEphemeral(true).queue();
+            return;
+        }
+        String action = event.getOption("action").getAsString();
+        String id = event.getOption("id").getAsString().toLowerCase();
+        switch (action) {
+            case "reload" -> {
+                faqCore.reload();
+                event.reply("FAQ rechargée (" + faqCore.getEntries().size() + " entrées).").setEphemeral(true).queue();
+            }
+            case "add" -> {
+                if (event.getOption("triggers") == null || event.getOption("response") == null) {
+                    event.reply("Triggers et response sont requis pour add.").setEphemeral(true).queue();
+                    return;
+                }
+                String triggersRaw = event.getOption("triggers").getAsString();
+                String response = event.getOption("response").getAsString();
+                List<String> triggers = Arrays.stream(triggersRaw.split("[,;]"))
+                    .map(String::trim)
+                    .filter(s -> !s.isBlank())
+                    .toList();
+                if (triggers.isEmpty()) {
+                    event.reply("Au moins un trigger est requis.").setEphemeral(true).queue();
+                    return;
+                }
+                File file = new File(plugin.getDataFolder(), "faq.yml");
+                YamlConfiguration yaml = YamlConfiguration.loadConfiguration(file);
+                List<Map<String, Object>> entries = loadFaqEntriesMap(yaml);
+                entries.removeIf(e -> id.equalsIgnoreCase(String.valueOf(e.get("id"))));
+                Map<String, Object> newEntry = new LinkedHashMap<>();
+                newEntry.put("id", id);
+                newEntry.put("triggers", new ArrayList<>(triggers));
+                newEntry.put("response", response);
+                newEntry.put("enabled", true);
+                entries.add(newEntry);
+                yaml.set("entries", entries);
+                try {
+                    yaml.save(file);
+                } catch (IOException e) {
+                    event.reply("Erreur sauvegarde faq.yml : " + e.getMessage()).setEphemeral(true).queue();
+                    return;
+                }
+                faqCore.reload();
+                event.reply("Entrée `" + id + "` ajoutée/rechargée.").setEphemeral(true).queue();
+            }
+            case "remove" -> {
+                File file = new File(plugin.getDataFolder(), "faq.yml");
+                YamlConfiguration yaml = YamlConfiguration.loadConfiguration(file);
+                List<Map<String, Object>> entries = loadFaqEntriesMap(yaml);
+                boolean removed = entries.removeIf(e -> id.equalsIgnoreCase(String.valueOf(e.get("id"))));
+                if (!removed) {
+                    event.reply("Aucune entrée trouvée avec l'id `" + id + "`.").setEphemeral(true).queue();
+                    return;
+                }
+                yaml.set("entries", entries);
+                try {
+                    yaml.save(file);
+                } catch (IOException e) {
+                    event.reply("Erreur sauvegarde faq.yml : " + e.getMessage()).setEphemeral(true).queue();
+                    return;
+                }
+                faqCore.reload();
+                event.reply("Entrée `" + id + "` supprimée.").setEphemeral(true).queue();
+            }
+            default -> event.reply("Action inconnue : " + action).setEphemeral(true).queue();
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> loadFaqEntriesMap(YamlConfiguration yaml) {
+        Object raw = yaml.get("entries");
+        if (raw instanceof List<?> list) {
+            List<Map<String, Object>> result = new ArrayList<>();
+            for (Object obj : list) {
+                if (obj instanceof Map<?, ?> map) {
+                    Map<String, Object> casted = new LinkedHashMap<>();
+                    for (Map.Entry<?, ?> entry : map.entrySet()) {
+                        casted.put(String.valueOf(entry.getKey()), entry.getValue());
+                    }
+                    result.add(casted);
+                }
+            }
+            return result;
+        }
+        return new ArrayList<>();
     }
 
     private void handleSay(SlashCommandInteractionEvent event, Member member) {
@@ -256,23 +374,64 @@ public class SlashCommandManager extends ListenerAdapter {
         }
         event.reply("🔴 Arrêt du serveur Minecraft en cours...").setEphemeral(true).queue();
 
-        long channelId = 1504900607591452852L;
-        long pingRoleId = 1504910790996525247L;
-        net.dv8tion.jda.api.entities.channel.concrete.TextChannel channel = event.getGuild().getTextChannelById(channelId);
-        if (channel != null) {
-            EmbedBuilder embed = new EmbedBuilder()
-                .setColor(Color.RED)
-                .setTitle("🛑 Serveur Minecraft hors-ligne")
-                .setDescription("Le serveur Cantale vient d'être arrêté par <@" + OWNER_DISCORD_ID + ">.")
-                .setTimestamp(Instant.now());
-            channel.sendMessage("<@&" + pingRoleId + "> **Le serveur Minecraft est OFF !**")
-                .setEmbeds(embed.build()).queue(
-                    success -> org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> org.bukkit.Bukkit.shutdown()),
-                    error -> org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> org.bukkit.Bukkit.shutdown())
-                );
-        } else {
-            org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> org.bukkit.Bukkit.shutdown());
+        Guild guild = event.getGuild();
+        if (guild == null) {
+            scheduleShutdown();
+            return;
         }
+
+        long statusChannelId = config.getMinecraftStatusChannelId();
+        long maintenanceChannelId = config.getHostingAnnouncementsChannelId();
+        long pingRoleId = config.getServerStatusPingRoleId();
+        String ping = pingRoleId > 0 ? "<@&" + pingRoleId + "> " : "";
+
+        // Message dans le salon status (joueurs)
+        if (statusChannelId > 0) {
+            GuildMessageChannel channel = guild.getChannelById(GuildMessageChannel.class, statusChannelId);
+            if (channel != null) {
+                try {
+                    EmbedBuilder embed = new EmbedBuilder()
+                        .setColor(Color.RED)
+                        .setTitle("🛑 Serveur Minecraft hors-ligne")
+                        .setDescription("Le serveur Cantale vient d'être arrêté par <@" + OWNER_DISCORD_ID + ">.")
+                        .setTimestamp(Instant.now());
+                    channel.sendMessage(ping + "**Le serveur Minecraft est OFF !**")
+                        .setEmbeds(embed.build()).complete();
+                    plugin.getLogger().info("[Discord] /off : message status envoyé dans " + statusChannelId);
+                } catch (Exception e) {
+                    plugin.getLogger().warning("[Discord] /off : échec envoi message status : " + e.getMessage());
+                }
+            } else {
+                plugin.getLogger().warning("[Discord] /off : salon status " + statusChannelId + " introuvable.");
+            }
+        }
+
+        // Message dans le salon maintenance (hosting-announcements) si configuré et différent du status
+        if (maintenanceChannelId > 0 && maintenanceChannelId != statusChannelId) {
+            GuildMessageChannel channel = guild.getChannelById(GuildMessageChannel.class, maintenanceChannelId);
+            if (channel != null) {
+                try {
+                    EmbedBuilder embed = new EmbedBuilder()
+                        .setColor(Color.ORANGE)
+                        .setTitle("🛠️ Maintenance manuelle — serveur OFF")
+                        .setDescription("Le serveur a été arrêté manuellement par <@" + OWNER_DISCORD_ID + ">.")
+                        .setTimestamp(Instant.now());
+                    channel.sendMessage(ping + "**Le serveur Minecraft est hors-ligne pour maintenance.**")
+                        .setEmbeds(embed.build()).complete();
+                    plugin.getLogger().info("[Discord] /off : message maintenance envoyé dans " + maintenanceChannelId);
+                } catch (Exception e) {
+                    plugin.getLogger().warning("[Discord] /off : échec envoi message maintenance : " + e.getMessage());
+                }
+            } else {
+                plugin.getLogger().warning("[Discord] /off : salon maintenance " + maintenanceChannelId + " introuvable.");
+            }
+        }
+
+        scheduleShutdown();
+    }
+
+    private void scheduleShutdown() {
+        org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> org.bukkit.Bukkit.shutdown());
     }
 
     @Override
@@ -452,8 +611,8 @@ public class SlashCommandManager extends ListenerAdapter {
             EmbedBuilder embed = new EmbedBuilder()
                 .setColor(color)
                 .setTitle("📊 Statut Cantale — Live")
-                .setDescription("**" + onlineIcon + " " + (online > 0 ? "En ligne" : "Personne connecté") + "**\n"
-                    + "Connecte-toi sur `play.cantale.world` pour jouer !\n\n*Actualisé toutes les 10s pendant 5min.*")
+                    .setDescription("**" + onlineIcon + " " + (online > 0 ? "En ligne" : "Personne connecté") + "**\n"
+                        + "Connecte-toi sur `play.cantale.world` pour jouer !\n\n*Actualisé toutes les 10s pendant 30min.*")
                 .addField("👥 Joueurs", "`" + online + " / " + max + "`", true)
                 .addField(tpsIcon + " TPS", "`" + String.format("%.2f", Math.min(tps, 20.0)) + "` " + tpsStatus, true)
                 .addField("⏱ Uptime", uptime, true)
@@ -476,10 +635,12 @@ public class SlashCommandManager extends ListenerAdapter {
 
     private void handleProfile(SlashCommandInteractionEvent event) {
         String name = event.getOption("pseudo").getAsString();
+        event.deferReply().queue();
+
         org.bukkit.Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
             try (java.sql.Connection conn = plugin.getDatabaseManager().getConnection();
                  java.sql.PreparedStatement stmt = conn.prepareStatement(
-                     "SELECT lives, balance, kills, deaths FROM players WHERE username = ? COLLATE utf8mb4_general_ci")) {
+                     "SELECT lives, balance, kills, deaths FROM players WHERE LOWER(username) = LOWER(?)")) {
                 stmt.setString(1, name);
                 java.sql.ResultSet rs = stmt.executeQuery();
                 if (rs.next()) {
@@ -498,13 +659,13 @@ public class SlashCommandManager extends ListenerAdapter {
                         .addField("💀 Deaths", String.valueOf(deaths), true)
                         .addField("📊 K/D", String.format("%.2f", kd), true)
                         .setTimestamp(Instant.now());
-                    org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> event.replyEmbeds(embed.build()).queue());
+                    org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> event.getHook().editOriginalEmbeds(embed.build()).queue());
                 } else {
-                    org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> event.reply("❌ Joueur non trouvé.").setEphemeral(true).queue());
+                    org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> event.getHook().editOriginal("❌ Joueur non trouvé.").queue());
                 }
             } catch (Exception e) {
                 plugin.getLogger().warning("[Discord] /profile error: " + e.getMessage());
-                org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> event.reply("❌ Erreur lors de la récupération du profil.").setEphemeral(true).queue());
+                org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> event.getHook().editOriginal("❌ Erreur lors de la récupération du profil.").queue());
             }
         });
     }

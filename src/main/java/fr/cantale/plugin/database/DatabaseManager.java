@@ -580,6 +580,20 @@ public class DatabaseManager {
                 )
                 """);
 
+            // Tickets légendaires (gagnés via les caisses, suivis par numéro unique)
+            stmt.execute("""
+                CREATE TABLE IF NOT EXISTS legendary_tickets (
+                    id INTEGER PRIMARY KEY AUTO_INCREMENT,
+                    ticket_number VARCHAR(32) NOT NULL UNIQUE,
+                    player_uuid VARCHAR(36) NOT NULL,
+                    player_name VARCHAR(255) NOT NULL,
+                    discord_id VARCHAR(32),
+                    status VARCHAR(16) DEFAULT 'OPEN',
+                    created_at INTEGER DEFAULT 0,
+                    used_at INTEGER DEFAULT 0
+                )
+                """);
+
             // Migration : ajouter colonne playtime à la table players
             try {
                 stmt.execute("ALTER TABLE players ADD COLUMN playtime INTEGER DEFAULT 0");

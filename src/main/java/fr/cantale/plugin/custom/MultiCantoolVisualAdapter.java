@@ -57,16 +57,14 @@ public class MultiCantoolVisualAdapter {
         }
 
         Block target = player.getTargetBlockExact(5);
-        Material visualMat = (target == null) ? null : getVisualMaterial(target.getType(), type);
+        if (target == null || target.getType() == Material.AIR) {
+            return;
+        }
 
+        Material visualMat = getVisualMaterial(target.getType(), type);
         Material current = lastVisual.get(uuid);
 
-        if (visualMat == null) {
-            if (current != null) {
-                restore(player);
-                lastVisual.remove(uuid);
-            }
-        } else if (!visualMat.equals(current)) {
+        if (!visualMat.equals(current)) {
             ItemStack visualItem = createVisualItem(visualMat, hand);
             VisualPacketUtil.sendVisualSlot(player, EquipmentSlot.HAND, visualItem);
             lastVisual.put(uuid, visualMat);

@@ -339,6 +339,18 @@ public class ServerOptimizer {
     }
 
     public Map<String, Object> getStats() {
+        if (Bukkit.isPrimaryThread()) {
+            return buildStats();
+        }
+        try {
+            return Bukkit.getScheduler().callSyncMethod(plugin, this::buildStats).get();
+        } catch (Exception e) {
+            plugin.getLogger().warning("[Optimizer] Impossible de collecter les stats depuis l'async: " + e.getMessage());
+            return new HashMap<>(stats);
+        }
+    }
+
+    private Map<String, Object> buildStats() {
         stats.put("loaded_chunks", getLoadedChunkCount());
         stats.put("total_entities", getTotalEntityCount());
         stats.put("online_players", Bukkit.getOnlinePlayers().size());

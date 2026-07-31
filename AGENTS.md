@@ -7,7 +7,7 @@ Décrire ici ce que fait CANTALE.
 ## Technologies utilisées
 
 - Langage : Java (v21)
-- Framework : Paper API 1.21.4-R0.1-SNAPSHOT (Minecraft)
+- Framework : Paper API 1.21.11-R0.1-SNAPSHOT (Minecraft)
 - Base de données : MySQL (PixelHorizons/partagée), Redis Cache, SQLite
 - Outils : Maven (3.9.6 / 3.9.9), JDA (v5 pour l'intégration Discord)
 - Module Anti-Cheat : Système modulable natif (sans dépendances) avec 10+ checks (Movement, Combat, Rotation, Inventory, Trust score)

@@ -110,6 +110,7 @@ public class CantalePlugin extends JavaPlugin {
     private UIManager uiManager;
     private fr.cantale.plugin.commands.WelcomeCommand welcomeCommand;
     private fr.cantale.plugin.crate.CrateManager crateManager;
+    private fr.cantale.plugin.crate.LegendaryTicketManager legendaryTicketManager;
     private CustomItemManager customItemManager;
     private ServerOptimizer serverOptimizer;
     private fr.cantale.plugin.database.FortifiedChunkDAO fortifiedChunkDAO;
@@ -117,6 +118,7 @@ public class CantalePlugin extends JavaPlugin {
     private fr.cantale.plugin.vote.VoteRewardManager voteRewardManager;
     private fr.cantale.plugin.vote.VoteListener voteListener;
     private DiscordBot discordBot;
+    private fr.cantale.plugin.chatbot.faq.FaqCore faqCore;
     private fr.cantale.plugin.tag.TagManager tagManager;
     private fr.cantale.plugin.tasks.ClearLagTask clearLagTask;
     private fr.cantale.plugin.teleport.TeleportDelayManager teleportDelayManager;
@@ -333,6 +335,7 @@ public class CantalePlugin extends JavaPlugin {
         this.uiManager = new UIManager(this);
         this.customItemManager = new CustomItemManager();
         this.crateManager = new fr.cantale.plugin.crate.CrateManager(this);
+        this.legendaryTicketManager = new fr.cantale.plugin.crate.LegendaryTicketManager(this);
         this.fortifiedChunkDAO = new fr.cantale.plugin.database.FortifiedChunkDAO(this);
         this.voteDAO = new fr.cantale.plugin.vote.VoteDAO(this);
         this.voteRewardManager = new fr.cantale.plugin.vote.VoteRewardManager(this);
@@ -341,13 +344,18 @@ public class CantalePlugin extends JavaPlugin {
         this.serverOptimizer.startTasks();
         this.antiCheatManager = new fr.cantale.plugin.anticheat.AntiCheatManager(this);
 
+        // Bot FAQ
+        saveResource("faq.yml", false);
+        this.faqCore = new fr.cantale.plugin.chatbot.faq.FaqCore(this);
+
         // Démarrer le bot Discord (envoie le message de startup automatiquement une fois connecté)
         DiscordConfig discordConfig = new DiscordConfig(this);
-        this.discordBot = new DiscordBot(this, discordConfig);
+        this.discordBot = new DiscordBot(this, discordConfig, faqCore);
         this.discordBot.start();
 
         registerCommands();
         registerListeners();
+        registerPluginMessageChannels();
 
         // Démarrer ClearLag (toutes les secondes, clear toutes les 5 minutes)
         this.clearLagTask = new ClearLagTask(this);
@@ -386,6 +394,7 @@ public class CantalePlugin extends JavaPlugin {
         if (antiCheatManager != null) {
             antiCheatManager.shutdown();
         }
+        unregisterPluginMessageChannels();
         getLogger().info("Cantale désactivé.");
     }
 
@@ -396,7 +405,9 @@ public class CantalePlugin extends JavaPlugin {
         getCommand("givevie").setExecutor(new LifeCommand(this));
         getCommand("addlife").setExecutor(new LifeCommand(this));
         getCommand("removelife").setExecutor(new LifeCommand(this));
-        getCommand("f").setExecutor(new FactionCommand(this));
+        FactionCommand factionCommand = new FactionCommand(this);
+        getCommand("f").setExecutor(factionCommand);
+        getCommand("fc").setExecutor(new fr.cantale.plugin.commands.FactionChatCommand(this, factionCommand));
         getCommand("ah").setExecutor(new AuctionCommand(this));
         getCommand("trade").setExecutor(new TradeCommand(this));
         getCommand("customitem").setExecutor(new CustomItemCommand(this, customItemManager));
@@ -440,6 +451,7 @@ public class CantalePlugin extends JavaPlugin {
         getCommand("say").setExecutor(new fr.cantale.plugin.commands.OwnerSayCommand(this));
         getCommand("anticheat").setExecutor(new fr.cantale.plugin.anticheat.AntiCheatCommand(this.antiCheatManager));
         getCommand("anticheat").setTabCompleter(new fr.cantale.plugin.anticheat.AntiCheatCommand(this.antiCheatManager));
+        getCommand("faq").setExecutor(new fr.cantale.plugin.commands.FaqCommand(this, faqCore));
     }
 
     private void registerListeners() {
@@ -465,6 +477,38 @@ public class CantalePlugin extends JavaPlugin {
         getServer().getPluginManager().registerEvents(teleportDelayManager, this);
         getServer().getPluginManager().registerEvents(new fr.cantale.plugin.privatechest.PrivateChestListener(this, privateChestCommand.getChestService()), this);
         getServer().getPluginManager().registerEvents(new fr.cantale.plugin.crate.CrateListener(this, crateManager), this);
+        getServer().getPluginManager().registerEvents(new fr.cantale.plugin.chatbot.FaqChatListener(this, faqCore), this);
+    }
+
+    private void registerPluginMessageChannels() {
+        String[] outgoing = {
+            "journeymap:waypoint",
+            "journeymap:region",
+            "xaerominimap:waypoint",
+            "xaerominimap:region"
+        };
+        for (String channel : outgoing) {
+            try {
+                getServer().getMessenger().registerOutgoingPluginChannel(this, channel);
+            } catch (Exception e) {
+                getLogger().warning("[PluginMessage] Impossible d'enregistrer le canal " + channel + ": " + e.getMessage());
+            }
+        }
+    }
+
+    private void unregisterPluginMessageChannels() {
+        String[] outgoing = {
+            "journeymap:waypoint",
+            "journeymap:region",
+            "xaerominimap:waypoint",
+            "xaerominimap:region"
+        };
+        for (String channel : outgoing) {
+            try {
+                getServer().getMessenger().unregisterOutgoingPluginChannel(this, channel);
+            } catch (Exception ignored) {
+            }
+        }
     }
 
     public static CantalePlugin getInstance() {
@@ -587,6 +631,10 @@ public class CantalePlugin extends JavaPlugin {
         return crateManager;
     }
 
+    public fr.cantale.plugin.crate.LegendaryTicketManager getLegendaryTicketManager() {
+        return legendaryTicketManager;
+    }
+
     public fr.cantale.plugin.privatechest.PrivateChestService getPrivateChestService() {
         return privateChestCommand.getChestService();
     }
@@ -613,6 +661,10 @@ public class CantalePlugin extends JavaPlugin {
 
     public DiscordBot getDiscordBot() {
         return discordBot;
+    }
+
+    public fr.cantale.plugin.chatbot.faq.FaqCore getFaqCore() {
+        return faqCore;
     }
 
     public fr.cantale.plugin.wanted.WantedManager getWantedManager() {

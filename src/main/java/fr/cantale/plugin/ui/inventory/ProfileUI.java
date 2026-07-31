@@ -8,25 +8,36 @@ import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.SkullMeta;
 
+import org.bukkit.OfflinePlayer;
+
 public class ProfileUI extends BaseUI {
 
+    private final OfflinePlayer target;
+
     public ProfileUI(CantalePlugin plugin, Player player) {
-        super(plugin, player, "§8[§6Cantale§8] §7Profil de " + player.getName(), 5);
+        this(plugin, player, player);
+    }
+
+    public ProfileUI(CantalePlugin plugin, Player viewer, OfflinePlayer target) {
+        super(plugin, viewer, "§8[§6Cantale§8] §7Profil de " + (target.getName() != null ? target.getName() : "Joueur"), 5);
+        this.target = target;
     }
 
     @Override
     protected void init() {
         fillEmpty();
 
+        boolean isSelf = player.getUniqueId().equals(target.getUniqueId());
+
         ItemStack head = new ItemStack(Material.PLAYER_HEAD);
         SkullMeta meta = (SkullMeta) head.getItemMeta();
         if (meta != null) {
-            meta.setOwningPlayer(player);
-            meta.setDisplayName("§6§l" + player.getName());
-            PlayerRank rank = plugin.getRankManager().getRank(player);
-            Faction faction = plugin.getFactionManager().getPlayerFaction(player.getUniqueId());
-            int lives = plugin.getLifeManager().getLives(player.getUniqueId());
-            double balance = plugin.getEconomyManager().getBalance(player);
+            meta.setOwningPlayer(target);
+            meta.setDisplayName("§6§l" + (target.getName() != null ? target.getName() : "Inconnu"));
+            PlayerRank rank = plugin.getRankManager().getRank(target.getUniqueId());
+            Faction faction = plugin.getFactionManager().getPlayerFaction(target.getUniqueId());
+            int lives = plugin.getLifeManager().getLives(target.getUniqueId());
+            double balance = plugin.getPlayerDAO().getBalance(target.getUniqueId());
             meta.setLore(java.util.Arrays.asList(
                 "§7Grade: " + formatRank(rank),
                 "§7Faction: §e" + (faction != null ? faction.getName() : "Aucune"),
@@ -37,21 +48,36 @@ public class ProfileUI extends BaseUI {
         }
         setItem(4, head);
 
-        setItem(11, Material.BOOK, "§eStatistiques", "§7Kills, morts, playtime");
-        setItem(13, Material.TOTEM_OF_UNDYING, "§eVies", "§7Gérer vos vies");
-        setItem(15, Material.GOLD_NUGGET, "§eÉconomie", "§7Balance & transactions");
-        setItem(17, Material.SHIELD, "§eFaction", "§7Votre faction");
+        if (isSelf) {
+            setItem(11, Material.BOOK, "§eStatistiques", "§7Kills, morts, playtime");
+            setItem(13, Material.TOTEM_OF_UNDYING, "§eVies", "§7Gérer vos vies");
+            setItem(15, Material.GOLD_NUGGET, "§eÉconomie", "§7Balance & transactions");
+            setItem(17, Material.SHIELD, "§eFaction", "§7Votre faction");
 
-        setItem(29, Material.RED_BED, "§eHomes", "§7Vos homes");
-        setItem(31, Material.ENDER_PEARL, "§eWarps", "§7Warps publics");
-        setItem(33, Material.SKELETON_SKULL, "§eWanted", "§7Primes");
-        setItem(35, Material.NAME_TAG, "§ePersonnaliser mes Tags", "§7Gérer vos tags et grades affichés");
+            setItem(29, Material.RED_BED, "§eHomes", "§7Vos homes");
+            setItem(31, Material.ENDER_PEARL, "§eWarps", "§7Warps publics");
+            setItem(33, Material.SKELETON_SKULL, "§eWanted", "§7Primes");
+            setItem(35, Material.NAME_TAG, "§ePersonnaliser mes Tags", "§7Gérer vos tags et grades affichés");
+        } else {
+            PlayerRank rank = plugin.getRankManager().getRank(target.getUniqueId());
+            Faction faction = plugin.getFactionManager().getPlayerFaction(target.getUniqueId());
+            int lives = plugin.getLifeManager().getLives(target.getUniqueId());
+            double balance = plugin.getPlayerDAO().getBalance(target.getUniqueId());
+
+            setItem(11, Material.BOOK, "§eGrade", "§7" + formatRank(rank));
+            setItem(13, Material.TOTEM_OF_UNDYING, "§eVies", "§7Vies restantes : §c" + lives);
+            setItem(15, Material.GOLD_NUGGET, "§eÉconomie", "§7Solde : §6" + (int) balance + " Cantox");
+            setItem(17, Material.SHIELD, "§eFaction", "§7" + (faction != null ? faction.getName() : "Aucune"));
+        }
 
         addNavigationBar(true, false);
     }
 
     @Override
     protected void handleClick(int slot) {
+        boolean isSelf = player.getUniqueId().equals(target.getUniqueId());
+        if (!isSelf) return;
+
         NavigationManager nav = plugin.getUIManager().getNavigationManager();
         switch (slot) {
             case 11 -> nav.openUI(player, new StatisticsUI(plugin, player));

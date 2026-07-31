@@ -36,7 +36,11 @@ public class UIManager {
     }
 
     public void openProfileMenu(Player player) {
-        navigationManager.openUI(player, new ProfileUI(plugin, player));
+        openProfileMenu(player, player);
+    }
+
+    public void openProfileMenu(Player viewer, org.bukkit.OfflinePlayer target) {
+        navigationManager.openUI(viewer, new ProfileUI(plugin, viewer, target));
     }
 
     public void openAuctionMenu(Player player) {

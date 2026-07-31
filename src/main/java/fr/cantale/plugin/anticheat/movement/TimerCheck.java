@@ -38,9 +38,14 @@ public class TimerCheck extends Check {
             data.resetMovePacketCount();
 
             if (packetCount > maxPackets) {
-                String details = String.format("packets=%d max=%d window=%dms",
-                        packetCount, maxPackets, elapsed);
-                return CheckResult.violation(type, packetCount - maxPackets, details);
+                data.incrementTimerBuffer();
+                if (data.getTimerBuffer() >= 3) {
+                    String details = String.format("packets=%d max=%d window=%dms (buffer=%d)",
+                            packetCount, maxPackets, elapsed, data.getTimerBuffer());
+                    return CheckResult.violation(type, packetCount - maxPackets, details);
+                }
+            } else {
+                data.resetTimerBuffer();
             }
         }
 

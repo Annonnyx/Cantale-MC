@@ -101,4 +101,8 @@ public class ConfigManager {
     public String getResourcePackHash() {
         return config.getString("resource-pack.sha1", "");
     }
+
+    public boolean isMultiCantoolVisualAdapterEnabled() {
+        return config.getBoolean("custom-items.multi-cantool-visual-adapter", false);
+    }
 }

@@ -1,6 +1,7 @@
 package fr.cantale.plugin.discord;
 
 import fr.cantale.plugin.CantalePlugin;
+import fr.cantale.plugin.chatbot.faq.FaqCore;
 import fr.cantale.plugin.discord.listeners.*;
 import fr.cantale.plugin.discord.commands.SlashCommandManager;
 import net.dv8tion.jda.api.JDA;
@@ -28,16 +29,19 @@ public class DiscordBot {
     private JDA jda;
     private SupabaseSync supabaseSync;
     private ChatBridgeListener chatBridgeListener;
+    private FaqDiscordListener faqDiscordListener;
     private fr.cantale.plugin.discord.commands.SlashCommandManager slashCommandManager;
+    private final FaqCore faqCore;
 
-    // Messages live /stats /status à actualiser toutes les 10s (max 5min par message)
+    // Messages live /stats /status à actualiser toutes les 10s (max 30min par message)
     private final List<LiveStatsMessage> liveStatsMessages = new CopyOnWriteArrayList<>();
-    private final long liveStatsMaxAgeMs = TimeUnit.MINUTES.toMillis(5);
+    private final long liveStatsMaxAgeMs = TimeUnit.MINUTES.toMillis(30);
     private final long liveStatsIntervalMs = TimeUnit.SECONDS.toMillis(10);
 
-    public DiscordBot(CantalePlugin plugin, DiscordConfig config) {
+    public DiscordBot(CantalePlugin plugin, DiscordConfig config, FaqCore faqCore) {
         this.plugin = plugin;
         this.config = config;
+        this.faqCore = faqCore;
     }
 
     public void start() {
@@ -80,7 +84,7 @@ public class DiscordBot {
                 Guild guild = jda.getGuildById(config.getGuildId());
                 if (guild != null) {
                     plugin.getLogger().info("[Discord] Guild trouvé: " + guild.getName() + " (ID: " + guild.getId() + ")");
-                    slashCommandManager = new SlashCommandManager(plugin, config);
+                    slashCommandManager = new SlashCommandManager(plugin, config, faqCore);
                     slashCommandManager.register(guild);
                     jda.addEventListener(slashCommandManager);
                     startLiveStatsUpdater();
@@ -99,6 +103,10 @@ public class DiscordBot {
                 this.chatBridgeListener = new ChatBridgeListener(plugin, config, jda);
                 jda.addEventListener(chatBridgeListener);
 
+                // FAQ bot
+                this.faqDiscordListener = new FaqDiscordListener(plugin, faqCore, config);
+                jda.addEventListener(faqDiscordListener);
+
                 // Supabase sync
                 this.supabaseSync = new SupabaseSync(plugin, config);
                 supabaseSync.start();
@@ -114,7 +122,6 @@ public class DiscordBot {
                 // Message de démarrage serveur
                 sendServerStatus("✅ **Le serveur Minecraft est en ligne !**", "#57F287",
                     "Le serveur Cantale vient de démarrer. Rejoignez-nous !");
-                sendStartupAlert();
             } catch (Exception e) {
                 plugin.getLogger().log(Level.SEVERE, "[Discord] Échec du démarrage du bot", e);
             }
@@ -134,6 +141,7 @@ public class DiscordBot {
     public DiscordConfig getConfig() { return config; }
     public SupabaseSync getSupabaseSync() { return supabaseSync; }
     public ChatBridgeListener getChatBridgeListener() { return chatBridgeListener; }
+    public FaqDiscordListener getFaqDiscordListener() { return faqDiscordListener; }
 
     /**
      * Envoie un message Minecraft vers Discord (utilisé par ChatListener).
@@ -159,7 +167,8 @@ public class DiscordBot {
      */
     public void sendEmbedToChannel(long channelId, java.awt.Color color, String title, String description) {
         if (jda == null) return;
-        net.dv8tion.jda.api.entities.channel.concrete.TextChannel channel = jda.getTextChannelById(channelId);
+        net.dv8tion.jda.api.entities.channel.middleman.GuildMessageChannel channel = jda.getChannelById(
+            net.dv8tion.jda.api.entities.channel.middleman.GuildMessageChannel.class, channelId);
         if (channel == null) return;
         net.dv8tion.jda.api.EmbedBuilder embed = new net.dv8tion.jda.api.EmbedBuilder()
             .setColor(color)
@@ -180,7 +189,8 @@ public class DiscordBot {
 
     public void sendFileToChannel(long channelId, java.io.File file, String description) {
         if (jda == null || !isConnected()) return;
-        net.dv8tion.jda.api.entities.channel.concrete.TextChannel channel = jda.getTextChannelById(channelId);
+        net.dv8tion.jda.api.entities.channel.middleman.GuildMessageChannel channel = jda.getChannelById(
+            net.dv8tion.jda.api.entities.channel.middleman.GuildMessageChannel.class, channelId);
         if (channel == null) return;
         if (!file.exists()) return;
         channel.sendMessage(description)
@@ -193,9 +203,21 @@ public class DiscordBot {
     }
 
     public void sendServerStatus(String status, String colorHex, String description, boolean blocking) {
-        if (jda == null) return;
-        net.dv8tion.jda.api.entities.channel.concrete.TextChannel channel = jda.getTextChannelById(config.getMinecraftStatusChannelId());
-        if (channel == null) return;
+        if (jda == null) {
+            plugin.getLogger().warning("[Discord] sendServerStatus impossible : JDA non initialisé.");
+            return;
+        }
+        long channelId = config.getMinecraftStatusChannelId();
+        if (channelId <= 0) {
+            plugin.getLogger().warning("[Discord] sendServerStatus impossible : salon minecraft-status non configuré.");
+            return;
+        }
+        net.dv8tion.jda.api.entities.channel.middleman.GuildMessageChannel channel = jda.getChannelById(
+            net.dv8tion.jda.api.entities.channel.middleman.GuildMessageChannel.class, channelId);
+        if (channel == null) {
+            plugin.getLogger().warning("[Discord] sendServerStatus impossible : salon " + channelId + " introuvable.");
+            return;
+        }
 
         long pingRoleId = config.getServerStatusPingRoleId();
         String ping = pingRoleId > 0 ? "<@&" + pingRoleId + "> " : "";
@@ -209,10 +231,17 @@ public class DiscordBot {
         var action = channel.sendMessage(ping + status)
             .setEmbeds(embed.build());
 
-        if (blocking) {
-            action.complete(); // attendre l'envoi synchrone (pour onDisable)
-        } else {
-            action.queue();     // asynchrone (normal)
+        try {
+            if (blocking) {
+                action.complete(); // attendre l'envoi synchrone (pour onDisable)
+            } else {
+                action.queue(
+                    success -> plugin.getLogger().fine("[Discord] Message status envoyé dans " + channelId),
+                    error -> plugin.getLogger().warning("[Discord] Échec envoi status : " + error.getMessage())
+                );
+            }
+        } catch (Exception e) {
+            plugin.getLogger().warning("[Discord] Exception lors de l'envoi du status : " + e.getMessage());
         }
     }
 
@@ -250,21 +279,26 @@ public class DiscordBot {
      */
     private void startLiveStatsUpdater() {
         org.bukkit.Bukkit.getScheduler().runTaskTimerAsynchronously(plugin, () -> {
-            if (jda == null || jda.getStatus() != JDA.Status.CONNECTED) return;
+            try {
+                if (jda == null || jda.getStatus() != JDA.Status.CONNECTED) return;
 
-            long now = System.currentTimeMillis();
-            liveStatsMessages.removeIf(msg -> now - msg.createdAt() > liveStatsMaxAgeMs);
+                long now = System.currentTimeMillis();
+                liveStatsMessages.removeIf(msg -> now - msg.createdAt() > liveStatsMaxAgeMs);
 
-            net.dv8tion.jda.api.EmbedBuilder embed = buildLiveStatsEmbed();
-            for (LiveStatsMessage msg : liveStatsMessages) {
-                net.dv8tion.jda.api.entities.channel.concrete.TextChannel channel = jda.getTextChannelById(msg.channelId());
-                if (channel == null) continue;
-                try {
-                    channel.editMessageEmbedsById(msg.messageId(), embed.build()).queue(
-                        success -> {},
-                        error -> plugin.getLogger().fine("[Discord] Échec maj live stats: " + error.getMessage())
-                    );
-                } catch (Exception ignored) {}
+                net.dv8tion.jda.api.EmbedBuilder embed = buildLiveStatsEmbed();
+                for (LiveStatsMessage msg : liveStatsMessages) {
+                    net.dv8tion.jda.api.entities.channel.middleman.GuildMessageChannel channel = jda.getChannelById(
+                    net.dv8tion.jda.api.entities.channel.middleman.GuildMessageChannel.class, msg.channelId());
+                    if (channel == null) continue;
+                    try {
+                        channel.editMessageEmbedsById(msg.messageId(), embed.build()).queue(
+                            success -> {},
+                            error -> plugin.getLogger().fine("[Discord] Échec maj live stats: " + error.getMessage())
+                        );
+                    } catch (Exception ignored) {}
+                }
+            } catch (Exception e) {
+                plugin.getLogger().warning("[Discord] Live stats updater error: " + e.getMessage());
             }
         }, 20L * 10, 20L * (liveStatsIntervalMs / 1000));
     }
@@ -317,21 +351,4 @@ public class DiscordBot {
     }
 
     private record LiveStatsMessage(long channelId, long messageId, long createdAt) {}
-
-    private void sendStartupAlert() {
-        long channelId = 1504900607591452852L;
-        long pingRoleId = 1504910790996525247L;
-        if (jda == null) return;
-        net.dv8tion.jda.api.entities.channel.concrete.TextChannel channel = jda.getTextChannelById(channelId);
-        if (channel == null) return;
-
-        net.dv8tion.jda.api.EmbedBuilder embed = new net.dv8tion.jda.api.EmbedBuilder()
-            .setTitle("✅ Serveur Minecraft en ligne")
-            .setDescription("Le bot CANTALE est connecté et le serveur est disponible.")
-            .setColor(java.awt.Color.decode("#57F287"))
-            .setTimestamp(java.time.Instant.now());
-
-        channel.sendMessage("<@&" + pingRoleId + "> **Le serveur Minecraft est en ligne !**")
-            .setEmbeds(embed.build()).queue();
-    }
 }

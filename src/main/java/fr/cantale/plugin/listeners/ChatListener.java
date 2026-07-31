@@ -21,6 +21,19 @@ public class ChatListener implements Listener {
     @EventHandler(priority = EventPriority.HIGH)
     public void onPlayerChat(AsyncPlayerChatEvent event) {
         Player player = event.getPlayer();
+
+        // Chat de Faction
+        var factionMgr = plugin.getFactionManager();
+        if (factionMgr != null && factionMgr.isFactionChatToggled(player.getUniqueId())) {
+            var faction = factionMgr.getPlayerFaction(player.getUniqueId());
+            if (faction != null) {
+                event.setCancelled(true);
+                factionMgr.sendFactionMessage(player, faction, event.getMessage());
+                return;
+            } else {
+                factionMgr.setFactionChatToggled(player.getUniqueId(), false);
+            }
+        }
         
         // Logger le message de chat
         plugin.getActionLogger().logChatMessage(player.getName(), event.getMessage());

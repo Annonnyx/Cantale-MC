@@ -95,8 +95,7 @@ public class CrateManager {
             if (originalType == CrateType.VOTE) {
                 grantGoatRank(player);
             } else {
-                player.sendMessage("§8[§6Cantale§8] §6Tu as obtenu un §lTicket Légendaire§6 !");
-                player.sendMessage("§8[§6Cantale§8] §7Ouvre un ticket sur Discord pour recevoir l'item de ton choix.");
+                plugin.getLegendaryTicketManager().onTicketWon(player);
             }
             return;
         }

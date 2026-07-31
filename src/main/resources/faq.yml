@@ -1,0 +1,676 @@
+# ╔════════════════════════════════════════════════════════════╗
+# ║          Cantale — Base de connaissances du bot FAQ        ║
+# ╚════════════════════════════════════════════════════════════╝
+#
+# Ce fichier est rechargé à chaud avec /faq reload (permission cantale.admin).
+# Le bot détecte les questions dans le chat Minecraft et sur Discord.
+# Ne pas utiliser d'accents ni de ponctuation dans les triggers : le texte est
+# normalisé (minuscule, sans accents, sans ponctuation) avant matching.
+
+settings:
+  # Score minimum (0-100) pour déclencher une réponse
+  # Élevé volontairement : en cas de doute le bot se tait.
+  confidence-threshold: 70
+  # Cooldown par défaut entre deux réponses pour le même auteur (secondes)
+  cooldown-seconds: 30
+  # Si true, le bot ignore les messages sans "?" ni mot interrogatif
+  require-question-marker: true
+  # Si true, le bot ne répond que lorsque la question est EXPLICITE (?,
+  # mot interrogatif en début de phrase, ou "est-ce que"). En cas de doute, silence.
+  require-explicit-question: true
+  # Minecraft : true = réponse publique dans le chat, false = message privé
+  reply-in-public: false
+  # Salons Discord où le bot écoute (IDs Discord). Si vide, il n'écoute que le salon support.
+  discord-channels:
+    - "1504903347738513448"
+    - "1504901268957560952"
+  # Fichier de log des questions non reconnues (dans le dossier du plugin)
+  unmatched-log: "unmatched-questions.log"
+
+entries:
+  - id: faction_create
+    triggers:
+      - "comment creer une faction"
+      - "creer une faction"
+      - "comment faire une faction"
+      - "faction comment creer"
+      - "je veux une faction"
+      - "faire une faction"
+      - "nouvelle faction"
+      - "comment on fait une faction"
+      - "faut faire une faction"
+      - "comment creer un clan"
+      - "comment creer une team"
+      - "je veux creer un clan"
+      - "je veux creer une team"
+      - "j ai pas de faction"
+      - "je n ai pas de faction"
+      - "pas de faction"
+      - "je suis pas dans une faction"
+    response: |
+      Pour créer une faction : /f create <nom>
+      Il faut être au moins 8 joueurs pour fonder une faction.
+      Pour rejoindre une faction existante : demande une invitation au chef (/f invite), puis tape /f accept.
+
+  - id: faction_join
+    triggers:
+      - "comment rejoindre une faction"
+      - "rejoindre une faction"
+      - "invitation faction"
+      - "accepter une faction"
+      - "f accept"
+      - "comment rentrer dans une faction"
+      - "rejoindre une team"
+      - "rejoindre un clan"
+      - "accepter invitation faction"
+      - "invitation team"
+    response: |
+      Pour rejoindre une faction, tu dois être invité par un membre autorisé.
+      Le chef ou un officier fait /f invite <pseudo>, puis tu tapes /f accept.
+
+  - id: faction_claim
+    triggers:
+      - "comment claim"
+      - "claim un chunk"
+      - "claimer"
+      - "comment claimer une zone"
+      - "territoire faction"
+      - "comment claimer"
+      - "claim chunk"
+      - "zone faction"
+      - "territoire"
+    response: |
+      Pour claim le chunk où tu te trouves : /f claim
+      Pour unclaim : /f unclaim
+      Le nombre de claims dépend du pouvoir de la faction.
+
+  - id: faction_spawn
+    triggers:
+      - "spawn faction"
+      - "aller au spawn faction"
+      - "f spawn"
+      - "f go"
+      - "comment aller au spawn de ma faction"
+      - "spawn de ma faction"
+      - "aller au f spawn"
+      - "f go spawn"
+    response: |
+      Pour te téléporter au spawn de ta faction : /f spawn
+      Le chef peut le définir avec /f setspawn (dans un claim de la faction).
+
+  - id: faction_warp
+    triggers:
+      - "warp faction"
+      - "f warp"
+      - "comment faire un warp faction"
+      - "teleportation faction"
+      - "warp de faction"
+      - "comment creer un warp faction"
+      - "f setwarp"
+    response: |
+      Les warps de faction se gèrent avec /f warp [nom] et /f setwarp <nom> (dans un claim).
+      Le chef ou un officier peut les créer selon les permissions.
+
+  - id: faction_home
+    triggers:
+      - "home faction"
+      - "f home"
+      - "comment faire un home faction"
+      - "home de faction"
+      - "home de ma faction"
+      - "f sethome"
+      - "comment creer un home faction"
+    response: |
+      Les homes de faction se gèrent avec /f home [nom] et /f sethome <nom> (dans un claim).
+      Le quota dépend du pouvoir de la faction.
+
+  - id: faction_bank
+    triggers:
+      - "banque faction"
+      - "f bank"
+      - "argent faction"
+      - "coffre faction"
+      - "bank faction"
+      - "coffre argent faction"
+      - "argent commun faction"
+    response: |
+      La banque de faction s'ouvre avec /f bank.
+      Permet de gérer l'argent commun de la faction.
+
+  - id: money
+    triggers:
+      - "monnaie"
+      - "argent"
+      - "cantox"
+      - "comment gagner de l argent"
+      - "comment gagner des cantox"
+      - "economie"
+      - "comment on gagne de l argent"
+      - "comment on gagne des cantox"
+      - "comment faire des cantox"
+      - "comment on gagne des sous"
+      - "comment gagner des sous"
+      - "comment on gagne de la thune"
+      - "comment gagner de la thune"
+      - "ou est l argent"
+      - "comment se faire de l argent"
+      - "thune"
+      - "sous"
+    response: |
+      La monnaie du serveur s'appelle les Cantox.
+      Tu en gagnes en votant (/vote), en récupérant ta récompense quotidienne (/daily), en souhaitant la bienvenue (/bvn), en vendant au /ah ou en échangeant avec /trade.
+
+  - id: balance
+    triggers:
+      - "solde"
+      - "balance"
+      - "combien j ai d argent"
+      - "combien de cantox"
+      - "mon argent"
+      - "combien j ai de cantox"
+      - "combien j ai de tunes"
+      - "combien j ai de thune"
+      - "mon solde"
+      - "solde cantox"
+      - "pay"
+      - "payer"
+      - "comment payer un joueur"
+      - "transferer de l argent"
+      - "envoyer des cantox"
+    response: |
+      Pour voir ton solde : /balance (ou /bal, /money)
+      Pour payer un joueur : /pay <pseudo> <montant>
+
+  - id: trade
+    triggers:
+      - "echanger"
+      - "trade"
+      - "comment trader"
+      - "comment echanger"
+      - "envoyer des items"
+      - "donner des items"
+      - "transferer des items"
+      - "echanger avec un joueur"
+    response: |
+      Pour échanger avec un joueur : /trade <pseudo>
+      Tu peux ensuite ajouter des items et de l'argent avec /trade money <montant>.
+
+  - id: auction
+    triggers:
+      - "hotel des ventes"
+      - "ah"
+      - "auction"
+      - "vendre un item"
+      - "acheter un item"
+      - "enchere"
+      - "comment vendre"
+      - "comment acheter"
+      - "comment utiliser l hotel des ventes"
+      - "comment acheter au ah"
+      - "comment vendre au ah"
+    response: |
+      L'hôtel des ventes s'ouvre avec /ah.
+      Pour vendre l'item en main : /ah sell <quantité|all> <prix>
+      Pour acheter : /ah buy <id> [quantité]
+
+  - id: daily
+    triggers:
+      - "recompense quotidienne"
+      - "daily"
+      - "journalier"
+      - "bonus quotidien"
+      - "recompense du jour"
+      - "recompense journaliere"
+      - "bonus du jour"
+      - "/daily"
+    response: |
+      Récupère ta récompense quotidienne avec /daily (ou /journalier).
+      Le montant dépend de ton grade (AVENTURIER, VIP, CHEVRE, etc.).
+
+  - id: teleport_home
+    triggers:
+      - "home"
+      - "comment se tp a son home"
+      - "comment faire un home"
+      - "home personnel"
+      - "maison"
+      - "comment on va a son home"
+      - "aller a son home"
+      - "home ou est"
+      - "comment retourner chez moi"
+      - "tp a son home"
+    response: |
+      Pour te téléporter à un home : /home <nom>
+      Pour en créer un : /home set <nom>
+      Pour en supprimer un : /home delete <nom>
+      Le nombre max de homes dépend de ton grade.
+
+  - id: teleport_warp
+    triggers:
+      - "warp"
+      - "warps"
+      - "comment aller a un warp"
+      - "liste des warps"
+      - "aller a un warp"
+      - "comment utiliser les warps"
+      - "warp public"
+      - "liste warp"
+    response: |
+      Les warps publics sont accessibles avec /warp <nom>.
+      Les admins peuvent en créer avec /warp set <nom>.
+
+  - id: teleport_spawn
+    triggers:
+      - "spawn"
+      - "comment aller au spawn"
+      - "retour au spawn"
+      - "aller au spawn"
+      - "ou est le spawn"
+      - "comment on va au spawn"
+      - "spawn ou est"
+      - "aller spawn"
+      - "comment revenir au spawn"
+      - "retour spawn"
+    response: |
+      Pour retourner au spawn : /spawn
+
+  - id: teleport_rtp
+    triggers:
+      - "rtp"
+      - "teleportation aleatoire"
+      - "comment se tp au hasard"
+      - "random tp"
+      - "aller ailleurs"
+      - "tp au hasard"
+      - "random teleport"
+      - "comment trouver un endroit"
+    response: |
+      Pour te téléporter aléatoirement dans le monde : /rtp
+
+  - id: teleport_tpa
+    triggers:
+      - "tpa"
+      - "teleporter"
+      - "teleportation"
+      - "comment se tp"
+      - "comment me tp"
+      - "comment te tp"
+      - "comment on se tp"
+      - "comment on tp"
+      - "tp a un joueur"
+      - "tp vers un joueur"
+      - "comment demander une tp"
+      - "comment aller chez un joueur"
+      - "tp un ami"
+      - "tpahere"
+      - "tp here"
+      - "tphere"
+      - "comment tp quelqu un ici"
+    response: |
+      Pour te téléporter vers un joueur : /tpa <pseudo>
+      Pour téléporter un joueur à toi : /tpahere <pseudo>
+      Pour accepter une demande : /tpyes
+      Pour refuser : /tpno
+
+  - id: pickantaxe
+    triggers:
+      - "pickantaxe"
+      - "pickantaxes"
+      - "pioche custom"
+      - "pioche zone"
+      - "pioche 3x3"
+      - "pioche 5x5"
+      - "pioche 7x7"
+      - "pickantaxe netherite"
+      - "comment avoir une pickantaxe"
+      - "pickantaxe fer"
+      - "pickantaxe diamant"
+    response: |
+      La Pickantaxe est une pioche custom avec une zone de minage (1x1, 3x3, 5x5 ou 7x7).
+      Elle existe en Fer, Diamant et Netherite. Plus le tier est haut, plus les enchantements sont forts (Efficiency/Unbreaking, jusqu'à 10 en Netherite avec durabilité infinie).
+      Elle est enchantable avec Fortune, Silk Touch et Unbreaking, et n'est pas craftable.
+      On l'obtient dans les caisses, giveaways et classements.
+
+  - id: cantaxe
+    triggers:
+      - "cantaxe"
+      - "cantaxes"
+      - "hache custom"
+      - "hache one shot"
+      - "hache arbre"
+      - "comment avoir une cantaxe"
+      - "cantaxe netherite"
+      - "cantaxe fer"
+      - "cantaxe diamant"
+    response: |
+      La Cantaxe est une hache custom qui one-shot tous les arbres et mine comme une efficacité max.
+      Elle existe en Fer, Diamant et Netherite (efficacité 10 en Netherite).
+      Elle est enchantable avec Silk Touch et Unbreaking, et n'est pas craftable.
+      On l'obtient dans les caisses, giveaways et classements.
+
+  - id: multi_cantool
+    triggers:
+      - "multi cantool"
+      - "cantool"
+      - "outil multifonction"
+      - "outil 3x3"
+      - "outil custom"
+      - "comment avoir un multi cantool"
+      - "multi cantool netherite"
+    response: |
+      Le Multi-Cantool est un outil multifonction qui s'adapte au bloc : il fait office de pioche, hache, pelle et cisailles.
+      Il existe en mode 1x1 (un seul bloc) ou mode 3x3 / arbre entier.
+      Disponible en Fer, Diamant et Netherite (efficacité 10 en Netherite).
+      On l'obtient dans les caisses, giveaways et classements.
+
+  - id: cantalame
+    triggers:
+      - "cantalame"
+      - "epee custom"
+      - "epee evolutive"
+      - "comment avoir une cantalame"
+      - "epee unique"
+    response: |
+      La Cantalame est une épée évolutive : elle gagne en puissance à chaque kill unique, jusqu'à un maximum de 100 kills uniques.
+      Elle n'est pas craftable et s'obtient dans les caisses, giveaways et classements.
+
+  - id: item_vie
+    triggers:
+      - "item vie"
+      - "totem vie"
+      - "vie item"
+      - "comment utiliser item vie"
+      - "vie custom"
+      - "totem de vie"
+    response: |
+      L'item Vie est un objet consommable (clic-droit) qui te redonne 1 vie immédiatement.
+      Il disparaît après usage et n'est pas craftable. Il s'obtient principalement comme récompense de grade mensuelle, ou dans les caisses/giveaways.
+
+  - id: custom_items
+    triggers:
+      - "item custom"
+      - "items custom"
+      - "objet special"
+      - "comment avoir des items custom"
+      - "item special"
+      - "items speciaux"
+      - "comment obtenir des items custom"
+      - "arme custom"
+      - "outil custom"
+      - "item rare"
+      - "items uniques"
+    response: |
+      Les items custom Cantale sont : Pickantaxe, Cantaxe, Multi-Cantool, Cantalame et Vie.
+      On les obtient principalement dans les caisses de vote (/vote), les giveaways Discord et les classements.
+      Demande-moi par exemple "c'est quoi la Pickantaxe" ou "comment marche la Cantalame" pour avoir le détail d'un item.
+
+  - id: crates
+    triggers:
+      - "caisse"
+      - "caisses"
+      - "crate"
+      - "cadeau du roi"
+      - "comment ouvrir une caisse"
+      - "comment avoir des caisses"
+      - "mythic"
+      - "legendary"
+      - "epic"
+      - "rare"
+      - "ouvrir une caisse"
+      - "comment ouvrir les caisses"
+      - "obtenir des caisses"
+    response: |
+      Les caisses existantes sont : vote, rare, épique, mythique, légendaire.
+      Tu gagnes des caisses en votant (/vote), puis tu les récupères avec /vote claim.
+      Seuls les admins peuvent en donner avec /crate give.
+
+  - id: vote
+    triggers:
+      - "vote"
+      - "voter"
+      - "sites de vote"
+      - "comment voter"
+      - "recompense de vote"
+      - "cadeau du roi"
+      - "comment on vote"
+      - "ou voter"
+      - "site de vote"
+      - "recompense vote"
+      - "comment recuperer les votes"
+      - "vote claim"
+    response: |
+      Vote pour Cantale sur les sites listés avec /vote.
+      Utilise /vote claim pour récupérer tes récompenses (caisses).
+      /vote stats et /vote top affichent tes statistiques et le classement.
+
+  - id: lives
+    triggers:
+      - "vie"
+      - "vies"
+      - "perdre une vie"
+      - "comment gagner des vies"
+      - "systeme de vie"
+      - "hardcore"
+      - "bann"
+      - "banni"
+      - "comment recuperer une vie"
+      - "recuperer une vie"
+      - "comment avoir une vie"
+      - "0 vie"
+      - "plus de vie"
+      - "ban vie"
+      - "mort definitive"
+    response: |
+      Cantale est en mode hardcore : tu as 3 vies au départ.
+      Si tu tombes à 0 vie, tu es banni (IP) jusqu'à ce que tu en récupères une.
+      Tu peux gagner une vie avec l'item Vie (clic-droit), ou un ami peut t'en donner avec /givevie.
+
+  - id: ranks
+    triggers:
+      - "grade"
+      - "grades"
+      - "rank"
+      - "vip"
+      - "chevre"
+      - "aventurier"
+      - "comment avoir un grade"
+      - "avantages"
+      - "comment devenir vip"
+      - "comment devenir chevre"
+      - "comment avoir un rang"
+      - "rang"
+      - "donateur"
+      - "comment acheter un grade"
+    response: |
+      Les grades sont : AVENTURIER, VIP, CHEVRE, MODERATOR, ADMIN, OWNER.
+      Ils offrent des bonus (Cantox/jour, vies/mois, homes, slots /pc, etc.).
+      Utilise /rank info <pseudo> pour voir les avantages.
+
+  - id: events
+    triggers:
+      - "event"
+      - "evenement"
+      - "events"
+      - "comment participer a un event"
+      - "comment aller a un event"
+      - "quels events"
+      - "event en cours"
+      - "y a t il un event"
+    response: |
+      Les événements actifs sont listés avec /events.
+      Tu peux t'y téléporter si un event est en cours.
+
+  - id: link
+    triggers:
+      - "lier"
+      - "link"
+      - "lier discord"
+      - "lier compte"
+      - "code de liaison"
+      - "comment lier discord"
+      - "compte lie"
+      - "lier minecraft"
+      - "lier son compte"
+      - "comment lier minecraft et discord"
+      - "code link"
+    response: |
+      Pour lier ton compte Minecraft à Discord : tape /link en jeu pour obtenir un code, puis /link <code> <pseudo> sur Discord.
+      Cela débloque les commandes liées comme /balance, /daily et /pay.
+
+  - id: web
+    triggers:
+      - "site"
+      - "web"
+      - "lien site"
+      - "comment lier le site"
+    response: |
+      Pour lier ton compte au site Cantale : /web link <code>
+
+  - id: discord
+    triggers:
+      - "discord"
+      - "serveur discord"
+      - "lien discord"
+      - "rejoindre discord"
+      - "mp discord"
+      - "message discord"
+      - "discord cantale"
+      - "lien du discord"
+    response: |
+      Rejoins le Discord de Cantale avec /discord en jeu.
+      C'est utile pour lier ton compte, participer aux giveaways et contacter le staff.
+
+  - id: support
+    triggers:
+      - "staff"
+      - "moderateur"
+      - "aide"
+      - "contacter un admin"
+      - "ouvrir un ticket"
+      - "report"
+      - "aidez moi"
+      - "besoin d aide"
+      - "aide svp"
+      - "signaler"
+      - "contacter le staff"
+      - "modo"
+      - "admin"
+      - "probleme"
+      - "j ai un probleme"
+      - "bug"
+      - "pb"
+      - "aide discord"
+      - "besoin d un modo"
+    response: |
+      Pour contacter le staff, utilise le Discord de Cantale (/discord) ouvre un ticket dans le salon support.
+      En jeu, les modérateurs sont identifiables par leur grade.
+
+  - id: ip
+    triggers:
+      - "ip"
+      - "adresse"
+      - "comment rejoindre"
+      - "play cantale"
+      - "url du serveur"
+      - "version"
+      - "ip serveur"
+      - "adresse du serveur"
+      - "comment se connecter"
+      - "comment on se connecte"
+      - "comment se connecte"
+      - "comment on se connecter"
+      - "comment rejoindre le serveur"
+      - "comment rejoindre cantale"
+      - "comment entrer sur le serveur"
+      - "comment rentrer sur le serveur"
+      - "comment se connecter au serveur"
+      - "adresse ip"
+      - "ip du serveur"
+      - "ip cantale"
+      - "mc cantale"
+      - "play cantale fun"
+      - "play cantale world"
+      - "java"
+      - "bedrock"
+    response: |
+      IP Java : play.cantale.fun
+      Version : Minecraft Java 1.21.11
+      (Bedrock non supporté pour le moment.)
+
+  - id: welcome
+    triggers:
+      - "bvn"
+      - "bienvenue"
+      - "comment souhaiter la bienvenue"
+      - "nouveau joueur"
+      - "souhaiter la bienvenue"
+      - "accueillir un nouveau"
+      - "comment dire bienvenue"
+      - "bienvenue joueur"
+    response: |
+      Pour souhaiter la bienvenue à un nouveau joueur : /bvn <pseudo>
+      Tu gagnes 100 Cantox si c'est fait dans les 5 minutes après sa première connexion.
+
+  - id: private_chest
+    triggers:
+      - "coffre prive"
+      - "coffre privé"
+      - "pc"
+      - "ec"
+      - "ender chest"
+      - "coffre virtuel"
+      - "pc2"
+      - "pc3"
+      - "coffre virtuel"
+      - "coffre personnel"
+      - "coffre du joueur"
+      - "comment ouvrir mon coffre"
+    response: |
+      /pc ouvre ton coffre privé virtuel.
+      /ec ouvre ton Ender Chest.
+      /pc2 et /pc3 sont des coffres supplémentaires réservés aux grades VIP et CHEVRE.
+
+  - id: leaderboard
+    triggers:
+      - "classement"
+      - "leaderboard"
+      - "top"
+      - "classement argent"
+      - "classement kills"
+      - "classement factions"
+      - "leaderboard argent"
+      - "leaderboard kills"
+      - "top argent"
+      - "top kills"
+      - "top factions"
+      - "qui est le meilleur"
+    response: |
+      Les classements s'affichent avec /leaderboard <type> [limite].
+      Types disponibles : argent, kills, playtime.
+      Sur Discord : /classement ou /leaderboard.
+
+  - id: moderation
+    triggers:
+      - "moderation"
+      - "sanction"
+      - "mute"
+      - "kick"
+      - "ban"
+      - "modhelp"
+    response: |
+      Les modérateurs utilisent /moderation pour kick, mute, tp, tphere, vanish, etc.
+      /modhelp liste les commandes réservées au staff.
+
+  - id: wanted
+    triggers:
+      - "prime"
+      - "wanted"
+      - "primes"
+      - "mettre une prime"
+      - "recompense sur tete"
+      - "bounty"
+      - "prime sur joueur"
+      - "comment mettre une prime"
+    response: |
+      Le système de primes se gère avec /wanted.
+      Tu peux ajouter une prime sur la tête d'un joueur ou consulter la liste.

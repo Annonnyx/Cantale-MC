@@ -24,7 +24,7 @@ public class ModerationCommand implements CommandExecutor {
     public ModerationCommand(CantalePlugin plugin) {
         this.plugin = plugin;
         this.muteManager = new MuteManager(plugin);
-        this.vanishManager = new VanishManager();
+        this.vanishManager = new VanishManager(plugin);
         this.traceManager = new ModerationTraceManager(plugin);
         this.cooldownManager = plugin.getCooldownManager();
     }

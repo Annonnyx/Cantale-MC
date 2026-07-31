@@ -54,11 +54,6 @@ public class PlayerListener implements Listener {
         // Logger la connexion
         plugin.getActionLogger().logJoin(player.getName());
 
-        // Bridge Discord
-        if (plugin.getDiscordBot() != null && plugin.getDiscordBot().isConnected()) {
-            plugin.getDiscordBot().sendSystemMessage("🟢 **" + player.getName() + "** a rejoint le serveur.");
-        }
-
         int lives = lifeManager.getLives(uuid);
         if (lives <= 0 && plugin.getConfigManager().isBanOnZero()) {
             player.kickPlayer(ChatColor.translateAlternateColorCodes('&',
@@ -197,11 +192,6 @@ public class PlayerListener implements Listener {
 
         // Logger la déconnexion
         plugin.getActionLogger().logQuit(player.getName());
-
-        // Bridge Discord
-        if (plugin.getDiscordBot() != null && plugin.getDiscordBot().isConnected()) {
-            plugin.getDiscordBot().sendSystemMessage("🔴 **" + player.getName() + "** a quitté le serveur.");
-        }
 
         // Wanted tier announcements
         handleWantedQuit(player);

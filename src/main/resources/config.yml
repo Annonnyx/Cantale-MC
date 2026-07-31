@@ -101,7 +101,7 @@ discord:
     mod-logs: "1504903742649139260"
     minecraft-status: "1504900607591452852"
     partnerships: "1505139277443367023"
-    mc-chat: "1504900607591452852"
+    mc-chat: "1521952439052402838"
     lb-kills: "1504903036554711191"
     lb-money: "1504903076115517641"
     lb-wanted: "1504903121065873508"
@@ -218,6 +218,14 @@ discord:
     discord-to-mc-format: "&9[Discord] &r%name%: %message%"
     # Ignorer les webhooks et bots
     ignore-bots: true
+
+# ─── Items custom ──────────────────────────────────────────────
+# Configuration des items custom (Cantale).
+custom-items:
+  # Adapter visuellement l'outil tenu en main (pioche/hache/pelle/cisailles)
+  # selon le bloc visé. Désactivé par défaut car il provoque des blocs fantômes
+  # (désynchronisation client/serveur sur la vitesse de minage du Multi-Cantool).
+  multi-cantool-visual-adapter: false
 
 # ─── Resource Pack ─────────────────────────────────────────────
 # URL publique du pack Cantale (zip). Les joueurs le reçoivent à la connexion.
@@ -363,7 +371,7 @@ anticheat:
     timer:
       enabled: true
       # Packets de mouvement max par seconde
-      max-packets-per-second: 22
+      max-packets-per-second: 28
       trust-penalty: 4
   
   # ── Checks de combat ──

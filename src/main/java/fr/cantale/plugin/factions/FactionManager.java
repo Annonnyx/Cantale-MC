@@ -279,9 +279,42 @@ public class FactionManager {
         }
     }
 
+    private final Set<UUID> factionChatToggled = ConcurrentHashMap.newKeySet();
+
+    public boolean isFactionChatToggled(UUID playerUuid) {
+        return factionChatToggled.contains(playerUuid);
+    }
+
+    public boolean toggleFactionChat(UUID playerUuid) {
+        if (factionChatToggled.contains(playerUuid)) {
+            factionChatToggled.remove(playerUuid);
+            return false;
+        } else {
+            factionChatToggled.add(playerUuid);
+            return true;
+        }
+    }
+
+    public void setFactionChatToggled(UUID playerUuid, boolean enabled) {
+        if (enabled) factionChatToggled.add(playerUuid);
+        else factionChatToggled.remove(playerUuid);
+    }
+
+    public void sendFactionMessage(org.bukkit.entity.Player sender, Faction faction, String message) {
+        String formatted = "§8[§6Faction §e" + faction.getName() + "§8] §e" + sender.getName() + " : §f" + message;
+        plugin.getActionLogger().logChatMessage("[Faction " + faction.getName() + "] " + sender.getName(), message);
+        for (UUID memberUuid : faction.getMembers()) {
+            org.bukkit.entity.Player member = org.bukkit.Bukkit.getPlayer(memberUuid);
+            if (member != null && member.isOnline()) {
+                member.sendMessage(formatted);
+            }
+        }
+    }
+
     public void reload() {
         loadedFactions.clear();
         playerFactionCache.clear();
         claimCache.clear();
+        factionChatToggled.clear();
     }
 }

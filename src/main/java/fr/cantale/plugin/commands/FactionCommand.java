@@ -83,6 +83,7 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
             case "sethome" -> handleSetFactionHome(player, args);
             case "promote", "promo" -> handlePromote(player, args);
             case "demote", "demo" -> handleDemote(player, args);
+            case "c", "chat" -> handleChat(player, args);
             case "help" -> sendHelp(player);
             default -> player.sendMessage(formatMessage("&cSous-commande inconnue. Utilisez /f help"));
         }
@@ -807,9 +808,30 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
         player.sendMessage(ChatColor.GRAY + "/f spawn | /f go | /f setspawn - Spawn de faction");
         player.sendMessage(ChatColor.GRAY + "/f warp [nom] | /f setwarp <nom> | /f delwarp <nom>");
         player.sendMessage(ChatColor.GRAY + "/f home [nom] | /f sethome <nom>");
+        player.sendMessage(ChatColor.GRAY + "/f c [message] - Basculer ou envoyer un message dans le chat de faction");
         player.sendMessage(ChatColor.GRAY + "/f bank - Banque de faction");
         player.sendMessage(ChatColor.GRAY + "/f perms [grade] - Voir les permissions par grade");
         player.sendMessage(ChatColor.GRAY + "/f secret - Activer le mode secret (1h)");
+    }
+
+    public void handleChat(Player player, String[] args) {
+        Faction faction = factionManager.getPlayerFaction(player.getUniqueId());
+        if (faction == null) {
+            player.sendMessage(formatMessage("&cVous n'êtes pas dans une faction."));
+            return;
+        }
+
+        if (args.length > 1) {
+            String msg = String.join(" ", java.util.Arrays.copyOfRange(args, 1, args.length));
+            factionManager.sendFactionMessage(player, faction, msg);
+        } else {
+            boolean enabled = factionManager.toggleFactionChat(player.getUniqueId());
+            if (enabled) {
+                player.sendMessage(formatMessage("&aChat de Faction &eACTIVÉ&a. Tous vos messages iront à votre faction. Tapez &e/f c &apour désactiver."));
+            } else {
+                player.sendMessage(formatMessage("&cChat de Faction &eDÉSACTIVÉ&c. Vos messages repassent en chat global."));
+            }
+        }
     }
 
     private void sendFactionInfo(Player player) {

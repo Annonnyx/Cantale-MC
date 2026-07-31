@@ -30,6 +30,8 @@ public class PlayerData {
     private boolean wasOnGround;
     /** Compteur de violations consécutives pour le speed check (buffer) */
     private int speedBuffer;
+    /** Compteur de violations consécutives pour le timer check (buffer) */
+    private int timerBuffer;
     /** Compteur de packets de mouvement dans la fenêtre actuelle */
     private int movePacketCount;
     /** Timestamp du début de la fenêtre de comptage des packets */
@@ -140,6 +142,18 @@ public class PlayerData {
 
     public void resetSpeedBuffer() {
         this.speedBuffer = 0;
+    }
+
+    public int getTimerBuffer() {
+        return timerBuffer;
+    }
+
+    public void incrementTimerBuffer() {
+        this.timerBuffer++;
+    }
+
+    public void resetTimerBuffer() {
+        this.timerBuffer = 0;
     }
 
     public int getMovePacketCount() {

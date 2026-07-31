@@ -4,7 +4,7 @@ import fr.cantale.plugin.discord.DiscordConfig;
 import fr.cantale.plugin.CantalePlugin;
 import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.JDA;
-import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
+import net.dv8tion.jda.api.entities.channel.middleman.GuildMessageChannel;
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import org.bukkit.Bukkit;
@@ -39,7 +39,7 @@ public class ChatBridgeListener extends ListenerAdapter {
     public void sendToDiscord(String playerName, String message) {
         if (!config.isChatBridgeEnabled() || jda == null) return;
 
-        TextChannel channel = jda.getTextChannelById(config.getMcChatChannelId());
+        GuildMessageChannel channel = jda.getChannelById(GuildMessageChannel.class, config.getMcChatChannelId());
         if (channel == null) return;
 
         // Anti-boucle : ne pas renvoyer un message qui vient de Discord
@@ -68,7 +68,7 @@ public class ChatBridgeListener extends ListenerAdapter {
     public void sendSystemToDiscord(String formattedMessage) {
         if (!config.isChatBridgeEnabled() || jda == null) return;
 
-        TextChannel channel = jda.getTextChannelById(config.getMcChatChannelId());
+        GuildMessageChannel channel = jda.getChannelById(GuildMessageChannel.class, config.getMcChatChannelId());
         if (channel == null) return;
 
         EmbedBuilder embed = new EmbedBuilder()
@@ -90,7 +90,7 @@ public class ChatBridgeListener extends ListenerAdapter {
     public void sendServerStatus(int online, int max, double tps) {
         if (jda == null) return;
 
-        TextChannel channel = jda.getTextChannelById(config.getMinecraftStatusChannelId());
+        GuildMessageChannel channel = jda.getChannelById(GuildMessageChannel.class, config.getMinecraftStatusChannelId());
         if (channel == null) return;
 
         String status = tps > 18 ? "🟢" : tps > 15 ? "🟡" : "🔴";

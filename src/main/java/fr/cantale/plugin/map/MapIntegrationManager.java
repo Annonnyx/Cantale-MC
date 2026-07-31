@@ -114,7 +114,7 @@ public class MapIntegrationManager {
         waypoint.put("icon", "waypoint");
         
         // Envoyer via le channel JourneyMap
-        player.sendPluginMessage(plugin, "journeymap:waypoint", waypoint.toString().getBytes());
+        sendMapPluginMessage(player, "journeymap:waypoint", waypoint.toString().getBytes());
     }
 
     public void sendXaeroWaypoint(Player player, String name, double x, double y, double z, String world, String description, int color) {
@@ -129,7 +129,7 @@ public class MapIntegrationManager {
         waypoint.put("type", "normal");
         
         // Envoyer via le channel Xaero's Minimap
-        player.sendPluginMessage(plugin, "xaerominimap:waypoint", waypoint.toString().getBytes());
+        sendMapPluginMessage(player, "xaerominimap:waypoint", waypoint.toString().getBytes());
     }
 
     public void sendJourneyMapRegion(Player player, String name, double x1, double y1, double z1, double x2, double y2, double z2, String world, int color) {
@@ -147,7 +147,7 @@ public class MapIntegrationManager {
         region.put("alpha", 64); // Transparence
         
         // Envoyer via le channel JourneyMap
-        player.sendPluginMessage(plugin, "journeymap:region", region.toString().getBytes());
+        sendMapPluginMessage(player, "journeymap:region", region.toString().getBytes());
     }
 
     public void sendXaeroRegion(Player player, String name, double x1, double y1, double z1, double x2, double y2, double z2, String world, int color) {
@@ -165,7 +165,15 @@ public class MapIntegrationManager {
         region.put("alpha", 64); // Transparence
         
         // Envoyer via le channel Xaero's Minimap
-        player.sendPluginMessage(plugin, "xaerominimap:region", region.toString().getBytes());
+        sendMapPluginMessage(player, "xaerominimap:region", region.toString().getBytes());
+    }
+
+    private void sendMapPluginMessage(Player player, String channel, byte[] data) {
+        try {
+            player.sendPluginMessage(plugin, channel, data);
+        } catch (Exception e) {
+            plugin.getLogger().fine("[MapIntegration] Échec envoi sur " + channel + ": " + e.getMessage());
+        }
     }
 
     public void sendClaimsToPlayer(Player player) {

@@ -2,7 +2,7 @@ package fr.cantale.plugin.discord.listeners;
 
 import fr.cantale.plugin.discord.DiscordConfig;
 import net.dv8tion.jda.api.EmbedBuilder;
-import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
+import net.dv8tion.jda.api.entities.channel.middleman.GuildMessageChannel;
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import org.jetbrains.annotations.NotNull;
@@ -30,7 +30,7 @@ public class MaintenanceRelayListener extends ListenerAdapter {
         if (config.getMinecraftStatusChannelId() == 0L) return;
         if (config.getServerStatusPingRoleId() == 0L) return;
 
-        TextChannel targetChannel = event.getGuild().getTextChannelById(config.getMinecraftStatusChannelId());
+        GuildMessageChannel targetChannel = event.getGuild().getChannelById(GuildMessageChannel.class, config.getMinecraftStatusChannelId());
         if (targetChannel == null) return;
 
         long pingRoleId = config.getServerStatusPingRoleId();

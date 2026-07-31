@@ -18,22 +18,34 @@
 - [x] Confirmation : `/crate` est bien réservée aux admins (`cantale.admin`)
 - [x] Système anti-cheat modulable (Speed, Fly, NoFall, Step, Timer, Reach, KillAura, AutoClicker, Aim, Rotation, Inventory Checks)
 
+## Fait
+- [x] Bot FAQ automatique (Minecraft + Discord) avec moteur de matching local, faq.yml, commandes /faq et /faq-admin, réponses privées en jeu et embeds Discord
+- [x] Correction salon chat Discord (redirection des messages MC vers 1521952439052402838)
+- [x] Support `/profile <joueur>` pour afficher le profil de n'importe quel joueur
+- [x] Système de chat de faction Minecraft (`/f c` et `/fc`)
+- [x] Fix faux-positifs AntiCheat (Timer Check : seuil à 28 pkts/s + tampon de lissage)
+- [x] Système Anti-AFK par grade (10m Joueur, 30m Aventurier, 1h VIP, illimité pour Chèvre/Staff)
+- [x] Fix MultiCantool (outil virtuel, Haste fluide, respect des protections de claims/spawn)
+
+## Fait
+- [x] Bot FAQ : matching basé sur les mots de contenu (stop-words ignorés) + seuil 70 + IP = play.cantale.fun
+- [x] Bot FAQ : questions explicites uniquement (`require-explicit-question`)
+- [x] Vanish : fake quit/join, hidePlayer Paper, retrait tab
+- [x] Tickets légendaires numérotés + salon Discord auto
+- [x] /profile autre joueur (résolution online → DB → UUID)
+- [x] /status live : durée 30 min + try/catch anti-crash scheduler
+
+## Plan — Migration Paper 1.21.4 → 1.21.11
+- [x] Bump `pom.xml` → `paper-api:1.21.11-R0.1-SNAPSHOT`
+- [x] Mise à jour FAQ / AGENTS (version affichée)
+- [x] Compiler + corriger si besoin (OK, 0 erreur)
+- [ ] Smoke test sur serveur Paper 1.21.11
+- [ ] Déployer le JAR + maj `faq.yml` serveur
+
 ## En cours / à valider
 - [ ] Tester le cache des coffres privés en jeu (ouverture, fermeture, stockage depuis une caisse)
 - [ ] Vérifier les IDs CustomModelData du resource pack après suppression des IDs 22 et 24
 - [ ] Surveillance des performances du stockage PC suite au changement
 - [ ] Tester les détections anti-cheat en jeu et ajuster les seuils dans config.yml si besoin
-- [x] Extensions Discord : /balance, /leaderboard, /fleaderboard, /giveaway, /stats live
-- [x] Commandes owner Discord : /say, /off + message lancement bot
-- [x] Commande owner Minecraft : /say
-- [x] /f map refonte (nord en haut)
-- [x] /f go (spawn sans cooldown)
-- [x] Détection entrée/sortie claim (anti-spam + metadata)
-- [x] Bloquer dernière rangée PC (navigation)
-- [x] Vote : clé Cadeau du Roi seule
-- [x] Fix MultiCantool : casser tous les blocs avec outil virtuel
-- [x] Gain de pouvoir faction par kill (+5)
-- [x] Pouvoir initial de faction (60) et minimum 5 claims
-- [x] Fix menus /cantale (BaseUI anti-doublon listeners + protection shift-clic)
 - [ ] Tester en jeu : /f map, /f go, détection claims, vote, multicantool, PC navigation, commandes owner, kills pouvoir, création faction
-- je voudrais aussi une commande reservée a moi seul (voici mon id discord : 1122092101459517481) /say pour pouvoir faire dire ce que je veux au bot, si je l'utilise sur minecraft le bot envoie un message sur minecraft si je l'utilise sur discord le bot envoie un message dans le salon courrant. Toujours réservée pour moi une commande /off : qui envoie un message ici 1504900607591452852 avec un ping 1504910790996525247 pour dire que le serveur est off et si possible fermer le serveur juste apres. Pareil pour un message quand le bot ce lance. 
+- [ ] Déployer nouveau JAR + **mettre à jour** `plugins/CantalePlugin/faq.yml` sur le serveur (sinon l'ancien fichier garde le vieux matching)
