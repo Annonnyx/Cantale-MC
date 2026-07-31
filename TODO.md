@@ -45,6 +45,7 @@
 ## En cours / à valider
 - [x] Fix Multi-Cantool : retire le blocage spawn/warp unique + réadaptation réelle de l'outil + casse 3x3/arbre
 - [x] Migration auto schéma `private_chests` (legacy items/location → chest_type/contents)
+- [x] Sécurité claims : Pickantaxe/Cantaxe respectent claims sur casses manuelles (+ cleanup code mort)
 - [ ] Tester le cache des coffres privés en jeu (ouverture, fermeture, stockage depuis une caisse)
 - [ ] Vérifier les IDs CustomModelData du resource pack après suppression des IDs 22 et 24
 - [ ] Surveillance des performances du stockage PC suite au changement

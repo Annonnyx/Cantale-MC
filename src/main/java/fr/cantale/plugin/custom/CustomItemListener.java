@@ -11,10 +11,10 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+import fr.cantale.plugin.factions.Claim;
+import fr.cantale.plugin.factions.Faction;
 import org.bukkit.event.block.BlockBreakEvent;
-import org.bukkit.event.block.BlockDamageAbortEvent;
 import org.bukkit.event.block.BlockDamageEvent;
-import org.bukkit.event.entity.EntityToggleGlideEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.inventory.PrepareAnvilEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
@@ -24,11 +24,9 @@ import org.bukkit.enchantments.Enchantment;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 
-import java.util.HashMap;
+import java.util.ArrayDeque;
 import java.util.HashSet;
-import java.util.Map;
 import java.util.Set;
-import java.util.UUID;
 
 public class CustomItemListener implements Listener {
 
@@ -45,10 +43,8 @@ public class CustomItemListener implements Listener {
         this.cantalameManager = new CantalameManager(plugin);
         this.serialKillerManager = new SerialKillerManager(plugin);
 
-        // Adaptateur visuel désactivé par défaut : il envoie un faux outil au client
-        // (hache/pelle/cisailles) alors que le serveur voit une pioche, ce qui crée
-        // des blocs fantômes avec le Multi-Cantool. À réactiver via la config si
-        // une solution plus robuste est trouvée.
+        // Adaptateur visuel : faux outil côté client uniquement.
+        // Sûr tant que l'instaBreak serveur reste actif sur bois/terre/feuilles.
         if (plugin.getConfigManager().isMultiCantoolVisualAdapterEnabled()) {
             MultiCantoolVisualAdapter visualAdapter = new MultiCantoolVisualAdapter(plugin, customItemManager);
             visualAdapter.start();
@@ -56,43 +52,38 @@ public class CustomItemListener implements Listener {
     }
 
     /**
-     * Adapte réellement l'outil en main (pioche → hache/pelle/cisailles)
-     * selon le bloc visé. Client et serveur voient le même outil : pas de
-     * désync de vitesse / blocs fantômes (contrairement aux faux packets).
+     * Multi-Cantool : l'item serveur reste une pioche.
+     * Sur bois/terre/feuilles, setInstaBreak + breakBlock (filet de sécu Paper 1.21)
+     * pour ne pas miner à la vitesse pioche. Les drops passent par handleMultiCantool.
      */
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onBlockDamage(BlockDamageEvent event) {
-        adaptMultiCantool(event.getPlayer(), event.getBlock().getType());
-    }
-
-    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
-    public void onBlockDamageAbort(BlockDamageAbortEvent event) {
-        restoreMultiCantoolBase(event.getPlayer());
-    }
-
-    private void adaptMultiCantool(Player player, Material blockType) {
+        Player player = event.getPlayer();
         ItemStack tool = player.getInventory().getItemInMainHand();
         if (!customItemManager.isCustomItem(tool)) return;
 
         CustomItemType type = customItemManager.getCustomItemType(tool);
         if (type == null || !type.isMultiCantool()) return;
 
-        Material adapted = getAdaptedToolMaterial(blockType, type);
-        if (tool.getType() != adapted) {
-            tool.setType(adapted);
+        Block block = event.getBlock();
+        String matName = block.getType().name();
+        if (!isShearsBlock(matName) && !isWoodBlock(matName) && !isSoftBlock(matName)) {
+            return;
         }
-    }
 
-    private void restoreMultiCantoolBase(Player player) {
-        ItemStack tool = player.getInventory().getItemInMainHand();
-        if (!customItemManager.isCustomItem(tool)) return;
+        event.setInstaBreak(true);
 
-        CustomItemType type = customItemManager.getCustomItemType(tool);
-        if (type == null || !type.isMultiCantool()) return;
-
-        if (tool.getType() != type.getMaterial()) {
-            tool.setType(type.getMaterial());
-        }
+        // Filet de sécu : sur certaines builds Paper, setInstaBreak seul ne suffit pas
+        final Material expected = block.getType();
+        plugin.getServer().getScheduler().runTask(plugin, () -> {
+            if (!player.isOnline()) return;
+            if (block.getType() != expected) return; // déjà cassé
+            ItemStack hand = player.getInventory().getItemInMainHand();
+            if (!customItemManager.isCustomItem(hand)) return;
+            CustomItemType handType = customItemManager.getCustomItemType(hand);
+            if (handType == null || !handType.isMultiCantool()) return;
+            player.breakBlock(block);
+        });
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
@@ -130,11 +121,55 @@ public class CustomItemListener implements Listener {
 
         int damage = meta.getDamage() + amount;
         if (damage >= item.getType().getMaxDurability()) {
-            player.getInventory().setItemInMainHand(null);
+            player.getInventory().setItemInMainHand(new ItemStack(Material.AIR));
             player.playSound(player.getLocation(), Sound.ENTITY_ITEM_BREAK, 1.0f, 1.0f);
         } else {
             meta.setDamage(damage);
             item.setItemMeta(meta);
+        }
+    }
+
+    /**
+     * breakNaturally / setType(AIR) ne déclenchent pas BlockBreakEvent :
+     * ClaimListener ne voit pas ces casses. Toute casse manuelle hors event
+     * doit passer par canBreakExtraBlock / breakExtraBlock.
+     */
+    private boolean canBreakExtraBlock(Player player, Block block) {
+        if (player.isOp() || player.hasPermission("cantale.admin")) return true;
+        if (factionManager == null) return true;
+
+        Claim claim = factionManager.getClaimAt(
+                block.getWorld().getName(), block.getChunk().getX(), block.getChunk().getZ());
+        if (claim == null) return true;
+
+        Faction claimFaction = factionManager.getFaction(claim.getFactionId());
+        if (claimFaction == null) return true;
+
+        Faction playerFaction = factionManager.getPlayerFaction(player.getUniqueId());
+        if (playerFaction != null && playerFaction.getId() == claimFaction.getId()) {
+            return true;
+        }
+
+        if (claim.isPasdic()) return false;
+
+        var diplomacy = plugin.getDiplomatieManager();
+        return playerFaction != null
+                && diplomacy != null
+                && diplomacy.isAllied(playerFaction.getId(), claimFaction.getId());
+    }
+
+    private void breakExtraBlock(Player player, Block block, ItemStack tool) {
+        Material targetType = block.getType();
+        if (targetType == Material.AIR || targetType == Material.BEDROCK) return;
+        if (!canBreakExtraBlock(player, block)) return;
+
+        String name = targetType.name();
+        if (name.contains("SAND") || name.contains("GRAVEL") || name.contains("CONCRETE_POWDER")) {
+            block.setType(Material.AIR);
+        } else if (tool != null) {
+            block.breakNaturally(tool);
+        } else {
+            block.breakNaturally();
         }
     }
 
@@ -164,17 +199,14 @@ public class CustomItemListener implements Listener {
             }
         } else {
             // Regarde horizontalement -> surface verticale
-            // Zone de minage : bas aux pieds du joueur, vers le haut
             int playerFeetY = player.getLocation().getBlockY();
             int blockY = centerLoc.getBlockY();
-            // Offset Y pour que le bas de la zone soit au niveau des pieds
-            int yBottom = playerFeetY - blockY; // décalage par rapport au bloc cassé
-            int yTop = yBottom + (radius - 1); // radius blocs de haut
+            int yBottom = playerFeetY - blockY;
+            int yTop = yBottom + (radius - 1);
 
             float normalizedYaw = (yaw % 360 + 360) % 360;
 
             if ((normalizedYaw >= 315 || normalizedYaw < 45) || (normalizedYaw >= 135 && normalizedYaw < 225)) {
-                // Nord/Sud -> surface X,Y (1 bloc de profondeur en Z)
                 for (int x = -spread; x <= spread; x++) {
                     for (int y = yBottom; y <= yTop; y++) {
                         Block targetBlock = centerLoc.clone().add(x, y, 0).getBlock();
@@ -184,7 +216,6 @@ public class CustomItemListener implements Listener {
                     }
                 }
             } else {
-                // Est/Ouest -> surface Z,Y (1 bloc de profondeur en X)
                 for (int z = -spread; z <= spread; z++) {
                     for (int y = yBottom; y <= yTop; y++) {
                         Block targetBlock = centerLoc.clone().add(0, y, z).getBlock();
@@ -196,60 +227,50 @@ public class CustomItemListener implements Listener {
             }
         }
 
-        // Casser les blocks
         ItemStack tool = player.getInventory().getItemInMainHand();
         for (Block block : blocksToBreak) {
-            if (block.getType().name().contains("SAND") || block.getType().name().contains("GRAVEL") 
-                    || block.getType().name().contains("CONCRETE_POWDER")) {
-                block.setType(org.bukkit.Material.AIR);
-            } else {
-                block.breakNaturally(tool);
-            }
+            breakExtraBlock(player, block, tool);
         }
     }
 
     private void handleCantaxe(BlockBreakEvent event) {
         Block block = event.getBlock();
         Material type = block.getType();
+        String name = type.name();
 
-        // One-shot tous les logs
-        if (type.name().contains("LOG") || type.name().contains("WOOD") || type.name().contains("STEM")) {
-            // Casser tout l'arbre (implémentation simple pour l'instant)
-            breakTree(block);
+        if (name.contains("LOG") || name.contains("WOOD") || name.contains("STEM")) {
+            breakTree(event.getPlayer(), block);
         }
     }
 
-    private void breakTree(Block startBlock) {
+    /** BFS itératif : évite StackOverflow sur arbres très hauts. */
+    private void breakTree(Player player, Block startBlock) {
         Set<Block> logs = new HashSet<>();
-        findConnectedLogs(startBlock, logs);
+        ArrayDeque<Block> queue = new ArrayDeque<>();
+        logs.add(startBlock);
+        queue.add(startBlock);
 
-        for (Block log : logs) {
-            if (log != startBlock) {
-                log.breakNaturally();
-            }
-        }
-    }
-
-    private void findConnectedLogs(Block block, Set<Block> logs) {
-        if (logs.size() > 100) return; // Limite pour éviter lag
-
-        if (logs.contains(block)) return;
-
-        Material type = block.getType();
-        if (!type.name().contains("LOG") && !type.name().contains("WOOD") && !type.name().contains("STEM")) {
-            return;
-        }
-
-        logs.add(block);
-
-        for (int x = -1; x <= 1; x++) {
-            for (int y = -1; y <= 1; y++) {
-                for (int z = -1; z <= 1; z++) {
-                    if (x == 0 && y == 0 && z == 0) continue;
-                    Block neighbor = block.getLocation().clone().add(x, y, z).getBlock();
-                    findConnectedLogs(neighbor, logs);
+        while (!queue.isEmpty() && logs.size() < 100) {
+            Block current = queue.poll();
+            for (int x = -1; x <= 1; x++) {
+                for (int y = -1; y <= 1; y++) {
+                    for (int z = -1; z <= 1; z++) {
+                        if (x == 0 && y == 0 && z == 0) continue;
+                        Block neighbor = current.getRelative(x, y, z);
+                        if (logs.contains(neighbor)) continue;
+                        String n = neighbor.getType().name();
+                        if (!n.contains("LOG") && !n.contains("WOOD") && !n.contains("STEM")) continue;
+                        logs.add(neighbor);
+                        queue.add(neighbor);
+                    }
                 }
             }
+        }
+
+        ItemStack tool = player.getInventory().getItemInMainHand();
+        for (Block log : logs) {
+            if (log.equals(startBlock)) continue;
+            breakExtraBlock(player, log, tool);
         }
     }
 
@@ -264,27 +285,17 @@ public class CustomItemListener implements Listener {
         CustomItemType type = customItemManager.getCustomItemType(tool);
         if (type == null) return;
 
-        // Ne PAS re-bloquer spawn/claims ici : ClaimListener gère déjà les claims
-        // pour tous les outils. Un check spawn unique au Multi-Cantool (rayon 16 chunks)
-        // empêchait de miner partout près du spawn / des warps.
+        // 1x1 only : le bloc central est déjà filtré par ClaimListener (ignoreCancelled).
+        // Pas de casse annexe → pas de risque de contournement de claim.
 
-        // Multi-Cantool : uniquement 1x1 (pas de zone 3x3 / arbre)
         String matName = mat.name();
         boolean isShears = isShearsBlock(matName);
         ItemStack virtualTool = isShears ? createShearsTool(type) : getVirtualTool(mat, type);
 
-        // Casse manuelle avec l'outil adapté (drops corrects)
         event.setCancelled(true);
         event.setDropItems(false);
-
-        if (matName.contains("SAND") || matName.contains("GRAVEL") || matName.contains("CONCRETE_POWDER")) {
-            block.setType(Material.AIR);
-        } else {
-            breakNaturallyWithDrops(block, virtualTool);
-        }
-
+        breakNaturallyWithDrops(block, virtualTool);
         damageItem(player, tool, 1);
-        restoreMultiCantoolBase(player);
     }
 
     private boolean isShearsBlock(String matName) {
@@ -319,28 +330,24 @@ public class CustomItemListener implements Listener {
         return shears;
     }
 
-    private Material getAdaptedToolMaterial(Material blockMaterial, CustomItemType type) {
-        String matName = blockMaterial.name();
-        if (isShearsBlock(matName)) {
-            return Material.SHEARS;
-        }
-        if (isWoodBlock(matName)) {
-            if (type.name().contains("NETHERITE")) return Material.NETHERITE_AXE;
-            if (type.name().contains("DIAMOND")) return Material.DIAMOND_AXE;
-            return Material.IRON_AXE;
-        }
-        if (isSoftBlock(matName)) {
-            if (type.name().contains("NETHERITE")) return Material.NETHERITE_SHOVEL;
-            if (type.name().contains("DIAMOND")) return Material.DIAMOND_SHOVEL;
-            return Material.IRON_SHOVEL;
-        }
-        if (type.name().contains("NETHERITE")) return Material.NETHERITE_PICKAXE;
-        if (type.name().contains("DIAMOND")) return Material.DIAMOND_PICKAXE;
-        return Material.IRON_PICKAXE;
-    }
-
     private ItemStack getVirtualTool(Material blockMaterial, CustomItemType type) {
-        ItemStack virtualTool = new ItemStack(getAdaptedToolMaterial(blockMaterial, type));
+        String matName = blockMaterial.name();
+        Material toolMaterial;
+        if (isWoodBlock(matName)) {
+            if (type.name().contains("NETHERITE")) toolMaterial = Material.NETHERITE_AXE;
+            else if (type.name().contains("DIAMOND")) toolMaterial = Material.DIAMOND_AXE;
+            else toolMaterial = Material.IRON_AXE;
+        } else if (isSoftBlock(matName)) {
+            if (type.name().contains("NETHERITE")) toolMaterial = Material.NETHERITE_SHOVEL;
+            else if (type.name().contains("DIAMOND")) toolMaterial = Material.DIAMOND_SHOVEL;
+            else toolMaterial = Material.IRON_SHOVEL;
+        } else {
+            if (type.name().contains("NETHERITE")) toolMaterial = Material.NETHERITE_PICKAXE;
+            else if (type.name().contains("DIAMOND")) toolMaterial = Material.DIAMOND_PICKAXE;
+            else toolMaterial = Material.IRON_PICKAXE;
+        }
+
+        ItemStack virtualTool = new ItemStack(toolMaterial);
         ItemMeta meta = virtualTool.getItemMeta();
         if (meta != null) {
             int effLevel;
@@ -352,120 +359,6 @@ public class CustomItemListener implements Listener {
             virtualTool.setItemMeta(meta);
         }
         return virtualTool;
-    }
-
-    private boolean canBreakExtraBlock(Player player, Block block) {
-        if (player.isOp() || player.hasPermission("cantale.admin")) return true;
-        var claimFaction = factionManager.getFactionAtClaim(
-                block.getWorld().getName(), block.getChunk().getX(), block.getChunk().getZ());
-        if (claimFaction == null) return true;
-        return claimFaction.isMember(player.getUniqueId());
-    }
-
-    private void breakTreeWithTool(Block startBlock, ItemStack tool) {
-        Set<Block> logs = new HashSet<>();
-        findConnectedLogs(startBlock, logs);
-
-        for (Block log : logs) {
-            if (log != startBlock) {
-                log.breakNaturally(tool);
-            }
-        }
-    }
-
-    private void breakMultiZone(Block center, ItemStack tool, Player player, boolean isSoft) {
-        Location centerLoc = center.getLocation();
-        Set<Block> blocksToBreak = new HashSet<>();
-
-        float pitch = player.getLocation().getPitch();
-
-        if (pitch > 45 || pitch < -45) {
-            // Regarde vers le haut/bas -> zone horizontale 3x3
-            for (int x = -1; x <= 1; x++) {
-                for (int z = -1; z <= 1; z++) {
-                    Block target = centerLoc.clone().add(x, 0, z).getBlock();
-                    if (target != center) {
-                        blocksToBreak.add(target);
-                    }
-                }
-            }
-        } else {
-            // Regarde horizontalement -> zone verticale 3x3
-            // Bas de la zone au niveau des pieds du joueur
-            int playerFeetY = player.getLocation().getBlockY();
-            int blockY = centerLoc.getBlockY();
-            int yBottom = playerFeetY - blockY;
-            int yTop = yBottom + 2; // 3 blocs de haut
-
-            float yaw = player.getLocation().getYaw();
-            float normalizedYaw = (yaw % 360 + 360) % 360;
-
-            if ((normalizedYaw >= 315 || normalizedYaw < 45) || (normalizedYaw >= 135 && normalizedYaw < 225)) {
-                // Nord/Sud -> surface X,Y
-                for (int x = -1; x <= 1; x++) {
-                    for (int y = yBottom; y <= yTop; y++) {
-                        Block target = centerLoc.clone().add(x, y, 0).getBlock();
-                        if (target != center) {
-                            blocksToBreak.add(target);
-                        }
-                    }
-                }
-            } else {
-                // Est/Ouest -> surface Z,Y
-                for (int z = -1; z <= 1; z++) {
-                    for (int y = yBottom; y <= yTop; y++) {
-                        Block target = centerLoc.clone().add(0, y, z).getBlock();
-                        if (target != center) {
-                            blocksToBreak.add(target);
-                        }
-                    }
-                }
-            }
-        }
-
-        // Casser les blocks (respect des claims sur les blocs annexes)
-        for (Block target : blocksToBreak) {
-            Material targetType = target.getType();
-            if (targetType == Material.AIR || targetType == Material.BEDROCK) continue;
-            if (!canBreakExtraBlock(player, target)) continue;
-
-            // En mode non-soft (pioche), ne casser que les blocks minables
-            if (!isSoft && !isMineable(targetType)) continue;
-
-            // Optimisation : setType(AIR) pour les blocks de gravité
-            if (targetType.name().contains("SAND") || targetType.name().contains("GRAVEL")
-                    || targetType.name().contains("CONCRETE_POWDER")) {
-                target.setType(Material.AIR);
-            } else {
-                target.breakNaturally(tool);
-            }
-        }
-    }
-
-    private void breakArea(Block center, int radiusX, int radiusY, int radiusZ, ItemStack tool) {
-        Set<Block> blocksToBreak = new HashSet<>();
-        Location centerLoc = center.getLocation();
-
-        for (int x = -radiusX; x <= radiusX; x++) {
-            for (int y = -radiusY; y <= radiusY; y++) {
-                for (int z = -radiusZ; z <= radiusZ; z++) {
-                    Block block = centerLoc.clone().add(x, y, z).getBlock();
-                    if (block != center && isMineable(block.getType())) {
-                        blocksToBreak.add(block);
-                    }
-                }
-            }
-        }
-
-        for (Block block : blocksToBreak) {
-            // Optimisation : utiliser setType(AIR) pour les blocks de gravité pour éviter le crash
-            if (block.getType().name().contains("SAND") || block.getType().name().contains("GRAVEL") 
-                    || block.getType().name().contains("CONCRETE_POWDER")) {
-                block.setType(org.bukkit.Material.AIR);
-            } else {
-                block.breakNaturally(tool);
-            }
-        }
     }
 
     @EventHandler

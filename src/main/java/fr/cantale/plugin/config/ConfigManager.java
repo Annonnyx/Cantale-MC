@@ -103,6 +103,6 @@ public class ConfigManager {
     }
 
     public boolean isMultiCantoolVisualAdapterEnabled() {
-        return config.getBoolean("custom-items.multi-cantool-visual-adapter", false);
+        return config.getBoolean("custom-items.multi-cantool-visual-adapter", true);
     }
 }

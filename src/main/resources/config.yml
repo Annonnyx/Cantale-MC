@@ -223,9 +223,9 @@ discord:
 # Configuration des items custom (Cantale).
 custom-items:
   # Adapter visuellement l'outil tenu en main (pioche/hache/pelle/cisailles)
-  # selon le bloc visé. Désactivé par défaut car il provoque des blocs fantômes
-  # (désynchronisation client/serveur sur la vitesse de minage du Multi-Cantool).
-  multi-cantool-visual-adapter: false
+  # selon le bloc visé. Sûr avec le Multi-Cantool 1x1 + instaBreak serveur.
+  # Mettre false uniquement en cas de souci client.
+  multi-cantool-visual-adapter: true
 
 # ─── Resource Pack ─────────────────────────────────────────────
 # URL publique du pack Cantale (zip). Les joueurs le reçoivent à la connexion.
