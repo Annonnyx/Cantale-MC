@@ -52,9 +52,8 @@ public class CustomItemListener implements Listener {
     }
 
     /**
-     * Multi-Cantool : l'item serveur reste une pioche.
-     * Sur bois/terre/feuilles, setInstaBreak + breakBlock (filet de sécu Paper 1.21)
-     * pour ne pas miner à la vitesse pioche. Les drops passent par handleMultiCantool.
+     * Multi-Cantool : sur le bois, la terre et les feuilles/laines, on active setInstaBreak(true)
+     * pour offrir un minage instantané et fluide sans desync client/serveur.
      */
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onBlockDamage(BlockDamageEvent event) {
@@ -67,23 +66,10 @@ public class CustomItemListener implements Listener {
 
         Block block = event.getBlock();
         String matName = block.getType().name();
-        if (!isShearsBlock(matName) && !isWoodBlock(matName) && !isSoftBlock(matName)) {
-            return;
+
+        if (isWoodBlock(matName) || isSoftBlock(matName) || isShearsBlock(matName)) {
+            event.setInstaBreak(true);
         }
-
-        event.setInstaBreak(true);
-
-        // Filet de sécu : sur certaines builds Paper, setInstaBreak seul ne suffit pas
-        final Material expected = block.getType();
-        plugin.getServer().getScheduler().runTask(plugin, () -> {
-            if (!player.isOnline()) return;
-            if (block.getType() != expected) return; // déjà cassé
-            ItemStack hand = player.getInventory().getItemInMainHand();
-            if (!customItemManager.isCustomItem(hand)) return;
-            CustomItemType handType = customItemManager.getCustomItemType(hand);
-            if (handType == null || !handType.isMultiCantool()) return;
-            player.breakBlock(block);
-        });
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
@@ -285,16 +271,18 @@ public class CustomItemListener implements Listener {
         CustomItemType type = customItemManager.getCustomItemType(tool);
         if (type == null) return;
 
-        // 1x1 only : le bloc central est déjà filtré par ClaimListener (ignoreCancelled).
-        // Pas de casse annexe → pas de risque de contournement de claim.
-
         String matName = mat.name();
         boolean isShears = isShearsBlock(matName);
-        ItemStack virtualTool = isShears ? createShearsTool(type) : getVirtualTool(mat, type);
+        boolean isWood = isWoodBlock(matName);
+        boolean isSoft = isSoftBlock(matName);
 
-        event.setCancelled(true);
-        event.setDropItems(false);
-        breakNaturallyWithDrops(block, virtualTool);
+        if (isShears || isWood || isSoft) {
+            ItemStack virtualTool = isShears ? createShearsTool(type) : getVirtualTool(mat, type);
+            event.setDropItems(false);
+            for (ItemStack drop : block.getDrops(virtualTool, player)) {
+                block.getWorld().dropItemNaturally(block.getLocation(), drop);
+            }
+        }
         damageItem(player, tool, 1);
     }
 

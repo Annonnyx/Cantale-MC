@@ -46,6 +46,12 @@ public class TeleportDelayManager implements Listener {
     }
 
     public void delayTeleport(Player player, Runnable teleportAction) {
+        if (plugin.getCombatTagManager() != null && plugin.getCombatTagManager().isInCombat(player)) {
+            player.sendMessage("§8[§6Cantale§8] §cImpossible de se téléporter pendant un combat ! (" 
+                    + plugin.getCombatTagManager().getRemainingSeconds(player.getUniqueId()) + "s restantes)");
+            return;
+        }
+
         int delay = getTeleportDelay(player);
         if (delay <= 0) {
             teleportAction.run();

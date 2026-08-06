@@ -123,6 +123,7 @@ public class CantalePlugin extends JavaPlugin {
     private fr.cantale.plugin.tasks.ClearLagTask clearLagTask;
     private fr.cantale.plugin.teleport.TeleportDelayManager teleportDelayManager;
     private fr.cantale.plugin.anticheat.AntiCheatManager antiCheatManager;
+    private fr.cantale.plugin.combat.CombatTagManager combatTagManager;
 
     @Override
     public void onEnable() {
@@ -343,6 +344,7 @@ public class CantalePlugin extends JavaPlugin {
         this.serverOptimizer = new ServerOptimizer(this);
         this.serverOptimizer.startTasks();
         this.antiCheatManager = new fr.cantale.plugin.anticheat.AntiCheatManager(this);
+        this.combatTagManager = new fr.cantale.plugin.combat.CombatTagManager(this);
 
         // Bot FAQ
         saveResource("faq.yml", false);
@@ -478,6 +480,7 @@ public class CantalePlugin extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new fr.cantale.plugin.privatechest.PrivateChestListener(this, privateChestCommand.getChestService()), this);
         getServer().getPluginManager().registerEvents(new fr.cantale.plugin.crate.CrateListener(this, crateManager), this);
         getServer().getPluginManager().registerEvents(new fr.cantale.plugin.chatbot.FaqChatListener(this, faqCore), this);
+        getServer().getPluginManager().registerEvents(new fr.cantale.plugin.combat.CombatTagListener(this, combatTagManager), this);
     }
 
     private void registerPluginMessageChannels() {
@@ -685,5 +688,9 @@ public class CantalePlugin extends JavaPlugin {
 
     public fr.cantale.plugin.anticheat.AntiCheatManager getAntiCheatManager() {
         return antiCheatManager;
+    }
+
+    public fr.cantale.plugin.combat.CombatTagManager getCombatTagManager() {
+        return combatTagManager;
     }
 }

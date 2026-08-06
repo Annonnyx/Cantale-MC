@@ -35,6 +35,7 @@ import java.util.EnumSet;
  */
 public class TicketListener extends ListenerAdapter {
 
+    private static final long SUPPORT_CATEGORY_ID = 1504899461401546954L;
     private static final long CLOSED_CATEGORY_ID = 1513940161682211076L;
     private static final EnumSet<Permission> OPEN_PERMS =
         EnumSet.of(Permission.VIEW_CHANNEL, Permission.MESSAGE_SEND, Permission.MESSAGE_ATTACH_FILES);
@@ -154,14 +155,16 @@ public class TicketListener extends ListenerAdapter {
             return;
         }
 
-        // Créer le salon ticket nommé "utilisateur-motif"
+        // Créer le salon ticket nommé "utilisateur-motif" dans la catégorie Support
         String base = member.getEffectiveName();
         String sanitizedUser = base.toLowerCase().replaceAll("[^a-z0-9-]", "-");
         String motif = reason.toLowerCase().replaceAll("[^a-z0-9-]", "-");
         String ticketName = "[" + sanitizedUser + "]-[" + motif + "]";
 
+        Category supportCat = guild.getCategoryById(SUPPORT_CATEGORY_ID);
+
         guild.createTextChannel(ticketName)
-            .setParent(null)
+            .setParent(supportCat)
             .addPermissionOverride(guild.getPublicRole(), EnumSet.noneOf(Permission.class), EnumSet.of(Permission.VIEW_CHANNEL))
             .addPermissionOverride(member, OPEN_PERMS, EnumSet.noneOf(Permission.class))
             .queue(ch -> {
@@ -224,9 +227,6 @@ public class TicketListener extends ListenerAdapter {
             return;
         }
 
-        // On accuse réception TOUT DE SUITE : les appels ci-dessous (permissions, DM,
-        // déplacement de catégorie) peuvent facilement dépasser les 3 secondes autorisées
-        // par Discord avant qu'un reply() direct échoue avec "Unknown interaction".
         event.deferReply(true).queue();
 
         if (ownerId != null) {
@@ -242,10 +242,15 @@ public class TicketListener extends ListenerAdapter {
             } catch (Exception ignored) {}
         }
 
-        ch.getManager().setParent((Category) null).queue(success -> {
-            String newName = name.startsWith("closed-") ? name.substring("closed-".length()) : name;
-            ch.getManager().setName(newName).queue();
+        Category supportCat = guild.getCategoryById(SUPPORT_CATEGORY_ID);
+        String newName = name.startsWith("closed-") ? name.substring("closed-".length()) : name;
 
+        var manager = ch.getManager().setName(newName);
+        if (supportCat != null) {
+            manager.setParent(supportCat);
+        }
+
+        manager.queue(success -> {
             for (Long roleId : config.getStaffRoleIds()) {
                 try {
                     Role role = guild.getRoleById(roleId);

@@ -1,10 +1,9 @@
 name: CantalePlugin
 version: 1.0.0
 main: fr.cantale.plugin.CantalePlugin
-api-version: 1.20
+api-version: 1.21
 author: Cantale
 description: Plugin Minecraft complet avec factions, économie, vies hardcore, et plus encore
-api-version: 1.21
 softdepend:
   - Votifier
   - NuVotifier
@@ -43,6 +42,9 @@ commands:
     description: Commandes de faction
     usage: /f <subcommand>
     aliases: [faction]
+  fc:
+    description: Chat de faction
+    usage: /fc [message]
   profile:
     description: Affiche le profil du joueur
     usage: /profile
@@ -169,12 +171,16 @@ commands:
     description: Envoyer un message sur Discord depuis Minecraft
     usage: /discord <message|mp <joueur> <message>|joueur> [message]
   say:
-    description: [Owner] Faire parler le bot en jeu
+    description: "[Owner] Faire parler le bot en jeu"
     usage: /say <message>
   anticheat:
     description: Commande d'administration du système Anti-Cheat
     usage: /anticheat
     aliases: [ac]
+    permission: cantale.admin
+  faq:
+    description: Gérer la base de connaissances du bot FAQ
+    usage: /faq <reload|add|remove>
     permission: cantale.admin
 
 permissions:

@@ -48,6 +48,21 @@ public class VerificationListener extends ListenerAdapter {
         if (unverified != null) {
             guild.addRoleToMember(member, unverified).queue();
         }
+
+        // Log immédiat de l'arrivée du membre (non-vérifié) dans le salon de mod-logs
+        TextChannel modLogs = guild.getTextChannelById(config.getModLogsChannelId());
+        if (modLogs != null) {
+            EmbedBuilder embed = new EmbedBuilder()
+                .setColor(Color.ORANGE)
+                .setTitle("📥 Nouveau membre rejoint (Non vérifié)")
+                .addField("Membre", member.getAsMention() + " (`" + member.getUser().getAsTag() + "`)", true)
+                .addField("ID", "`" + member.getId() + "`", true)
+                .addField("Création du compte", "<t:" + member.getUser().getTimeCreated().toEpochSecond() + ":R>", false)
+                .setThumbnail(member.getEffectiveAvatarUrl())
+                .setTimestamp(Instant.now());
+
+            modLogs.sendMessageEmbeds(embed.build()).queue();
+        }
     }
 
     /** Envoie le panel de vérification permanent dans #verification (appelé au startup). */
