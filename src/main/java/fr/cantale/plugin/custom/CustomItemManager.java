@@ -39,6 +39,8 @@ public class CustomItemManager {
             addCantalameLore(lore);
         } else if (type == CustomItemType.VIE) {
             addVieLore(lore);
+        } else if (type.isGardeArmor()) {
+            addGardeArmorLore(type, lore);
         }
 
         meta.setLore(lore);
@@ -50,6 +52,8 @@ public class CustomItemManager {
             addCantaxeEnchantments(type, meta);
         } else if (type.isMultiCantool()) {
             addMultiCantoolEnchantments(type, meta);
+        } else if (type.isGardeArmor()) {
+            addGardeArmorEnchantments(type, meta);
         }
 
         // CustomModelData pour le resource pack
@@ -107,6 +111,54 @@ public class CustomItemManager {
         lore.add(ChatColor.GRAY + "Item consommable — disparaît après usage");
         lore.add(ChatColor.RED + "Non-craftable");
         lore.add(ChatColor.RED + "Récompense de grade mensuelle");
+    }
+
+    private void addGardeArmorLore(CustomItemType type, List<String> lore) {
+        lore.add(ChatColor.GOLD + "Armure du Garde");
+        lore.add(ChatColor.GRAY + "Pièce authentique — non craftable");
+        lore.add("");
+        lore.add(ChatColor.AQUA + "Bonus par pièce (25% du set) :");
+        lore.add(ChatColor.GRAY + "  +1.5 cœurs  |  +7.5% vitesse  |  +6.25% saut");
+        lore.add(ChatColor.AQUA + "Set complet (4 pièces) :");
+        lore.add(ChatColor.GRAY + "  +6 cœurs  |  +30% vitesse  |  +25% saut");
+        switch (type) {
+            case GARDE_HELMET -> {
+                lore.add("");
+                lore.add(ChatColor.DARK_AQUA + "Extras : Respiration III, Affinité aquatique");
+            }
+            case GARDE_LEGGINGS -> {
+                lore.add("");
+                lore.add(ChatColor.DARK_AQUA + "Extras : Pas furtifs III");
+            }
+            case GARDE_BOOTS -> {
+                lore.add("");
+                lore.add(ChatColor.DARK_AQUA + "Extras : Chute amortie IV, Depth Strider III, Soul Speed III");
+            }
+            default -> {
+            }
+        }
+    }
+
+    private void addGardeArmorEnchantments(CustomItemType type, ItemMeta meta) {
+        meta.addEnchant(Enchantment.PROTECTION, 9, true);
+        meta.addEnchant(Enchantment.THORNS, 5, true);
+        meta.addEnchant(Enchantment.UNBREAKING, 10, true);
+        meta.addEnchant(Enchantment.MENDING, 1, true);
+
+        switch (type) {
+            case GARDE_HELMET -> {
+                meta.addEnchant(Enchantment.RESPIRATION, 3, true);
+                meta.addEnchant(Enchantment.AQUA_AFFINITY, 1, true);
+            }
+            case GARDE_LEGGINGS -> meta.addEnchant(Enchantment.SWIFT_SNEAK, 3, true);
+            case GARDE_BOOTS -> {
+                meta.addEnchant(Enchantment.FEATHER_FALLING, 4, true);
+                meta.addEnchant(Enchantment.DEPTH_STRIDER, 3, true);
+                meta.addEnchant(Enchantment.SOUL_SPEED, 3, true);
+            }
+            default -> {
+            }
+        }
     }
 
     private void addPickantiseEnchantments(CustomItemType type, ItemMeta meta) {
@@ -230,29 +282,33 @@ public class CustomItemManager {
      */
     private int getCustomModelData(CustomItemType type) {
         return switch (type) {
-            case PICKANTAXE_IRON_1X1 -> 1;
-            case PICKANTAXE_IRON_3X3 -> 2;
-            case PICKANTAXE_IRON_5X5 -> 3;
-            case PICKANTAXE_IRON_7X7 -> 4;
-            case PICKANTAXE_DIAMOND_1X1 -> 5;
-            case PICKANTAXE_DIAMOND_3X3 -> 6;
-            case PICKANTAXE_DIAMOND_5X5 -> 7;
-            case PICKANTAXE_DIAMOND_7X7 -> 8;
-            case PICKANTAXE_NETHERITE_1X1 -> 9;
-            case PICKANTAXE_NETHERITE_3X3 -> 10;
-            case PICKANTAXE_NETHERITE_5X5 -> 11;
-            case PICKANTAXE_NETHERITE_7X7 -> 12;
-            case CANTAXE_IRON -> 13;
-            case CANTAXE_DIAMOND -> 14;
-            case CANTAXE_NETHERITE -> 15;
-            case MULTI_CANTOOL_IRON_1X1 -> 16;
-            case MULTI_CANTOOL_IRON -> 17;
-            case MULTI_CANTOOL_DIAMOND_1X1 -> 18;
-            case MULTI_CANTOOL_DIAMOND -> 19;
-            case MULTI_CANTOOL_NETHERITE_1X1 -> 20;
-            case MULTI_CANTOOL_NETHERITE -> 21;
-            case CANTALAME -> 23;
-            case VIE -> 25;
+            case PICKANTAXE_IRON_1X1 -> 1001;
+            case PICKANTAXE_IRON_3X3 -> 1002;
+            case PICKANTAXE_IRON_5X5 -> 1003;
+            case PICKANTAXE_IRON_7X7 -> 1004;
+            case PICKANTAXE_DIAMOND_1X1 -> 1011;
+            case PICKANTAXE_DIAMOND_3X3 -> 1012;
+            case PICKANTAXE_DIAMOND_5X5 -> 1013;
+            case PICKANTAXE_DIAMOND_7X7 -> 1014;
+            case PICKANTAXE_NETHERITE_1X1 -> 1021;
+            case PICKANTAXE_NETHERITE_3X3 -> 1022;
+            case PICKANTAXE_NETHERITE_5X5 -> 1023;
+            case PICKANTAXE_NETHERITE_7X7 -> 1024;
+            case CANTAXE_IRON -> 2001;
+            case CANTAXE_DIAMOND -> 2002;
+            case CANTAXE_NETHERITE -> 2003;
+            case MULTI_CANTOOL_IRON_1X1 -> 3001;
+            case MULTI_CANTOOL_IRON -> 3002;
+            case MULTI_CANTOOL_DIAMOND_1X1 -> 3011;
+            case MULTI_CANTOOL_DIAMOND -> 3012;
+            case MULTI_CANTOOL_NETHERITE_1X1 -> 3021;
+            case MULTI_CANTOOL_NETHERITE -> 3022;
+            case CANTALAME -> 5001;
+            case VIE -> 7001;
+            case GARDE_HELMET -> 9001;
+            case GARDE_CHESTPLATE -> 9002;
+            case GARDE_LEGGINGS -> 9003;
+            case GARDE_BOOTS -> 9004;
         };
     }
 }

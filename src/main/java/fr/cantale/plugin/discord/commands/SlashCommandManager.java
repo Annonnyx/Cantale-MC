@@ -112,14 +112,16 @@ public class SlashCommandManager extends ListenerAdapter {
                 .addOptions(new OptionData(OptionType.STRING, "categorie", "Catégorie du classement", true)
                     .addChoice("Argent", "argent")
                     .addChoice("Kills", "kills")
-                    .addChoice("Temps de jeu", "playtime"))
+                    .addChoice("Temps de jeu", "playtime")
+                    .addChoice("Réactions chat", "chat_reactions"))
                 .setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.USE_APPLICATION_COMMANDS)),
 
             Commands.slash("classement", "Alias de /leaderboard")
                 .addOptions(new OptionData(OptionType.STRING, "categorie", "Catégorie du classement", true)
                     .addChoice("Argent", "argent")
                     .addChoice("Kills", "kills")
-                    .addChoice("Temps de jeu", "playtime"))
+                    .addChoice("Temps de jeu", "playtime")
+                    .addChoice("Réactions chat", "chat_reactions"))
                 .setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.USE_APPLICATION_COMMANDS)),
 
             Commands.slash("fleaderboard", "Classement des factions")
@@ -722,16 +724,19 @@ public class SlashCommandManager extends ListenerAdapter {
             String column = switch (category) {
                 case "kills" -> "kills";
                 case "playtime" -> "playtime";
+                case "chat_reactions" -> "chat_reactions";
                 default -> "balance";
             };
             String title = switch (category) {
                 case "kills" -> "⚔️ Classement — Kills";
                 case "playtime" -> "⏱️ Classement — Temps de jeu";
+                case "chat_reactions" -> "💬 Classement — Réactions Chat";
                 default -> "💰 Classement — Argent";
             };
             java.awt.Color color = switch (category) {
                 case "kills" -> Color.RED;
                 case "playtime" -> Color.CYAN;
+                case "chat_reactions" -> Color.MAGENTA;
                 default -> Color.GREEN;
             };
 

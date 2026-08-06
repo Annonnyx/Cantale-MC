@@ -25,7 +25,11 @@ public enum CustomItemType {
     MULTI_CANTOOL_NETHERITE_1X1("Multi-Cantool Netherite 1x1", Material.NETHERITE_PICKAXE, 1),
     MULTI_CANTOOL_NETHERITE("Multi-Cantool Netherite", Material.NETHERITE_PICKAXE, 0),
     CANTALAME("Cantalame", Material.NETHERITE_SWORD, 0),
-    VIE("Vie", Material.TOTEM_OF_UNDYING, 0);
+    VIE("Vie", Material.TOTEM_OF_UNDYING, 0),
+    GARDE_HELMET("Casque du Garde", Material.NETHERITE_HELMET, 0),
+    GARDE_CHESTPLATE("Plastron du Garde", Material.NETHERITE_CHESTPLATE, 0),
+    GARDE_LEGGINGS("Jambières du Garde", Material.NETHERITE_LEGGINGS, 0),
+    GARDE_BOOTS("Bottes du Garde", Material.NETHERITE_BOOTS, 0);
 
     private final String displayName;
     private final Material material;
@@ -63,5 +67,9 @@ public enum CustomItemType {
 
     public boolean isCantalame() {
         return name().equals("CANTALAME");
+    }
+
+    public boolean isGardeArmor() {
+        return name().startsWith("GARDE_");
     }
 }

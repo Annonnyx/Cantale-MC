@@ -1,0 +1,11 @@
+{
+  "model": {
+    "type": "minecraft:range_dispatch",
+    "property": "minecraft:custom_model_data",
+    "index": 0,
+    "fallback": { "type": "minecraft:model", "model": "minecraft:item/netherite_chestplate" },
+    "entries": [
+      { "threshold": 9002, "model": { "type": "minecraft:model", "model": "cantale:item/garde_chestplate" } }
+    ]
+  }
+}

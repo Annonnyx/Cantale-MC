@@ -124,6 +124,8 @@ public class CantalePlugin extends JavaPlugin {
     private fr.cantale.plugin.teleport.TeleportDelayManager teleportDelayManager;
     private fr.cantale.plugin.anticheat.AntiCheatManager antiCheatManager;
     private fr.cantale.plugin.combat.CombatTagManager combatTagManager;
+    private fr.cantale.plugin.shop.ShopManager shopManager;
+    private fr.cantale.plugin.events.EventSystemsManager eventSystemsManager;
 
     @Override
     public void onEnable() {
@@ -338,6 +340,7 @@ public class CantalePlugin extends JavaPlugin {
         this.crateManager = new fr.cantale.plugin.crate.CrateManager(this);
         this.legendaryTicketManager = new fr.cantale.plugin.crate.LegendaryTicketManager(this);
         this.fortifiedChunkDAO = new fr.cantale.plugin.database.FortifiedChunkDAO(this);
+        this.shopManager = new fr.cantale.plugin.shop.ShopManager(this);
         this.voteDAO = new fr.cantale.plugin.vote.VoteDAO(this);
         this.voteRewardManager = new fr.cantale.plugin.vote.VoteRewardManager(this);
         this.voteListener = new fr.cantale.plugin.vote.VoteListener(this);
@@ -349,6 +352,10 @@ public class CantalePlugin extends JavaPlugin {
         // Bot FAQ
         saveResource("faq.yml", false);
         this.faqCore = new fr.cantale.plugin.chatbot.faq.FaqCore(this);
+
+        // Systèmes d'événements (chat reactions, faction events, weekly key)
+        saveResource("events.yml", false);
+        this.eventSystemsManager = new fr.cantale.plugin.events.EventSystemsManager(this);
 
         // Démarrer le bot Discord (envoie le message de startup automatiquement une fois connecté)
         DiscordConfig discordConfig = new DiscordConfig(this);
@@ -372,11 +379,17 @@ public class CantalePlugin extends JavaPlugin {
         // Démarrer Wanted Tracker (toutes les 5 min pour palier 5M+)
         new fr.cantale.plugin.discord.tasks.WantedTrackerTask(this).schedule();
 
+        // Démarrer les planificateurs d'événements
+        this.eventSystemsManager.start();
+
         getLogger().info("Cantale v" + getDescription().getVersion() + " activé avec succès !");
     }
 
     @Override
     public void onDisable() {
+        if (eventSystemsManager != null) {
+            eventSystemsManager.stop();
+        }
         if (discordBot != null && discordBot.isConnected()) {
             discordBot.sendServerStatus("🛑 **Le serveur Minecraft s'arrête...**", "#ED4245",
                 "Le serveur Cantale redémarre ou s'arrête. À bientôt !", true);
@@ -454,6 +467,9 @@ public class CantalePlugin extends JavaPlugin {
         getCommand("anticheat").setExecutor(new fr.cantale.plugin.anticheat.AntiCheatCommand(this.antiCheatManager));
         getCommand("anticheat").setTabCompleter(new fr.cantale.plugin.anticheat.AntiCheatCommand(this.antiCheatManager));
         getCommand("faq").setExecutor(new fr.cantale.plugin.commands.FaqCommand(this, faqCore));
+        getCommand("shop").setExecutor(new fr.cantale.plugin.commands.ShopCommand(this));
+        getCommand("shop").setTabCompleter(new fr.cantale.plugin.commands.ShopCommand(this));
+        getCommand("recolte").setExecutor(new fr.cantale.plugin.commands.RecolteCommand(this));
     }
 
     private void registerListeners() {
@@ -481,6 +497,13 @@ public class CantalePlugin extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new fr.cantale.plugin.crate.CrateListener(this, crateManager), this);
         getServer().getPluginManager().registerEvents(new fr.cantale.plugin.chatbot.FaqChatListener(this, faqCore), this);
         getServer().getPluginManager().registerEvents(new fr.cantale.plugin.combat.CombatTagListener(this, combatTagManager), this);
+        getServer().getPluginManager().registerEvents(new fr.cantale.plugin.custom.GardeArmorListener(this), this);
+        if (eventSystemsManager != null) {
+            getServer().getPluginManager().registerEvents(
+                    new fr.cantale.plugin.events.ChatReactionListener(eventSystemsManager.getChatReactionManager()), this);
+            getServer().getPluginManager().registerEvents(
+                    new fr.cantale.plugin.events.FactionEventListener(eventSystemsManager.getFactionEventManager()), this);
+        }
     }
 
     private void registerPluginMessageChannels() {
@@ -624,6 +647,18 @@ public class CantalePlugin extends JavaPlugin {
 
     public RankManager getRankManager() {
         return rankManager;
+    }
+
+    public fr.cantale.plugin.shop.ShopManager getShopManager() {
+        return shopManager;
+    }
+
+    public fr.cantale.plugin.events.EventSystemsManager getEventSystemsManager() {
+        return eventSystemsManager;
+    }
+
+    public fr.cantale.plugin.events.FactionEventManager getFactionEventManager() {
+        return eventSystemsManager != null ? eventSystemsManager.getFactionEventManager() : null;
     }
 
     public CustomItemManager getCustomItemManager() {

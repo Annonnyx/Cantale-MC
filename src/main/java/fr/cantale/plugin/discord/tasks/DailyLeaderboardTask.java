@@ -54,6 +54,7 @@ public class DailyLeaderboardTask extends BukkitRunnable {
         sendMoneyLeaderboard(config.getLbMoneyChannelId());
         sendWantedLeaderboard(config.getLbWantedChannelId());
         sendFactionsLeaderboard(config.getLbFactionsChannelId());
+        sendChatReactionsLeaderboard(config.getLbChatReactionsChannelId());
     }
 
     private void sendKillsLeaderboard(long channelId) {
@@ -98,6 +99,20 @@ public class DailyLeaderboardTask extends BukkitRunnable {
             .setDescription(formatTop(top, "power"))
             .setTimestamp(java.time.Instant.now());
         discordBot.getJda().getTextChannelById(channelId).sendMessageEmbeds(embed.build()).queue();
+    }
+
+    private void sendChatReactionsLeaderboard(long channelId) {
+        if (channelId == 0L) return;
+        List<Entry> top = queryTop("SELECT username, chat_reactions AS value FROM players ORDER BY chat_reactions DESC LIMIT 10");
+        EmbedBuilder embed = new EmbedBuilder()
+            .setColor(Color.MAGENTA)
+            .setTitle("🏆 Leaderboard — Réactions Chat")
+            .setDescription(formatTop(top, "victoires"))
+            .setTimestamp(java.time.Instant.now());
+        var channel = discordBot.getJda().getTextChannelById(channelId);
+        if (channel != null) {
+            channel.sendMessageEmbeds(embed.build()).queue();
+        }
     }
 
     private List<Entry> queryTop(String sql) {

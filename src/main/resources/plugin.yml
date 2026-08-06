@@ -182,6 +182,14 @@ commands:
     description: Gérer la base de connaissances du bot FAQ
     usage: /faq <reload|add|remove>
     permission: cantale.admin
+  shop:
+    description: Boutique Admin (Cantox) — plancher de prix et sink économique
+    usage: /shop [buy|sell] <item> <quantité>
+    aliases: [adminshop, boutique]
+  recolte:
+    description: Déposer des récoltes pendant un événement faction HARVEST
+    usage: /recolte
+    aliases: [harvest, depositrecolte]
 
 permissions:
   cantale.givevie:

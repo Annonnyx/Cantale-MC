@@ -600,6 +600,23 @@ public class DatabaseManager {
                 stmt.execute("ALTER TABLE players ADD COLUMN playtime INTEGER DEFAULT 0");
             } catch (java.sql.SQLException ignored) {}
 
+            // Migration : victoires réactions chat
+            try {
+                stmt.execute("ALTER TABLE players ADD COLUMN chat_reactions INTEGER DEFAULT 0");
+            } catch (java.sql.SQLException ignored) {}
+
+            // Admin Shop : plafonds quotidiens d'achat/vente par joueur et par item
+            stmt.execute("""
+                CREATE TABLE IF NOT EXISTS shop_daily_limits (
+                    player_uuid VARCHAR(36) NOT NULL,
+                    material VARCHAR(64) NOT NULL,
+                    limit_date VARCHAR(10) NOT NULL,
+                    sold_qty INTEGER DEFAULT 0,
+                    bought_qty INTEGER DEFAULT 0,
+                    PRIMARY KEY (player_uuid, material)
+                )
+                """);
+
             plugin.getLogger().info("Tables créées / vérifiées avec succès.");
         } catch (SQLException e) {
             plugin.getLogger().severe("Erreur lors de la création des tables : " + e.getMessage());

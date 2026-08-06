@@ -117,6 +117,30 @@ public class LeaderboardManager {
         return entries;
     }
 
+    public List<LeaderboardEntry> getTopChatReactions(int limit) {
+        List<LeaderboardEntry> entries = new ArrayList<>();
+        String sql = "SELECT username, chat_reactions FROM players ORDER BY chat_reactions DESC LIMIT ?";
+
+        try (Connection conn = databaseManager.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setInt(1, limit);
+            ResultSet rs = stmt.executeQuery();
+
+            int rank = 1;
+            while (rs.next()) {
+                entries.add(new LeaderboardEntry(
+                    rank++,
+                    rs.getString("username"),
+                    rs.getInt("chat_reactions")
+                ));
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().severe("Erreur lors de la récupération des top chat_reactions : " + e.getMessage());
+        }
+
+        return entries;
+    }
+
     public static class LeaderboardEntry {
         private final int rank;
         private final String name;

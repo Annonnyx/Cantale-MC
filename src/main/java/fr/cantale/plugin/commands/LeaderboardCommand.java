@@ -64,6 +64,12 @@ public class LeaderboardCommand implements CommandExecutor, TabCompleter {
             case "faction":
                 showTopFactions(sender, limit);
                 break;
+            case "chat_reactions":
+            case "reactions":
+            case "reaction":
+            case "chat":
+                showTopChatReactions(sender, limit);
+                break;
             default:
                 sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&cType inconnu : &e" + type));
                 sendHelp(sender);
@@ -117,6 +123,17 @@ public class LeaderboardCommand implements CommandExecutor, TabCompleter {
         }
     }
 
+    private void showTopChatReactions(CommandSender sender, int limit) {
+        sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&6=== Top " + limit + " Réactions Chat ==="));
+
+        for (LeaderboardManager.LeaderboardEntry entry : leaderboardManager.getTopChatReactions(limit)) {
+            String medal = getMedal(entry.getRank());
+            sender.sendMessage(ChatColor.translateAlternateColorCodes('&',
+                medal + " &e#" + entry.getRank() + " &7- &f" + entry.getName() + " &7: &a" + entry.getValue() + " victoires"
+            ));
+        }
+    }
+
     private String getMedal(int rank) {
         return switch (rank) {
             case 1 -> "🥇";
@@ -134,13 +151,14 @@ public class LeaderboardCommand implements CommandExecutor, TabCompleter {
         sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&7  - &edeaths &7: Top morts"));
         sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&7  - &erichest &7: Plus riches"));
         sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&7  - &efactions &7: Top factions"));
+        sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&7  - &echat_reactions &7: Victoires réactions chat"));
         sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&7Limite : 1-50 (défaut: 10)"));
     }
 
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         if (args.length == 1) {
-            return Arrays.asList("kills", "deaths", "richest", "factions");
+            return Arrays.asList("kills", "deaths", "richest", "factions", "chat_reactions");
         }
         if (args.length == 2) {
             return Arrays.asList("5", "10", "15", "20", "25", "50");

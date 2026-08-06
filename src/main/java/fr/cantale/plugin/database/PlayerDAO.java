@@ -181,6 +181,32 @@ public class PlayerDAO {
         }
     }
 
+    public void incrementChatReactions(UUID uuid) {
+        String sql = "UPDATE players SET chat_reactions = chat_reactions + 1 WHERE uuid = ?";
+        try (Connection conn = databaseManager.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, uuid.toString());
+            stmt.executeUpdate();
+        } catch (SQLException e) {
+            plugin.getLogger().severe("Erreur incrementChatReactions : " + e.getMessage());
+        }
+    }
+
+    public int getChatReactions(UUID uuid) {
+        String sql = "SELECT chat_reactions FROM players WHERE uuid = ?";
+        try (Connection conn = databaseManager.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, uuid.toString());
+            ResultSet rs = stmt.executeQuery();
+            if (rs.next()) {
+                return rs.getInt("chat_reactions");
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().severe("Erreur getChatReactions : " + e.getMessage());
+        }
+        return 0;
+    }
+
     public int getKillStreak(UUID uuid) {
         String sql = "SELECT kill_streak FROM players WHERE uuid = ?";
         try (Connection conn = databaseManager.getConnection();

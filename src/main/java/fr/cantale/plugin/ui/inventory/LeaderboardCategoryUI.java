@@ -30,6 +30,7 @@ public class LeaderboardCategoryUI extends BaseUI {
             case "DEATHS" -> "§4§lTop Morts";
             case "RICHEST" -> "§6§lTop Richesse";
             case "FACTIONS" -> "§b§lTop Factions";
+            case "CHAT_REACTIONS" -> "§d§lTop Réactions Chat";
             default -> "§e§lClassement";
         };
 
@@ -54,6 +55,7 @@ public class LeaderboardCategoryUI extends BaseUI {
             List<LeaderboardManager.LeaderboardEntry> entries = switch (category) {
                 case "KILLS" -> leaderboardManager.getTopKills(21);
                 case "DEATHS" -> leaderboardManager.getTopDeaths(21);
+                case "CHAT_REACTIONS" -> leaderboardManager.getTopChatReactions(21);
                 default -> leaderboardManager.getTopRichest(21);
             };
 
@@ -65,6 +67,7 @@ public class LeaderboardCategoryUI extends BaseUI {
                 String valSuffix = switch (category) {
                     case "KILLS" -> " kills";
                     case "DEATHS" -> " morts";
+                    case "CHAT_REACTIONS" -> " victoires";
                     default -> " Cantox";
                 };
 

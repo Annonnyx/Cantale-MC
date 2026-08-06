@@ -35,6 +35,7 @@ public class DiscordConfig {
     private final long lbMoneyChannelId;
     private final long lbWantedChannelId;
     private final long lbFactionsChannelId;
+    private final long lbChatReactionsChannelId;
     private final long mcDeathsChannelId;
     private final long mcFactionsChannelId;
     private final long hostingAnnouncementsChannelId;
@@ -129,6 +130,7 @@ public class DiscordConfig {
             this.lbMoneyChannelId = 0L;
             this.lbWantedChannelId = 0L;
             this.lbFactionsChannelId = 0L;
+            this.lbChatReactionsChannelId = 0L;
             this.mcDeathsChannelId = 0L;
             this.mcFactionsChannelId = 0L;
             this.unverifiedRoleId = 0L;
@@ -200,6 +202,7 @@ public class DiscordConfig {
             this.lbMoneyChannelId = parseLong(channels.getString("lb-money", "0"));
             this.lbWantedChannelId = parseLong(channels.getString("lb-wanted", "0"));
             this.lbFactionsChannelId = parseLong(channels.getString("lb-factions", "0"));
+            this.lbChatReactionsChannelId = parseLong(channels.getString("lb-chat-reactions", "0"));
             this.mcDeathsChannelId = parseLong(channels.getString("mc-deaths", "0"));
             this.mcFactionsChannelId = parseLong(channels.getString("mc-factions", "0"));
             this.hostingAnnouncementsChannelId = parseLong(channels.getString("hosting-announcements", "0"));
@@ -211,6 +214,7 @@ public class DiscordConfig {
             this.announcementsChannelId = this.supportChannelId = this.modLogsChannelId = 0L;
             this.minecraftStatusChannelId = this.partnershipsChannelId = this.mcChatChannelId = 0L;
             this.lbKillsChannelId = this.lbMoneyChannelId = this.lbWantedChannelId = this.lbFactionsChannelId = 0L;
+            this.lbChatReactionsChannelId = 0L;
             this.mcDeathsChannelId = this.mcFactionsChannelId = this.hostingAnnouncementsChannelId = 0L;
             this.eventsChannelId = this.antiBotChannelId = this.faqChannelId = 0L;
         }
@@ -348,6 +352,7 @@ public class DiscordConfig {
     public long getLbMoneyChannelId() { return lbMoneyChannelId; }
     public long getLbWantedChannelId() { return lbWantedChannelId; }
     public long getLbFactionsChannelId() { return lbFactionsChannelId; }
+    public long getLbChatReactionsChannelId() { return lbChatReactionsChannelId; }
     public long getMcDeathsChannelId() { return mcDeathsChannelId; }
     public long getMcFactionsChannelId() { return mcFactionsChannelId; }
 
