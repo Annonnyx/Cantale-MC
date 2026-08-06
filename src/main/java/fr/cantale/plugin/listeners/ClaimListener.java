@@ -12,7 +12,9 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+import org.bukkit.Material;
 import org.bukkit.event.block.BlockBreakEvent;
+import org.bukkit.event.block.BlockExplodeEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityExplodeEvent;
@@ -22,6 +24,7 @@ import org.bukkit.metadata.FixedMetadataValue;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 public class ClaimListener implements Listener {
@@ -31,9 +34,14 @@ public class ClaimListener implements Listener {
     private final Map<UUID, Long> lastClaimMessage = new HashMap<>();
     private static final long CLAIM_MESSAGE_COOLDOWN_MS = 2000;
 
+    private final Set<Material> protectedStorageBlocks;
+    private final Set<Material> explosivePlaceBlocks;
+
     public ClaimListener(CantalePlugin plugin) {
         this.plugin = plugin;
         this.factionManager = plugin.getFactionManager();
+        this.protectedStorageBlocks = plugin.getConfigManager().getClaimProtectedStorageBlocks();
+        this.explosivePlaceBlocks = plugin.getConfigManager().getClaimExplosivePlaceBlocks();
     }
 
     @EventHandler(priority = EventPriority.HIGH)
@@ -44,11 +52,21 @@ public class ClaimListener implements Listener {
             event.getBlock().getLocation().toString()
         );
 
-        boolean isCulture = isCultureBlock(event.getBlock().getType());
-        if (!canInteractFor(event.getPlayer(), event.getBlock().getLocation(), isCulture)) {
-            event.setCancelled(true);
-            event.getPlayer().sendMessage(formatMessage("&cVous ne pouvez pas casser ce block dans ce claim."));
+        Player player = event.getPlayer();
+        org.bukkit.Location loc = event.getBlock().getLocation();
+        Material type = event.getBlock().getType();
+
+        // Membres, alliés et admins peuvent tout casser.
+        if (canInteractFor(player, loc, false)) {
+            return;
         }
+
+        // Étranger : interdiction de casser les blocs de stockage et les cultures.
+        if (isProtectedStorageBlock(type) || isCultureBlock(type)) {
+            event.setCancelled(true);
+            player.sendMessage(formatMessage("&cVous ne pouvez pas casser ce block dans ce claim."));
+        }
+        // Sinon l'étranger peut casser le bloc normalement.
     }
 
     @EventHandler(priority = EventPriority.HIGH)
@@ -58,10 +76,20 @@ public class ClaimListener implements Listener {
             event.getBlock().getType().name(),
             event.getBlock().getLocation().toString()
         );
-        
-        if (!canInteract(event.getPlayer(), event.getBlock().getLocation())) {
+
+        Player player = event.getPlayer();
+        org.bukkit.Location loc = event.getBlock().getLocation();
+        Material type = event.getBlock().getType();
+
+        // Membres, alliés et admins peuvent tout poser.
+        if (canInteractFor(player, loc, false)) {
+            return;
+        }
+
+        // Étranger : autorisation uniquement des blocs "explosifs" configurés.
+        if (!isExplosivePlaceBlock(type)) {
             event.setCancelled(true);
-            event.getPlayer().sendMessage(formatMessage("&cVous ne pouvez pas poser ce block dans ce claim."));
+            player.sendMessage(formatMessage("&cVous ne pouvez pas poser ce block dans ce claim."));
         }
     }
 
@@ -91,14 +119,29 @@ public class ClaimListener implements Listener {
 
     @EventHandler(priority = EventPriority.HIGH)
     public void onEntityExplode(EntityExplodeEvent event) {
-        // Vérifier si l'explosion est dans un chunk PASDIC
-        for (org.bukkit.block.Block block : event.blockList()) {
+        // Dans les claims PASDIC, les explosions sont interdites.
+        // Dans les claims normaux, les explosions détruisent tout (stockage inclus).
+        if (isExplosionInPasdicClaim(event.blockList())) {
+            event.setCancelled(true);
+        }
+    }
+
+    @EventHandler(priority = EventPriority.HIGH)
+    public void onBlockExplode(BlockExplodeEvent event) {
+        // Gère les explosions déclenchées par des blocs (lit, ancre de réapparition, cristal de l'End...)
+        if (isExplosionInPasdicClaim(event.blockList())) {
+            event.setCancelled(true);
+        }
+    }
+
+    private boolean isExplosionInPasdicClaim(java.util.List<org.bukkit.block.Block> blocks) {
+        for (org.bukkit.block.Block block : blocks) {
             Claim claim = getClaimAt(block.getLocation());
             if (claim != null && claim.isPasdic()) {
-                event.setCancelled(true);
-                return;
+                return true;
             }
         }
+        return false;
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
@@ -225,6 +268,14 @@ public class ClaimListener implements Listener {
                 || n.contains("FLOWER") || n.contains("MUSHROOM") || n.contains("KELP")
                 || n.contains("SAPLING") || n.contains("FERN") || n.contains("GRASS")
                 || n.contains("VINE") || n.contains("LEAVES");
+    }
+
+    private boolean isProtectedStorageBlock(Material mat) {
+        return protectedStorageBlocks.contains(mat);
+    }
+
+    private boolean isExplosivePlaceBlock(Material mat) {
+        return explosivePlaceBlocks.contains(mat);
     }
 
     private Claim getClaimAt(org.bukkit.Location location) {

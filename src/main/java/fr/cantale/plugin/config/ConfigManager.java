@@ -1,7 +1,13 @@
 package fr.cantale.plugin.config;
 
 import fr.cantale.plugin.CantalePlugin;
+import org.bukkit.Material;
 import org.bukkit.configuration.file.FileConfiguration;
+
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 public class ConfigManager {
 
@@ -104,5 +110,39 @@ public class ConfigManager {
 
     public boolean isMultiCantoolVisualAdapterEnabled() {
         return config.getBoolean("custom-items.multi-cantool-visual-adapter", true);
+    }
+
+    /**
+     * Retourne l'ensemble des matériaux considérés comme "stockage" dans les claims.
+     * Ces blocs ne peuvent pas être cassés par les étrangers (sauf par explosion).
+     */
+    public Set<Material> getClaimProtectedStorageBlocks() {
+        return loadMaterialSet("factions.claim-protection.storage-blocks");
+    }
+
+    /**
+     * Retourne l'ensemble des matériaux que les étrangers peuvent poser dans un claim.
+     * Typiquement des blocs permettant de créer des explosions.
+     */
+    public Set<Material> getClaimExplosivePlaceBlocks() {
+        return loadMaterialSet("factions.claim-protection.explosive-place-blocks");
+    }
+
+    private Set<Material> loadMaterialSet(String path) {
+        List<String> names = config.getStringList(path);
+        if (names == null || names.isEmpty()) {
+            return Collections.emptySet();
+        }
+        Set<Material> materials = new HashSet<>();
+        for (String name : names) {
+            if (name == null || name.isBlank()) continue;
+            Material mat = Material.matchMaterial(name.trim().toUpperCase());
+            if (mat != null) {
+                materials.add(mat);
+            } else {
+                plugin.getLogger().warning("[Config] Matériau inconnu dans " + path + " : " + name);
+            }
+        }
+        return materials;
     }
 }
