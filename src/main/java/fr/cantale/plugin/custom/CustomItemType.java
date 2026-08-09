@@ -26,6 +26,7 @@ public enum CustomItemType {
     MULTI_CANTOOL_NETHERITE("Multi-Cantool Netherite", Material.NETHERITE_PICKAXE, 0),
     CANTALAME("Cantalame", Material.NETHERITE_SWORD, 0),
     VIE("Vie", Material.TOTEM_OF_UNDYING, 0),
+    RUNE_FORTIFICATION("Rune de Fortification", Material.PAPER, 0),
     GARDE_HELMET("Casque du Garde", Material.NETHERITE_HELMET, 0),
     GARDE_CHESTPLATE("Plastron du Garde", Material.NETHERITE_CHESTPLATE, 0),
     GARDE_LEGGINGS("Jambières du Garde", Material.NETHERITE_LEGGINGS, 0),
@@ -71,5 +72,9 @@ public enum CustomItemType {
 
     public boolean isGardeArmor() {
         return name().startsWith("GARDE_");
+    }
+
+    public boolean isRuneFortification() {
+        return name().equals("RUNE_FORTIFICATION");
     }
 }

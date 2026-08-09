@@ -39,6 +39,8 @@ public class CustomItemManager {
             addCantalameLore(lore);
         } else if (type == CustomItemType.VIE) {
             addVieLore(lore);
+        } else if (type.isRuneFortification()) {
+            addRuneFortificationLore(lore);
         } else if (type.isGardeArmor()) {
             addGardeArmorLore(type, lore);
         }
@@ -111,6 +113,17 @@ public class CustomItemManager {
         lore.add(ChatColor.GRAY + "Item consommable — disparaît après usage");
         lore.add(ChatColor.RED + "Non-craftable");
         lore.add(ChatColor.RED + "Récompense de grade mensuelle");
+    }
+
+    private void addRuneFortificationLore(List<String> lore) {
+        lore.add(ChatColor.AQUA + "Clic-droit dans un claim de votre faction");
+        lore.add(ChatColor.GRAY + "Fortifie le chunk entier : seuls les membres");
+        lore.add(ChatColor.GRAY + "de votre faction peuvent y casser des blocks,");
+        lore.add(ChatColor.GRAY + "et les explosions n'y font aucun dégât.");
+        lore.add("");
+        lore.add(ChatColor.GOLD + "Coût : 50 Cantox/jour par chunk fortifié");
+        lore.add(ChatColor.GRAY + "Sneak + clic-droit pour retirer (rune récupérée)");
+        lore.add(ChatColor.RED + "Non-craftable");
     }
 
     private void addGardeArmorLore(CustomItemType type, List<String> lore) {
@@ -304,6 +317,7 @@ public class CustomItemManager {
             case MULTI_CANTOOL_NETHERITE_1X1 -> 3021;
             case MULTI_CANTOOL_NETHERITE -> 3022;
             case CANTALAME -> 5001;
+            case RUNE_FORTIFICATION -> 6001;
             case VIE -> 7001;
             case GARDE_HELMET -> 9001;
             case GARDE_CHESTPLATE -> 9002;

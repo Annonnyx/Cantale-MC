@@ -134,6 +134,11 @@ public class FactionManager {
             removeClaim(claim.getWorld(), claim.getChunkX(), claim.getChunkZ());
         }
 
+        // Nettoyer les chunks fortifiés (au cas où un claim aurait été perdu sans passer par removeClaim)
+        if (plugin.getFortifiedChunkDAO() != null) {
+            plugin.getFortifiedChunkDAO().removeAllForFaction(id);
+        }
+
         // Clear cache
         loadedFactions.remove(id);
         for (UUID member : faction.getMembers()) {
@@ -221,6 +226,11 @@ public class FactionManager {
 
         factionDAO.removeClaim(claim.getId());
         claimCache.remove(claim.getChunkKey());
+
+        // Une fortification ne survit pas à la perte du claim
+        if (plugin.getFortifiedChunkDAO() != null) {
+            plugin.getFortifiedChunkDAO().unfortifyChunk(world, chunkX, chunkZ);
+        }
         return true;
     }
 
