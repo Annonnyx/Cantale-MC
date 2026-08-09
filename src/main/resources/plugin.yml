@@ -146,8 +146,8 @@ commands:
     description: Souhaite la bienvenue à un nouveau joueur
     usage: /bvn <pseudo>
   crate:
-    description: Donner des caisses (admin)
-    usage: /crate give <joueur> <vote|rare|epic|mythic|legendary> [quantité]
+    description: Donner des caisses ou recharger crate.yml (admin)
+    usage: /crate give <joueur> <vote|rare|epic|mythic|legendary> [quantité] | /crate reload
     permission: cantale.admin
   listemorts:
     description: Afficher la liste des joueurs morts définitivement
@@ -190,11 +190,21 @@ commands:
     description: Déposer des récoltes pendant un événement faction HARVEST
     usage: /recolte
     aliases: [harvest, depositrecolte]
+  feed:
+    description: Restaure la faim et la saturation (VIP+)
+    usage: /feed
+  db:
+    description: Gestion de la base de données (admin)
+    usage: /db reset confirm
+    permission: cantale.admin
 
 permissions:
   cantale.givevie:
     description: Permet de donner une vie
     default: op
+  cantale.feed:
+    description: Permet d'utiliser /feed (sinon grade VIP+)
+    default: false
   cantale.moderator:
     description: Permissions modérateur
     default: false
@@ -204,6 +214,7 @@ permissions:
     children:
       cantale.givevie: true
       cantale.moderator: true
+      cantale.feed: true
       cantale.anticheat.alerts: true
       cantale.anticheat.bypass: true
   cantale.anticheat.alerts:

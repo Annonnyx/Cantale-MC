@@ -38,7 +38,7 @@ public class MemberActionUI extends BaseUI {
         if (isLeader) {
             setItem(11, Material.GOLDEN_HELMET, "§a§l▲ Promouvoir",
                 "§7Augmenter le grade",
-                "§7Recrue → Membre → Officier");
+                "§7Recrue → Membre → Veteran → Officier");
             setItem(13, Material.IRON_HELMET, "§e§l▼ Rétrograder",
                 "§7Diminuer le grade");
             setItem(15, Material.BARRIER, "§c§l✕ Expulser",

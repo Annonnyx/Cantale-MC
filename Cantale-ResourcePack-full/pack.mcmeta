@@ -1,6 +1,7 @@
 {
   "pack": {
-    "pack_format": 15,
-    "description": "§6CANTALE §r§7— §cTrois vies. §7C'est tout."
+    "description": "CANTALE - Trois vies. C'est tout.",
+    "min_format": 75,
+    "max_format": 75
   }
 }

@@ -42,8 +42,8 @@ public class WantedCommand implements CommandExecutor {
                 handleAdd(player, args);
                 break;
             case "remove":
-                if (args.length < 3) {
-                    player.sendMessage("§cUsage: /wanted remove <joueur> <raison>");
+                if (args.length < 2) {
+                    player.sendMessage("§cUsage: /wanted remove <joueur> [raison]");
                     return true;
                 }
                 handleRemove(player, args);
@@ -89,10 +89,12 @@ public class WantedCommand implements CommandExecutor {
             return;
         }
 
-        String reason = String.join(" ", java.util.Arrays.copyOfRange(args, 2, args.length));
-        
+        String reason = args.length > 2
+                ? String.join(" ", java.util.Arrays.copyOfRange(args, 2, args.length))
+                : "";
+
         if (wantedManager.removeWanted(target, reason)) {
-            issuer.sendMessage("§aPrime retirée pour §e" + target.getName() + " §7(" + reason + ")");
+            issuer.sendMessage("§aPrime(s) retirée(s) pour §e" + target.getName() + (reason.isBlank() ? "" : " §7(" + reason + ")"));
         } else {
             issuer.sendMessage("§cAucune prime active pour ce joueur.");
         }

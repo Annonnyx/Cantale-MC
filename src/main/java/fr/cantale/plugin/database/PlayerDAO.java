@@ -207,6 +207,34 @@ public class PlayerDAO {
         return 0;
     }
 
+    /** Préférence BossBar infos : true par défaut si absent. */
+    public boolean isBossBarEnabled(UUID uuid) {
+        String sql = "SELECT boss_bar_enabled FROM players WHERE uuid = ?";
+        try (Connection conn = databaseManager.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, uuid.toString());
+            ResultSet rs = stmt.executeQuery();
+            if (rs.next()) {
+                return rs.getInt("boss_bar_enabled") != 0;
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().severe("Erreur isBossBarEnabled : " + e.getMessage());
+        }
+        return true;
+    }
+
+    public void setBossBarEnabled(UUID uuid, boolean enabled) {
+        String sql = "UPDATE players SET boss_bar_enabled = ? WHERE uuid = ?";
+        try (Connection conn = databaseManager.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setInt(1, enabled ? 1 : 0);
+            stmt.setString(2, uuid.toString());
+            stmt.executeUpdate();
+        } catch (SQLException e) {
+            plugin.getLogger().severe("Erreur setBossBarEnabled : " + e.getMessage());
+        }
+    }
+
     public int getKillStreak(UUID uuid) {
         String sql = "SELECT kill_streak FROM players WHERE uuid = ?";
         try (Connection conn = databaseManager.getConnection();

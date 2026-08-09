@@ -39,6 +39,13 @@ public class PlayerListener implements Listener {
         UUID uuid = player.getUniqueId();
 
         playerDAO.createOrUpdatePlayer(uuid, player.getName());
+
+        if (plugin.getDiscordBot() != null && plugin.getDiscordBot().isConnected()) {
+            boolean inFaction = plugin.getFactionManager() != null
+                && plugin.getFactionManager().getPlayerFaction(uuid) != null;
+            plugin.getDiscordBot().syncFactionRoleForPlayer(uuid, inFaction);
+        }
+
         checkPendingRewards(player);
 
         // Mettre à jour le nametag (tags, faction, grade) — 1 tick de délai pour que le joueur soit chargé
@@ -118,11 +125,14 @@ public class PlayerListener implements Listener {
             }
         }
 
-        // Envoyer le resource pack Cantale
-        String packUrl = plugin.getConfigManager().getResourcePackUrl();
-        String packHash = plugin.getConfigManager().getResourcePackHash();
-        if (!packUrl.isEmpty() && !packHash.isEmpty()) {
-            player.setResourcePack(packUrl, packHash);
+        // Pack : uniquement si send-on-join=true. Sinon c'est server.properties qui l'envoie.
+        // Les deux en même temps → reloads en boucle + kick (require-resource-pack).
+        if (plugin.getConfigManager().isResourcePackSendOnJoin()) {
+            String packUrl = plugin.getConfigManager().getResourcePackUrl();
+            String packHash = plugin.getConfigManager().getResourcePackHash();
+            if (!packUrl.isEmpty() && !packHash.isEmpty()) {
+                player.setResourcePack(packUrl, packHash);
+            }
         }
 
         // Daily reward is now collectable via /daily or /journalier

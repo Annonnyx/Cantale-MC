@@ -7,6 +7,8 @@ import fr.cantale.plugin.discord.commands.SlashCommandManager;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.JDABuilder;
 import net.dv8tion.jda.api.entities.Guild;
+import net.dv8tion.jda.api.entities.Member;
+import net.dv8tion.jda.api.entities.Role;
 import net.dv8tion.jda.api.requests.GatewayIntent;
 import net.dv8tion.jda.api.utils.ChunkingFilter;
 import net.dv8tion.jda.api.utils.MemberCachePolicy;
@@ -14,6 +16,7 @@ import net.dv8tion.jda.api.utils.cache.CacheFlag;
 
 import java.util.EnumSet;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
@@ -23,6 +26,8 @@ import java.util.logging.Level;
  * Gère : vérification, modération, logs, sync chat MC↔Discord, Supabase.
  */
 public class DiscordBot {
+
+    private static final long FACTION_MEMBER_ROLE_ID = 1504907203075903650L;
 
     private final CantalePlugin plugin;
     private final DiscordConfig config;
@@ -85,6 +90,7 @@ public class DiscordBot {
                 if (guild != null) {
                     plugin.getLogger().info("[Discord] Guild trouvé: " + guild.getName() + " (ID: " + guild.getId() + ")");
                     slashCommandManager = new SlashCommandManager(plugin, config, faqCore);
+                    slashCommandManager.setVerificationListener(verificationListener);
                     slashCommandManager.register(guild);
                     jda.addEventListener(slashCommandManager);
                     startLiveStatsUpdater();
@@ -116,6 +122,9 @@ public class DiscordBot {
 
                 // Rappel de bump Disboard (toutes les 2h01)
                 new fr.cantale.plugin.discord.tasks.BumpReminderTask(plugin, jda).start();
+
+                // Re-synchronise le rôle faction au démarrage (utile après reboot/reload).
+                syncAllFactionRoles();
 
                 plugin.getLogger().info("[Discord] Bot CANTALE connecté — " + jda.getSelfUser().getName());
 
@@ -166,6 +175,15 @@ public class DiscordBot {
      * Les codes couleur Minecraft (§) sont automatiquement supprimés.
      */
     public void sendEmbedToChannel(long channelId, java.awt.Color color, String title, String description) {
+        sendEmbedToChannel(channelId, color, title, description, null);
+    }
+
+    /**
+     * Variante avec un contenu texte envoyé hors embed (ex: mention de rôle).
+     * Une mention placée dans un embed ne déclenche aucune notification : elle doit
+     * impérativement passer par le contenu du message pour ping le rôle.
+     */
+    public void sendEmbedToChannel(long channelId, java.awt.Color color, String title, String description, String content) {
         if (jda == null) return;
         net.dv8tion.jda.api.entities.channel.middleman.GuildMessageChannel channel = jda.getChannelById(
             net.dv8tion.jda.api.entities.channel.middleman.GuildMessageChannel.class, channelId);
@@ -175,7 +193,11 @@ public class DiscordBot {
             .setTitle(stripMinecraftColors(title))
             .setDescription(stripMinecraftColors(description))
             .setTimestamp(java.time.Instant.now());
-        channel.sendMessageEmbeds(embed.build()).queue();
+        if (content == null || content.isBlank()) {
+            channel.sendMessageEmbeds(embed.build()).queue();
+        } else {
+            channel.sendMessage(stripMinecraftColors(content)).setEmbeds(embed.build()).queue();
+        }
     }
 
     private String stripMinecraftColors(String input) {
@@ -185,6 +207,74 @@ public class DiscordBot {
 
     public boolean isConnected() {
         return jda != null && jda.getStatus() == JDA.Status.CONNECTED;
+    }
+
+    public void syncFactionRoleForPlayer(UUID playerUuid, boolean inFaction) {
+        if (playerUuid == null || !isConnected()) return;
+
+        org.bukkit.Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+            String discordId = null;
+            try (java.sql.Connection conn = plugin.getDatabaseManager().getConnection();
+                 java.sql.PreparedStatement stmt = conn.prepareStatement(
+                     "SELECT discord_id FROM discord_links WHERE uuid = ?")) {
+                stmt.setString(1, playerUuid.toString());
+                try (java.sql.ResultSet rs = stmt.executeQuery()) {
+                    if (rs.next()) {
+                        discordId = rs.getString("discord_id");
+                    }
+                }
+            } catch (Exception e) {
+                plugin.getLogger().warning("[Discord] Sync rôle faction impossible pour " + playerUuid + ": " + e.getMessage());
+                return;
+            }
+
+            if (discordId == null || discordId.isBlank()) return;
+
+            Guild guild = jda.getGuildById(config.getGuildId());
+            if (guild == null) return;
+
+            Role factionRole = guild.getRoleById(FACTION_MEMBER_ROLE_ID);
+            if (factionRole == null) return;
+
+            guild.retrieveMemberById(discordId).queue(member -> applyFactionRole(guild, member, factionRole, inFaction), error -> {
+                // Membres non présents dans la guilde ou ID invalide : on ignore silencieusement.
+            });
+        });
+    }
+
+    private void applyFactionRole(Guild guild, Member member, Role factionRole, boolean shouldHaveRole) {
+        boolean hasRole = member.getRoles().stream().anyMatch(r -> r.getIdLong() == FACTION_MEMBER_ROLE_ID);
+        if (shouldHaveRole && !hasRole) {
+            guild.addRoleToMember(member, factionRole).queue(
+                success -> {},
+                error -> plugin.getLogger().warning("[Discord] Impossible d'ajouter le rôle faction à " + member.getId() + ": " + error.getMessage())
+            );
+            return;
+        }
+        if (!shouldHaveRole && hasRole) {
+            guild.removeRoleFromMember(member, factionRole).queue(
+                success -> {},
+                error -> plugin.getLogger().warning("[Discord] Impossible de retirer le rôle faction à " + member.getId() + ": " + error.getMessage())
+            );
+        }
+    }
+
+    private void syncAllFactionRoles() {
+        if (!isConnected()) return;
+        var factionManager = plugin.getFactionManager();
+        if (factionManager == null) return;
+
+        org.bukkit.Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+            try {
+                for (fr.cantale.plugin.factions.Faction faction : factionManager.getAllFactions()) {
+                    for (UUID memberUuid : faction.getMembers()) {
+                        syncFactionRoleForPlayer(memberUuid, true);
+                    }
+                }
+            } catch (Exception e) {
+                plugin.getLogger().warning("[Discord] Erreur pendant la sync globale des rôles faction: " + e.getMessage());
+            }
+        });
     }
 
     public void sendFileToChannel(long channelId, java.io.File file, String description) {

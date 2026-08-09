@@ -1,7 +1,6 @@
 package fr.cantale.plugin.events;
 
 import fr.cantale.plugin.CantalePlugin;
-import fr.cantale.plugin.factions.Faction;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.entity.Player;
@@ -68,14 +67,18 @@ public class FactionEventScoreboard {
             board.resetScores(entry);
         }
 
-        FactionEventType type = manager.getActiveType();
-        String typeLine = type != null ? type.getDisplayName() : "?";
+        String typeLine = manager.getEventTitle();
+        if (typeLine == null || typeLine.isBlank()) typeLine = "?";
+        // Sidebar entries are capped (~40 chars); keep title short
+        if (typeLine.length() > 22) {
+            typeLine = typeLine.substring(0, 22);
+        }
         long remainingSec = Math.max(0, (manager.getEndsAtMs() - System.currentTimeMillis()) / 1000L);
         long mins = remainingSec / 60;
         long secs = remainingSec % 60;
 
         List<String> lines = new ArrayList<>();
-        lines.add(ChatColor.YELLOW + "Type: " + ChatColor.WHITE + typeLine);
+        lines.add(ChatColor.YELLOW + typeLine);
         lines.add(ChatColor.YELLOW + "Temps: " + ChatColor.WHITE + String.format("%d:%02d", mins, secs));
         lines.add(ChatColor.DARK_GRAY + "--------------");
         lines.add(ChatColor.GOLD + "Top factions:");

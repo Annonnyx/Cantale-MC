@@ -503,6 +503,22 @@ public class DatabaseManager {
                 )
                 """);
 
+            // Migration : ajouter monthly_votes / last_month si la table existait déjà
+            try {
+                stmt.execute("ALTER TABLE vote_stats ADD COLUMN monthly_votes INTEGER DEFAULT 0");
+            } catch (SQLException e) {
+                if (!e.getMessage().contains("duplicate column name")) {
+                    plugin.getLogger().warning("Erreur migration vote_stats.monthly_votes : " + e.getMessage());
+                }
+            }
+            try {
+                stmt.execute("ALTER TABLE vote_stats ADD COLUMN last_month INTEGER DEFAULT 0");
+            } catch (SQLException e) {
+                if (!e.getMessage().contains("duplicate column name")) {
+                    plugin.getLogger().warning("Erreur migration vote_stats.last_month : " + e.getMessage());
+                }
+            }
+
             // Vote party : compteur journalier
             stmt.execute("""
                 CREATE TABLE IF NOT EXISTS vote_party (
@@ -603,6 +619,11 @@ public class DatabaseManager {
             // Migration : victoires réactions chat
             try {
                 stmt.execute("ALTER TABLE players ADD COLUMN chat_reactions INTEGER DEFAULT 0");
+            } catch (java.sql.SQLException ignored) {}
+
+            // Migration : préférence BossBar infos joueur (1 = activée)
+            try {
+                stmt.execute("ALTER TABLE players ADD COLUMN boss_bar_enabled INTEGER DEFAULT 1");
             } catch (java.sql.SQLException ignored) {}
 
             // Admin Shop : plafonds quotidiens d'achat/vente par joueur et par item
@@ -837,5 +858,45 @@ public class DatabaseManager {
 
     public boolean isSQLite() {
         return databaseType.equalsIgnoreCase("sqlite");
+    }
+
+    /**
+     * Supprime toutes les données de toutes les tables du plugin.
+     * Les tables elles-mêmes sont conservées (TRUNCATE / DELETE).
+     */
+    public boolean resetAllTables() {
+        String[] tables = {
+            "players", "factions", "faction_members", "claims", "faction_warps",
+            "faction_homes", "faction_permissions", "faction_bank_log", "npcs",
+            "reinforced_blocks", "fortified_chunks", "secret_cooldowns", "diplomacy",
+            "auction_listings", "homes", "warps", "player_warps", "mutes", "wanted",
+            "private_chests", "player_permissions", "custom_tags", "player_unlocked_tags",
+            "votes", "vote_stats", "vote_party", "link_codes", "vote_milestones",
+            "discord_links", "pending_rewards", "legendary_tickets", "shop_daily_limits"
+        };
+
+        try (Connection conn = getConnection()) {
+            if (conn == null) return false;
+            try (Statement stmt = conn.createStatement()) {
+                if (isSQLite()) {
+                    stmt.execute("PRAGMA foreign_keys = OFF");
+                }
+                for (String table : tables) {
+                    try {
+                        stmt.executeUpdate("DELETE FROM " + table);
+                    } catch (SQLException e) {
+                        plugin.getLogger().warning("Impossible de vider la table " + table + " : " + e.getMessage());
+                    }
+                }
+                if (isSQLite()) {
+                    stmt.execute("PRAGMA foreign_keys = ON");
+                }
+            }
+            plugin.getLogger().info("Base de données réinitialisée (toutes les tables vidées).");
+            return true;
+        } catch (SQLException e) {
+            plugin.getLogger().severe("Erreur resetAllTables : " + e.getMessage());
+            return false;
+        }
     }
 }

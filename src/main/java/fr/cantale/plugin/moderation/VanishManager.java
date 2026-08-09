@@ -22,35 +22,29 @@ public class VanishManager {
         return vanishedPlayers.contains(uuid);
     }
 
+    public boolean canSeeVanished(Player viewer) {
+        return viewer.hasPermission("cantale.admin") || viewer.hasPermission("cantale.moderator");
+    }
+
     public void setVanished(Player player, boolean vanished) {
         if (vanished) {
             vanishedPlayers.add(player.getUniqueId());
-            player.setInvisible(true);
-            // Cacher des autres joueurs (et donc aussi les items en main / armure)
-            for (Player other : player.getServer().getOnlinePlayers()) {
-                if (!canSeeVanished(other)) {
-                    other.hidePlayer(plugin, player);
-                }
-            }
-            // Retirer du scoreboard/nametag pour ne pas apparaître dans le tab
+            // Do NOT use setInvisible(true): vanilla invisibility still shows held items / armor.
+            // hidePlayer fully removes the entity (including equipment) from non-staff clients.
+            hideFromNonStaff(player);
             if (plugin.getTagManager() != null) {
                 plugin.getTagManager().removePlayerTeam(player);
             }
-            // Faire croire à une déconnexion
             sendFakeQuit(player);
+            plugin.getLogger().info("[Vanish] " + player.getName() + " est maintenant vanish.");
         } else {
             vanishedPlayers.remove(player.getUniqueId());
-            player.setInvisible(false);
-            // Montrer aux autres joueurs
-            for (Player other : player.getServer().getOnlinePlayers()) {
-                other.showPlayer(plugin, player);
-            }
-            // Restaurer le nametag
+            showToAll(player);
             if (plugin.getTagManager() != null) {
                 plugin.getTagManager().updatePlayerNametag(player);
             }
-            // Faire croire à une reconnexion
             sendFakeJoin(player);
+            plugin.getLogger().info("[Vanish] " + player.getName() + " n'est plus vanish.");
         }
     }
 
@@ -58,35 +52,83 @@ public class VanishManager {
         setVanished(player, !isVanished(player.getUniqueId()));
     }
 
-    public void hideFromOthers(Player player) {
-        for (Player other : player.getServer().getOnlinePlayers()) {
-            if (!other.hasPermission("cantale.admin")) {
-                other.hidePlayer(plugin, player);
+    /**
+     * Re-apply hidePlayer for a vanished player (e.g. after equipment / slot changes).
+     */
+    public void refreshHide(Player vanished) {
+        if (!isVanished(vanished.getUniqueId())) {
+            return;
+        }
+        hideFromNonStaff(vanished);
+    }
+
+    /**
+     * On join: hide existing vanished players from the joiner, and if the joiner
+     * is vanished, hide them from others. Delayed 1 tick so entity tracking is ready.
+     */
+    public void handleJoin(Player joiner) {
+        applyJoinHides(joiner);
+        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            if (joiner.isOnline()) {
+                applyJoinHides(joiner);
+            }
+        }, 1L);
+    }
+
+    private void applyJoinHides(Player joiner) {
+        for (Player online : Bukkit.getOnlinePlayers()) {
+            if (online.equals(joiner)) {
+                continue;
+            }
+            if (isVanished(online.getUniqueId()) && !canSeeVanished(joiner)) {
+                joiner.hidePlayer(plugin, online);
+            }
+        }
+        if (isVanished(joiner.getUniqueId())) {
+            hideFromNonStaff(joiner);
+            if (plugin.getTagManager() != null) {
+                plugin.getTagManager().removePlayerTeam(joiner);
             }
         }
     }
 
-    public void showToOthers(Player player) {
-        for (Player other : player.getServer().getOnlinePlayers()) {
-            other.showPlayer(plugin, player);
+    public void hideFromNonStaff(Player vanished) {
+        for (Player other : Bukkit.getOnlinePlayers()) {
+            if (other.equals(vanished)) {
+                continue;
+            }
+            if (!canSeeVanished(other)) {
+                other.hidePlayer(plugin, vanished);
+                plugin.getLogger().info("[Vanish] Masqué pour " + other.getName());
+            }
         }
     }
 
-    private boolean canSeeVanished(Player other) {
-        return other.hasPermission("cantale.admin") || other.hasPermission("cantale.moderator");
+    public void showToAll(Player player) {
+        for (Player other : Bukkit.getOnlinePlayers()) {
+            if (!other.equals(player)) {
+                other.showPlayer(plugin, player);
+            }
+        }
+    }
+
+    /** @deprecated use {@link #hideFromNonStaff(Player)} */
+    public void hideFromOthers(Player player) {
+        hideFromNonStaff(player);
+    }
+
+    /** @deprecated use {@link #showToAll(Player)} */
+    public void showToOthers(Player player) {
+        showToAll(player);
     }
 
     private void sendFakeJoin(Player player) {
+        // Message MC uniquement — pas de fausse notif Discord
         Bukkit.broadcastMessage("§e" + player.getName() + " a rejoint le serveur.");
-        if (plugin.getDiscordBot() != null && plugin.getDiscordBot().isConnected()) {
-            plugin.getDiscordBot().sendSystemMessage("🟢 **" + player.getName() + "** a rejoint le serveur.");
-        }
     }
 
     private void sendFakeQuit(Player player) {
+        // Message MC uniquement — pas de fausse notif Discord
         Bukkit.broadcastMessage("§e" + player.getName() + " a quitté le serveur.");
-        if (plugin.getDiscordBot() != null && plugin.getDiscordBot().isConnected()) {
-            plugin.getDiscordBot().sendSystemMessage("🔴 **" + player.getName() + "** a quitté le serveur.");
-        }
     }
 }

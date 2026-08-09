@@ -56,18 +56,20 @@ public class VoteCommand implements CommandExecutor, TabCompleter {
 
     private void showSites(CommandSender sender) {
         sender.sendMessage(format("&8&m─────────&r &8[&6Vote Cantale&8] &8&m─────────"));
-        sender.sendMessage(format("&7Votez pour Cantale et obtenez des récompenses !"));
+        sender.sendMessage(format("&7Votez pour Cantale et recevez des &fCadeaux du Roi&7 !"));
+        sender.sendMessage(format("&8(1 à 3 selon le site — ouvrez-les pour le butin)"));
         sender.sendMessage("");
         List<VoteSite> sites = VoteListener.loadSites();
         if (sites.isEmpty()) {
             sender.sendMessage(format("&cAucun site de vote configuré."));
         }
         for (VoteSite site : sites) {
+            int n = site.crateCount();
+            String crateLabel = n == 1 ? "1 Cadeau du Roi" : n + " Cadeaux du Roi";
             sender.sendMessage(format("&7▶ &e" + site.displayName() + " &8→ &b&n" + site.url()
-                    + " &8(&7" + site.crateCount() + " Cadeau(x) du Roi&8)"));
+                    + " &8(&7" + crateLabel + "&8)"));
         }
         sender.sendMessage("");
-        sender.sendMessage(format("&7Récompenses : &7Commun &8| &9Rare &8| &5Épique &8| &6Légendaire"));
         sender.sendMessage(format("&7Tape &e/vote claim &7pour récupérer tes récompenses en attente."));
         sender.sendMessage(format("&7Tape &e/vote top &7pour le classement."));
         if (sender instanceof Player p) {
@@ -91,19 +93,10 @@ public class VoteCommand implements CommandExecutor, TabCompleter {
             return;
         }
         for (VoteDAO.PendingVote pv : pending) {
-            VoteReward.Tier tier;
-            try { tier = VoteReward.Tier.valueOf(pv.tier()); }
-            catch (Exception e) { tier = VoteReward.Tier.COMMUN; }
-            VoteSite site = resolveSite(pv.site());
-            VoteReward reward = rewardManager.roll(switch (tier) {
-                case LEGENDAIRE -> 999;
-                case EPIQUE -> 30;
-                case RARE -> 7;
-                case COMMUN -> 1;
-            }, site);
+            VoteReward reward = voteListener.rewardFromPending(pv);
             rewardManager.deliverTo(player, reward);
             voteDAO.markDelivered(pv.id());
-            player.sendMessage(format("&aRécompense " + tier.getDisplayName() + " &a: &e" + reward.getSummary()
+            player.sendMessage(format("&aRécompense : &e" + reward.getSummary()
                     + " &7(via " + pv.site() + ")"));
         }
         player.sendMessage(format("&aTotal : &e" + pending.size() + " &arécompense(s) délivrée(s)."));
@@ -132,21 +125,6 @@ public class VoteCommand implements CommandExecutor, TabCompleter {
         sender.sendMessage(format("&7Total des votes : &e" + stats.totalVotes()));
         sender.sendMessage(format("&7Votes ce mois : &e" + stats.monthlyVotes()));
         sender.sendMessage(format("&7Streak actuelle : &6" + stats.streakDays() + " jour(s)"));
-        sender.sendMessage(format("&7Bonus actuel : " + bonusLabel(stats.streakDays())));
-    }
-
-    private VoteSite resolveSite(String siteName) {
-        for (VoteSite site : VoteListener.loadSites()) {
-            if (siteName != null && siteName.equalsIgnoreCase(site.displayName())) return site;
-        }
-        return null;
-    }
-
-    private String bonusLabel(int streak) {
-        if (streak >= 30) return "&5Épique min. garanti";
-        if (streak >= 7) return "&9Rare min. garanti";
-        int needed = streak >= 7 ? 30 - streak : 7 - streak;
-        return "&7Aucun &8(prochain palier dans " + needed + "j)";
     }
 
     private void handleTop(CommandSender sender, String[] args) {
@@ -192,7 +170,7 @@ public class VoteCommand implements CommandExecutor, TabCompleter {
     private void sendHelp(CommandSender sender) {
         sender.sendMessage(format("&6=== Aide /vote ==="));
         sender.sendMessage(format("&e/vote &7— Liste des sites de vote"));
-        sender.sendMessage(format("&e/vote claim &7— Récupérer les récompenses en attente"));
+        sender.sendMessage(format("&e/vote claim &7— Récupérer les Cadeaux du Roi en attente"));
         sender.sendMessage(format("&e/vote stats [pseudo] &7— Statistiques (votes, streak)"));
         sender.sendMessage(format("&e/vote top [n] &7— Leaderboard (top n, défaut 10)"));
         if (sender.hasPermission("cantale.admin")) {
@@ -215,6 +193,19 @@ public class VoteCommand implements CommandExecutor, TabCompleter {
         if (args.length == 2 && (args[0].equalsIgnoreCase("stats") || args[0].equalsIgnoreCase("test"))) {
             return org.bukkit.Bukkit.getOnlinePlayers().stream().map(Player::getName)
                     .filter(n -> n.toLowerCase().startsWith(args[1].toLowerCase()))
+                    .collect(Collectors.toList());
+        }
+        if (args.length == 3 && args[0].equalsIgnoreCase("test")) {
+            String prefix = args[2].toLowerCase();
+            return VoteListener.loadSites().stream()
+                    .flatMap(s -> {
+                        List<String> names = new ArrayList<>();
+                        names.add(s.displayName());
+                        if (!s.host().isEmpty()) names.add(s.host());
+                        return names.stream();
+                    })
+                    .filter(n -> n.toLowerCase().startsWith(prefix))
+                    .distinct()
                     .collect(Collectors.toList());
         }
         return Collections.emptyList();

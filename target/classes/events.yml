@@ -1,0 +1,159 @@
+# ============================================================
+# Cantale — Configuration des événements serveur
+# ============================================================
+
+# ── Réactions chat (mini-événements aléatoires) ──
+chat-reactions:
+  enabled: true
+  # Maximum d'événements par jour (Europe/Paris)
+  max-per-day: 9
+  # Fenêtre horaire (heures inclusives, Europe/Paris)
+  start-hour: 10
+  end-hour: 22
+  # Intervalle minimum entre deux événements (minutes)
+  min-interval-minutes: 45
+  # Intervalle maximum entre deux événements (minutes)
+  max-interval-minutes: 120
+  # Récompense Cantox (aléatoire inclusif)
+  reward-min: 200
+  reward-max: 500
+  # Délai avant annulation si personne ne gagne (secondes)
+  timeout-seconds: 90
+  # Probabilité de type : scramble vs block_break (0.0–1.0 pour scramble)
+  scramble-chance: 0.55
+  # Mots français pour le scramble
+  words:
+    - cantale
+    - faction
+    - diamant
+    - netherite
+    - chateau
+    - village
+    - mineur
+    - recolte
+    - combat
+    - pouvoir
+    - empire
+    - frontier
+    - aventurier
+    - dragon
+    - enderman
+    - forteresse
+    - cristaux
+    - enchantement
+    - teleportation
+    - alliance
+  # Blocs possibles pour "premier à casser"
+  break-blocks:
+    - STONE
+    - COBBLESTONE
+    - DIRT
+    - OAK_LOG
+    - BIRCH_LOG
+    - SAND
+    - GRAVEL
+    - NETHERRACK
+    - DEEPSLATE
+    - ANDESITE
+    - DIORITE
+    - GRANITE
+
+# ── Événements de faction (récolte / minage / PVP) ──
+faction-events:
+  enabled: true
+  # Nombre cible d'événements par semaine (aléatoire dans cet intervalle)
+  # Objectif : 3–4 events bien espacés, pas regroupés le même jour.
+  events-per-week-min: 3
+  events-per-week-max: 4
+  # Durée d'un événement (minutes)
+  duration-minutes: 60
+  # Fenêtre de démarrage (Europe/Paris)
+  start-hour: 14
+  end-hour: 22
+  # Délai minimum entre la FIN d'un événement et le DÉBUT du suivant (heures).
+  # Empêche deux events à quelques minutes / heures d'intervalle.
+  min-hours-between-events: 8
+  # Nombre max d'événements par jour civil (0 = illimité). 1 = doser correctement.
+  max-events-per-day: 1
+  # Types possibles (pondération égale si tous listés)
+  types:
+    - HARVEST
+    - MINING
+    - PVP
+  # Points par action
+  points:
+    harvest-per-item: 1
+    mining-per-ore: 1
+    pvp-per-kill: 10
+  # Pool HARVEST : un seul item est tiré au sort par événement (/recolte n'accepte que celui-là)
+  harvest-items:
+    WHEAT: 1
+    CARROT: 1
+    POTATO: 1
+    BEETROOT: 1
+    NETHER_WART: 2
+    SUGAR_CANE: 1
+    MELON_SLICE: 1
+    PUMPKIN: 2
+    SWEET_BERRIES: 1
+    COCOA_BEANS: 1
+  # Pool MINING : un seul type de minerai tiré au sort (deepslate = même type)
+  mining-ores:
+    - COAL_ORE
+    - DEEPSLATE_COAL_ORE
+    - IRON_ORE
+    - DEEPSLATE_IRON_ORE
+    - COPPER_ORE
+    - DEEPSLATE_COPPER_ORE
+    - GOLD_ORE
+    - DEEPSLATE_GOLD_ORE
+    - REDSTONE_ORE
+    - DEEPSLATE_REDSTONE_ORE
+    - LAPIS_ORE
+    - DEEPSLATE_LAPIS_ORE
+    - DIAMOND_ORE
+    - DEEPSLATE_DIAMOND_ORE
+    - EMERALD_ORE
+    - DEEPSLATE_EMERALD_ORE
+    - NETHER_GOLD_ORE
+    - NETHER_QUARTZ_ORE
+    - ANCIENT_DEBRIS
+  # Récompenses top 5 (index 0 = 1ère place)
+  rewards:
+    power:
+      - 50
+      - 35
+      - 25
+      - 15
+      - 10
+    cantox-per-participant:
+      - 2000
+      - 1500
+      - 1000
+      - 750
+      - 500
+
+# ── BossBar infos joueur (rotation personnelle) ──
+# Affiche une seule info à la fois, qui tourne : Cantox → Vies → Faction → Wanted → Event → Réaction → Combat
+player-info-bossbar:
+  enabled: true
+  # Secondes entre chaque changement d'info (minimum 2)
+  interval-seconds: 5
+
+# ── Drop hebdomadaire de clé de caisse ──
+weekly-key-drop:
+  enabled: true
+  # Jour de la semaine (1=lundi … 7=dimanche), choisi aléatoirement chaque semaine
+  # si random-day: true. Sinon fixed-day est utilisé.
+  random-day: true
+  fixed-day: 6
+  # Heure de drop (Europe/Paris), aléatoire dans la fenêtre si random-hour: true
+  random-hour: true
+  fixed-hour: 18
+  start-hour: 14
+  end-hour: 21
+  # Types de clés (poids égaux) — jamais LEGENDARY ni VOTE
+  key-types:
+    - RARE
+    - EPIC
+    - MYTHIC

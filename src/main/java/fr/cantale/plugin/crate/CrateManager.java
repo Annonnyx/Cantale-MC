@@ -3,6 +3,7 @@ package fr.cantale.plugin.crate;
 import fr.cantale.plugin.CantalePlugin;
 import fr.cantale.plugin.custom.CustomItemManager;
 import fr.cantale.plugin.custom.CustomItemType;
+import fr.cantale.plugin.ui.inventory.CrateOpenUI;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Location;
@@ -15,7 +16,11 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataType;
 
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.UUID;
 
 public class CrateManager {
 
@@ -23,11 +28,23 @@ public class CrateManager {
     private final CantalePlugin plugin;
     private final CustomItemManager itemManager;
     private final CrateRewardTable rewardTable;
+    private final CrateConfig crateConfig;
+    private final Set<UUID> openingPlayers = new HashSet<>();
 
     public CrateManager(CantalePlugin plugin) {
         this.plugin = plugin;
         this.itemManager = plugin.getCustomItemManager();
         this.rewardTable = new CrateRewardTable(itemManager);
+        this.crateConfig = new CrateConfig(plugin);
+        this.crateConfig.load();
+    }
+
+    public CrateConfig getCrateConfig() {
+        return crateConfig;
+    }
+
+    public void reloadConfig() {
+        crateConfig.load();
     }
 
     public ItemStack createCrateItem(CrateType type) {
@@ -43,11 +60,15 @@ public class CrateManager {
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
             meta.setDisplayName(ChatColor.translateAlternateColorCodes('&', type.getItemName()));
-            meta.setLore(List.of(
-                    ChatColor.translateAlternateColorCodes('&', type.getDefaultLore()),
-                    "",
-                    ChatColor.YELLOW + "Clic-droit pour ouvrir"
-            ));
+
+            List<String> lore = new ArrayList<>();
+            lore.add(ChatColor.translateAlternateColorCodes('&', type.getDefaultLore()));
+            lore.add("");
+            for (String line : type.getUsageLore()) {
+                lore.add(ChatColor.translateAlternateColorCodes('&', line));
+            }
+            meta.setLore(lore);
+
             meta.getPersistentDataContainer().set(CRATE_TYPE_KEY, PersistentDataType.STRING, type.name());
 
             int modelData = switch (type) {
@@ -78,20 +99,55 @@ public class CrateManager {
         return getCrateType(item) != null;
     }
 
-    /**
-     * Ouvre une caisse avec animation.
-     */
-    public void openCrate(Player player, CrateType type) {
-        openCrate(player, type, type);
+    public boolean isOpening(Player player) {
+        return openingPlayers.contains(player.getUniqueId());
     }
 
-    /**
-     * Ouvre une caisse avec animation, en conservant la caisse d'origine pour
-     * déterminer si la grande ascension (Vote → Légendaire) est réussie.
-     */
-    private void openCrate(Player player, CrateType type, CrateType originalType) {
-        if (type == CrateType.LEGENDARY) {
-            // Le grade Chèvre est accordé si le joueur a gravi toute la chaîne depuis Vote (étape par étape).
+    public void clearOpening(Player player) {
+        openingPlayers.remove(player.getUniqueId());
+    }
+
+    public CrateRewardTable getRewardTable() {
+        return rewardTable;
+    }
+
+    public void openCrate(Player player, CrateType type) {
+        openCrate(player, type, type, player.getLocation(), OpenStyle.AUTO);
+    }
+
+    public void openMailbox(Player player, CrateType type) {
+        openCrate(player, type, type, player.getLocation(), OpenStyle.INSTANT);
+    }
+
+    public void openWithChestUI(Player player, CrateType type) {
+        openCrate(player, type, type, player.getLocation(), OpenStyle.CHEST_UI);
+    }
+
+    /** MYTHIC uniquement — offrande aquatique après jet dans l'eau. */
+    public void openWaterOffer(Player player, CrateType type, Location waterLoc) {
+        openCrate(player, type, type, waterLoc, OpenStyle.WATER_MYTHIC);
+    }
+
+    /** EPIC uniquement — rituel sur balise / table d'enchantement (≠ eau). */
+    public void openRitual(Player player, CrateType type, Location altarLoc) {
+        openCrate(player, type, type, altarLoc, OpenStyle.RITUAL_EPIC);
+    }
+
+    public void openTicket(Player player, CrateType type) {
+        openCrate(player, type, type, player.getLocation(), OpenStyle.TICKET);
+    }
+
+    private enum OpenStyle {
+        AUTO, INSTANT, CHEST_UI, WATER_MYTHIC, RITUAL_EPIC, TICKET
+    }
+
+    private void openCrate(Player player, CrateType type, CrateType originalType, Location effectLoc, OpenStyle style) {
+        if (isOpening(player)) {
+            player.sendMessage("§8[§6Cantale§8] §cTu ouvres déjà une caisse...");
+            return;
+        }
+
+        if (type == CrateType.LEGENDARY || style == OpenStyle.TICKET) {
             if (originalType == CrateType.VOTE) {
                 grantGoatRank(player);
             } else {
@@ -100,36 +156,132 @@ public class CrateManager {
             return;
         }
 
-        // Vérifier si la caisse monte d'un cran en rareté
         CrateType upgradedType = rewardTable.rollUpgrade(type);
         if (upgradedType != null) {
-            handleUpgrade(player, type, upgradedType, originalType);
+            handleUpgrade(player, type, upgradedType, effectLoc);
             return;
         }
 
-        Location loc = player.getLocation();
+        OpenStyle resolved = style == OpenStyle.AUTO ? resolveStyle(type) : style;
+
+        switch (resolved) {
+            case INSTANT -> openInstant(player, type, effectLoc);
+            case CHEST_UI -> openChestUI(player, type);
+            case WATER_MYTHIC -> openWithWaterEffects(player, type, effectLoc);
+            case RITUAL_EPIC -> openWithRitualEffects(player, type, effectLoc);
+            default -> openWithActionBarAnimation(player, type, effectLoc);
+        }
+    }
+
+    private OpenStyle resolveStyle(CrateType type) {
+        return switch (type.getInteraction()) {
+            case MAILBOX -> OpenStyle.INSTANT;
+            case RIGHT_CLICK_ANIMATED -> OpenStyle.CHEST_UI;
+            case THROW_WATER -> OpenStyle.WATER_MYTHIC;
+            case RITUAL_ALTAR -> OpenStyle.RITUAL_EPIC;
+            case RIGHT_CLICK_TICKET -> OpenStyle.TICKET;
+        };
+    }
+
+    private void openInstant(Player player, CrateType type, Location loc) {
+        openingPlayers.add(player.getUniqueId());
+        player.sendMessage("§8[§6Cantale§8] §7Le courrier royal s'ouvre...");
+        player.playSound(loc, Sound.ITEM_BOOK_PAGE_TURN, 1.0f, 1.2f);
+        loc.getWorld().spawnParticle(Particle.HAPPY_VILLAGER, loc.clone().add(0, 1, 0), 15, 0.4, 0.4, 0.4);
+
+        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            if (!player.isOnline()) {
+                clearOpening(player);
+                return;
+            }
+            finishOpen(player, type, loc);
+            clearOpening(player);
+        }, 15L);
+    }
+
+    private void openChestUI(Player player, CrateType type) {
+        openingPlayers.add(player.getUniqueId());
+        CrateReward reward = rewardTable.roll(type);
+        player.sendMessage("§8[§6Cantale§8] §7Tu ouvres le §r" + type.getItemName() + "§7...");
+        new CrateOpenUI(plugin, player, this, type, reward).open();
+    }
+
+    private void openWithWaterEffects(Player player, CrateType type, Location loc) {
+        openingPlayers.add(player.getUniqueId());
+        player.sendMessage("§8[§6Cantale§8] §dTa Pièce Mythique plonge dans l'eau...");
+        player.sendTitle(
+                ChatColor.translateAlternateColorCodes('&', "&d&lOFFRANDE MYTHIQUE"),
+                ChatColor.translateAlternateColorCodes('&', "&7L'eau accepte ta pièce..."),
+                5, 40, 10
+        );
+        player.playSound(loc, Sound.ENTITY_GENERIC_SPLASH, 1.0f, 1.0f);
+        player.playSound(loc, Sound.BLOCK_NOTE_BLOCK_CHIME, 1.0f, 1.2f);
+        loc.getWorld().spawnParticle(Particle.SPLASH, loc.clone().add(0, 0.2, 0), 40, 0.4, 0.3, 0.4);
+        loc.getWorld().spawnParticle(Particle.BUBBLE_POP, loc.clone().add(0, 0.3, 0), 20, 0.3, 0.3, 0.3, 0.02);
+        loc.getWorld().spawnParticle(Particle.HAPPY_VILLAGER, loc.clone().add(0, 0.8, 0), 15, 0.4, 0.4, 0.4);
+
+        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            if (!player.isOnline()) {
+                clearOpening(player);
+                return;
+            }
+            finishOpen(player, type, player.getLocation());
+            clearOpening(player);
+        }, 25L);
+    }
+
+    private void openWithRitualEffects(Player player, CrateType type, Location loc) {
+        openingPlayers.add(player.getUniqueId());
+        player.sendMessage("§8[§6Cantale§8] §5✦ Ta Médaille du Tournoi est consacrée sur l'autel...");
+        player.sendTitle(
+                ChatColor.translateAlternateColorCodes('&', "&5&lRITUEL ÉPIQUE"),
+                ChatColor.translateAlternateColorCodes('&', "&7L'autel écoute ton offrande..."),
+                5, 40, 10
+        );
+        player.playSound(loc, Sound.BLOCK_ENCHANTMENT_TABLE_USE, 1.0f, 0.6f);
+        player.playSound(loc, Sound.BLOCK_BEACON_ACTIVATE, 0.8f, 1.2f);
+        player.playSound(loc, Sound.ENTITY_PLAYER_LEVELUP, 0.7f, 1.4f);
+        loc.getWorld().spawnParticle(Particle.END_ROD, loc.clone().add(0, 0.5, 0), 40, 0.4, 0.6, 0.4, 0.05);
+        loc.getWorld().spawnParticle(Particle.ENCHANT, loc.clone().add(0, 1.0, 0), 50, 0.5, 0.5, 0.5, 0.5);
+        loc.getWorld().spawnParticle(Particle.SOUL_FIRE_FLAME, loc.clone().add(0, 0.3, 0), 25, 0.3, 0.4, 0.3, 0.02);
+
+        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            if (!player.isOnline()) {
+                clearOpening(player);
+                return;
+            }
+            finishOpen(player, type, player.getLocation());
+            clearOpening(player);
+        }, 25L);
+    }
+
+    private void openWithActionBarAnimation(Player player, CrateType type, Location loc) {
+        openingPlayers.add(player.getUniqueId());
         player.sendMessage("§8[§6Cantale§8] §7Ouverture de §r" + type.getItemName() + " §7...");
 
-        // Animation: 3 secondes
         final int[] tick = {0};
         Bukkit.getScheduler().runTaskTimer(plugin, task -> {
+            if (!player.isOnline()) {
+                task.cancel();
+                clearOpening(player);
+                return;
+            }
             tick[0]++;
 
             if (tick[0] <= 6) {
                 player.playSound(loc, Sound.BLOCK_NOTE_BLOCK_PLING, 1.0f, 0.5f + tick[0] * 0.1f);
                 loc.getWorld().spawnParticle(Particle.HAPPY_VILLAGER, loc.clone().add(0, 1, 0), 10, 0.5, 0.5, 0.5);
-                player.sendActionBar(ChatColor.translateAlternateColorCodes('&', "&7Récompense en cours de sélection... &e" + getSpinner(tick[0])));
+                player.sendActionBar(ChatColor.translateAlternateColorCodes('&',
+                        "&7Récompense en cours de sélection... &e" + getSpinner(tick[0])));
             } else {
                 task.cancel();
                 finishOpen(player, type, loc);
+                clearOpening(player);
             }
         }, 0L, 10L);
     }
 
-    private void handleUpgrade(Player player, CrateType from, CrateType to, CrateType originalType) {
-        Location loc = player.getLocation();
-
-        // Ascension : la caisse se transforme en caisse physique supérieure
+    private void handleUpgrade(Player player, CrateType from, CrateType to, Location loc) {
         player.playSound(loc, Sound.ENTITY_PLAYER_LEVELUP, 1.0f, 1.5f);
         loc.getWorld().spawnParticle(Particle.FIREWORK, loc.clone().add(0, 1, 0), 30, 0.5, 0.5, 0.5);
         player.sendTitle(
@@ -138,15 +290,13 @@ public class CrateManager {
                 10, 60, 20
         );
         player.sendMessage("§8[§6Cantale§8] §d✦ Ascension ! §7Ton " + from.getItemName() + " §7se transforme en " + to.getItemName() + "§7 !");
-        player.sendMessage("§8[§6Cantale§8] §7Clic-droit dessus pour l'ouvrir.");
+        player.sendMessage("§8[§6Cantale§8] " + to.getUsageHint());
 
         ItemStack upgradedCrate = createCrateItem(to);
         var leftover = player.getInventory().addItem(upgradedCrate);
         for (ItemStack drop : leftover.values()) {
             player.getWorld().dropItemNaturally(loc, drop);
         }
-
-        // Vote ne monte plus directement jusqu'à Légendaire : ce cas n'est plus atteignable.
     }
 
     private void grantGoatRank(Player player) {
@@ -171,23 +321,23 @@ public class CrateManager {
         Bukkit.broadcastMessage("§8§m--------------------------------------------------");
     }
 
-    private void finishOpen(Player player, CrateType type, Location loc) {
+    void finishOpen(Player player, CrateType type, Location loc) {
         CrateReward reward = rewardTable.roll(type);
+        deliverReward(player, type, reward, loc);
+    }
 
-        // Cantox
+    public void deliverReward(Player player, CrateType type, CrateReward reward, Location loc) {
         if (reward.cantox() > 0) {
             plugin.getEconomyManager().deposit(player, reward.cantox());
         }
 
-        java.util.List<ItemStack> surplus = new java.util.ArrayList<>();
+        List<ItemStack> surplus = new ArrayList<>();
 
-        // Vies
         for (int i = 0; i < reward.lives(); i++) {
             var leftover = player.getInventory().addItem(itemManager.createCustomItem(CustomItemType.VIE));
             surplus.addAll(leftover.values());
         }
 
-        // Items
         if (reward.hasItems()) {
             for (ItemStack item : reward.items()) {
                 if (item == null) continue;
@@ -196,9 +346,8 @@ public class CrateManager {
             }
         }
 
-        // Stocker le surplus dans le coffre privé, sinon jeter par terre
         if (!surplus.isEmpty()) {
-            java.util.List<ItemStack> stillSurplus = plugin.getPrivateChestService().storeItemsInPrivateChest(player.getUniqueId(), surplus);
+            List<ItemStack> stillSurplus = plugin.getPrivateChestService().storeItemsInPrivateChest(player.getUniqueId(), surplus);
             for (ItemStack drop : stillSurplus) {
                 if (drop != null && !drop.getType().isAir()) {
                     player.getWorld().dropItemNaturally(loc, drop);
@@ -206,11 +355,9 @@ public class CrateManager {
             }
         }
 
-        // Effets
         player.playSound(loc, Sound.ENTITY_PLAYER_LEVELUP, 1.0f, 1.0f);
         loc.getWorld().spawnParticle(Particle.TOTEM_OF_UNDYING, loc.clone().add(0, 1, 0), 50, 0.5, 0.5, 0.5);
 
-        // Message
         String display = reward.message() != null
                 ? reward.message()
                 : buildRewardMessage(reward);
@@ -221,7 +368,6 @@ public class CrateManager {
         );
         player.sendMessage("§8[§6Cantale§8] §7Tu as obtenu : §r" + display);
 
-        // Annonce publique uniquement pour les caisses mythique et légendaire
         if (type == CrateType.MYTHIC || type == CrateType.LEGENDARY) {
             Bukkit.broadcastMessage("§8[§6Cantale§8] §e" + player.getName() + " §7a ouvert un §r" + type.getItemName() + " §7et a obtenu : §r" + display);
         }
@@ -249,5 +395,9 @@ public class CrateManager {
             case 2 -> "\\";
             default -> "|";
         };
+    }
+
+    public void sendUsageHint(Player player, CrateType type) {
+        player.sendMessage("§8[§6Cantale§8] " + type.getUsageHint());
     }
 }

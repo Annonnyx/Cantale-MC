@@ -3,8 +3,9 @@ package fr.cantale.plugin.factions;
 public enum FactionRank {
     RECRUIT("Recrue", 1),
     MEMBER("Membre", 2),
-    OFFICER("Officier", 3),
-    LEADER("Leader", 4);
+    VETERAN("Veteran", 3),
+    OFFICER("Officier", 4),
+    LEADER("Leader", 5);
 
     private final String displayName;
     private final int level;

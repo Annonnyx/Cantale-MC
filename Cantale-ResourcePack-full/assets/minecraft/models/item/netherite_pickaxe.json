@@ -1,12 +1,6 @@
 {
-  "parent": "item/handheld",
-  "textures": { "layer0": "minecraft:item/netherite_pickaxe" },
-  "overrides": [
-    {"predicate":{"custom_model_data":1021},"model":"cantale:item/pickantaxe_netherite_1x1"},
-    {"predicate":{"custom_model_data":1022},"model":"cantale:item/pickantaxe_netherite_3x3"},
-    {"predicate":{"custom_model_data":1023},"model":"cantale:item/pickantaxe_netherite_5x5"},
-    {"predicate":{"custom_model_data":1024},"model":"cantale:item/pickantaxe_netherite_7x7"},
-    {"predicate":{"custom_model_data":3021},"model":"cantale:item/multicantool_netherite_1x1"},
-    {"predicate":{"custom_model_data":3022},"model":"cantale:item/multicantool_netherite_3x3"}
-  ]
+  "parent": "minecraft:item/handheld",
+  "textures": {
+    "layer0": "minecraft:item/netherite_pickaxe"
+  }
 }

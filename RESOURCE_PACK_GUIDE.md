@@ -15,7 +15,8 @@
 ```
 /Users/Noe/Cantale/Cantale-ResourcePack/
 ├── pack.mcmeta ✓
-├── assets/minecraft/models/item/ ✓ (11 fichiers override)
+├── assets/minecraft/models/item/ ✓ (modèles de base, fallback)
+├── assets/minecraft/items/ ✓ (dispatch réel 1.21.4+, un fichier par matériel vanilla)
 ├── assets/cantale/models/item/ ✓ (25 fichiers custom)
 └── [à créer] assets/cantale/textures/item/ (14 PNG)
 ```
@@ -26,7 +27,7 @@
 
 ```
 Cantale-ResourcePack/
-├── pack.mcmeta                    # format 15 (1.20.x)
+├── pack.mcmeta                    # format 75 (1.21.11)
 ├── pack.png                       # 64×64
 ├── assets/
 │   ├── minecraft/
@@ -75,68 +76,113 @@ Cantale-ResourcePack/
 ```json
 {
   "pack": {
-    "pack_format": 15,
+    "pack_format": 75,
     "description": "§6Cantale §7— Items Custom & UI"
   }
 }
 ```
 
-## 3. Table des CustomModelData
+> ⚠️ **Depuis Minecraft 1.21.4**, le système d'`overrides` dans `assets/minecraft/models/item/*.json` est **ignoré par le client**.
+> Il faut désormais fournir un fichier `assets/minecraft/items/<item_vanilla>.json` par matériel de base, utilisant
+> `minecraft:range_dispatch` sur la propriété `minecraft:custom_model_data`. Les fichiers `models/item/*.json` restent utiles
+> uniquement comme modèle de base (parent + texture vanilla), référencé en `fallback`. Voir `assets/minecraft/items/` pour les
+> fichiers déjà à jour (un par matériel : `iron_pickaxe`, `diamond_pickaxe`, `netherite_pickaxe`, `iron_axe`, `diamond_axe`,
+> `netherite_axe`, `iron_shovel`, `diamond_shovel`, `netherite_shovel`, `shears`, `netherite_sword`, `totem_of_undying`,
+> `paper`, `tripwire_hook`, `sunflower`, `gold_nugget`, `writable_book`, `netherite_helmet/chestplate/leggings/boots`).
 
-| ID  | Item                          | Matériel de base       | Modèle cantale                     |
-|-----|-------------------------------|------------------------|------------------------------------|
-| 1   | Pickantaxe Fer 1×1            | `IRON_PICKAXE`         | `pickantaxe_iron_1x1.json`        |
-| 2   | Pickantaxe Fer 3×3            | `IRON_PICKAXE`         | `pickantaxe_iron_3x3.json`        |
-| 3   | Pickantaxe Fer 5×5            | `IRON_PICKAXE`         | `pickantaxe_iron_5x5.json`        |
-| 4   | Pickantaxe Fer 7×7            | `IRON_PICKAXE`         | `pickantaxe_iron_7x7.json`        |
-| 5   | Pickantaxe Diamant 1×1        | `DIAMOND_PICKAXE`      | `pickantaxe_diamond_1x1.json`     |
-| 6   | Pickantaxe Diamant 3×3        | `DIAMOND_PICKAXE`      | `pickantaxe_diamond_3x3.json`     |
-| 7   | Pickantaxe Diamant 5×5        | `DIAMOND_PICKAXE`      | `pickantaxe_diamond_5x5.json`     |
-| 8   | Pickantaxe Diamant 7×7        | `DIAMOND_PICKAXE`      | `pickantaxe_diamond_7x7.json`     |
-| 9   | Pickantaxe Netherite 1×1      | `NETHERITE_PICKAXE`    | `pickantaxe_netherite_1x1.json`   |
-| 10  | Pickantaxe Netherite 3×3      | `NETHERITE_PICKAXE`    | `pickantaxe_netherite_3x3.json`   |
-| 11  | Pickantaxe Netherite 5×5      | `NETHERITE_PICKAXE`    | `pickantaxe_netherite_5x5.json`   |
-| 12  | Pickantaxe Netherite 7×7      | `NETHERITE_PICKAXE`    | `pickantaxe_netherite_7x7.json`   |
-| 13  | Cantaxe Fer                   | `IRON_AXE`             | `cantaxe_iron.json`               |
-| 14  | Cantaxe Diamant               | `DIAMOND_AXE`          | `cantaxe_diamond.json`            |
-| 15  | Cantaxe Netherite             | `NETHERITE_AXE`        | `cantaxe_netherite.json`          |
-| 16  | Multi-Cantool Fer 1×1         | `SHEARS`              | `multicantool_iron_1x1.json`      |
-| 17  | Multi-Cantool Fer             | `SHEARS`              | `multicantool_iron.json`          |
-| 18  | Multi-Cantool Diamant 1×1     | `SHEARS`              | `multicantool_diamond_1x1.json`   |
-| 19  | Multi-Cantool Diamant         | `SHEARS`              | `multicantool_diamond.json`       |
-| 20  | Multi-Cantool Netherite 1×1   | `SHEARS`              | `multicantool_netherite_1x1.json` |
-| 21  | Multi-Cantool Netherite       | `SHEARS`              | `multicantool_netherite.json`     |
-| 22  | Statio-Lytras                 | `ELYTRA`              | `statio_lytras.json`              |
-| 23  | Cantalame                     | `NETHERITE_SWORD`      | `cantalame.json`                  |
-| 24  | Rune de Fortification         | `ENCHANTED_BOOK`       | `rune_fortification.json`         |
-| 25  | Vie                           | `TOTEM_OF_UNDYING`     | `vie.json`                        |
+## 3. Table des CustomModelData (à jour avec `CustomItemManager#getCustomModelData` + `CrateManager`)
+
+| CMD  | Item                          | Matériel de base       | Modèle cantale                     |
+|------|-------------------------------|-------------------------|-------------------------------------|
+| 100  | Caisse Vote                   | `PAPER`                | `crate_vote.json`                 |
+| 101  | Caisse Rare                   | `TRIPWIRE_HOOK`        | `crate_rare.json`                 |
+| 102  | Caisse Épique                 | `SUNFLOWER`            | `crate_epic.json`                 |
+| 103  | Caisse Mythique               | `GOLD_NUGGET`          | `crate_mythic.json`               |
+| 104  | Caisse Légendaire             | `WRITABLE_BOOK`        | `crate_legendary.json`            |
+| 1001 | Pickantaxe Fer 1×1            | `IRON_PICKAXE`         | `pickantaxe_iron_1x1.json`        |
+| 1002 | Pickantaxe Fer 3×3            | `IRON_PICKAXE`         | `pickantaxe_iron_3x3.json`        |
+| 1003 | Pickantaxe Fer 5×5            | `IRON_PICKAXE`         | `pickantaxe_iron_5x5.json`        |
+| 1004 | Pickantaxe Fer 7×7            | `IRON_PICKAXE`         | `pickantaxe_iron_7x7.json`        |
+| 1011 | Pickantaxe Diamant 1×1        | `DIAMOND_PICKAXE`      | `pickantaxe_diamond_1x1.json`     |
+| 1012 | Pickantaxe Diamant 3×3        | `DIAMOND_PICKAXE`      | `pickantaxe_diamond_3x3.json`     |
+| 1013 | Pickantaxe Diamant 5×5        | `DIAMOND_PICKAXE`      | `pickantaxe_diamond_5x5.json`     |
+| 1014 | Pickantaxe Diamant 7×7        | `DIAMOND_PICKAXE`      | `pickantaxe_diamond_7x7.json`     |
+| 1021 | Pickantaxe Netherite 1×1      | `NETHERITE_PICKAXE`    | `pickantaxe_netherite_1x1.json`   |
+| 1022 | Pickantaxe Netherite 3×3      | `NETHERITE_PICKAXE`    | `pickantaxe_netherite_3x3.json`   |
+| 1023 | Pickantaxe Netherite 5×5      | `NETHERITE_PICKAXE`    | `pickantaxe_netherite_5x5.json`   |
+| 1024 | Pickantaxe Netherite 7×7      | `NETHERITE_PICKAXE`    | `pickantaxe_netherite_7x7.json`   |
+| 2001 | Cantaxe Fer                   | `IRON_AXE`             | `cantaxe_iron.json`               |
+| 2002 | Cantaxe Diamant               | `DIAMOND_AXE`          | `cantaxe_diamond.json`            |
+| 2003 | Cantaxe Netherite             | `NETHERITE_AXE`        | `cantaxe_netherite.json`          |
+| 3001 | Multi-Cantool Fer 1×1         | `IRON_PICKAXE` (+ hache/pelle/cisailles selon visée) | `multicantool_iron_1x1.json`      |
+| 3002 | Multi-Cantool Fer             | `IRON_PICKAXE` (+ hache/pelle/cisailles selon visée) | `multicantool_iron.json`          |
+| 3011 | Multi-Cantool Diamant 1×1     | `DIAMOND_PICKAXE` (+ hache/pelle/cisailles)          | `multicantool_diamond_1x1.json`   |
+| 3012 | Multi-Cantool Diamant         | `DIAMOND_PICKAXE` (+ hache/pelle/cisailles)          | `multicantool_diamond.json`       |
+| 3021 | Multi-Cantool Netherite 1×1   | `NETHERITE_PICKAXE` (+ hache/pelle/cisailles)        | `multicantool_netherite_1x1.json` |
+| 3022 | Multi-Cantool Netherite       | `NETHERITE_PICKAXE` (+ hache/pelle/cisailles)        | `multicantool_netherite.json`     |
+| 5001 | Cantalame                     | `NETHERITE_SWORD`      | `cantalame.json`                  |
+| 6001 | Rune de Fortification (legacy)| `PAPER`                | `rune_fortification.json`         |
+| 7001 | Vie                           | `TOTEM_OF_UNDYING`     | `vie.json`                        |
+| 8001 | Cantox (legacy)               | `GOLD_NUGGET`          | `cantox_coin.json`                |
+| 9001–9004 | Armure du Garde          | `NETHERITE_*`          | `garde_*.json`                    |
+
+> Le Multi-Cantool garde le **même CMD** quel que soit l'outil visuel affiché (pioche/hache/pelle/cisailles) : chaque matériel de
+> base (`iron_axe`, `iron_shovel`, `shears`, ...) a donc son propre fichier `assets/minecraft/items/*.json` déclarant les mêmes
+> CMD 3001/3002/3011/3012/3021/3022. `Statio-Lytras` et `Rune de Fortification` ont été retirés du plugin (voir TODO.md) ; leurs
+> modèles restent présents dans le pack mais ne sont plus utilisés.
+>
+> **Caisses (CMD 100–104)** : stubs prêts — modèles `cantale:item/crate_*` avec `layer0` = texture **vanilla** (pas de PNG
+> custom tant qu’ils n’existent pas). Quand les PNG Blockbench sont prêts : placer
+> `assets/cantale/textures/item/crate_*.png`, remplacer `layer0` par `cantale:item/crate_*` dans chaque
+> `assets/cantale/models/item/crate_*.json`, puis **rezipper** le pack. Voir aussi
+> `assets/cantale/textures/item/README.md`.
+>
+> **Fusion CMD** : `paper.json` contient 100 (caisse) **et** 6001 (rune legacy) ; `gold_nugget.json` contient 24 (rune
+> legacy), 103 (caisse) **et** 8001 (cantox legacy).
 
 ## 4. Modèles JSON — Exemples
 
-### Modèle de base avec overrides (`iron_pickaxe.json`)
+### Modèle de base (`assets/minecraft/models/item/iron_pickaxe.json`) — parent + texture vanilla, sert de `fallback`
 
 ```json
 {
-  "parent": "minecraft:item/handheld",
-  "textures": { "layer0": "minecraft:item/iron_pickaxe" },
-  "overrides": [
-    { "predicate": { "custom_model_data": 1 }, "model": "cantale:item/pickantaxe_iron_1x1" },
-    { "predicate": { "custom_model_data": 2 }, "model": "cantale:item/pickantaxe_iron_3x3" },
-    { "predicate": { "custom_model_data": 3 }, "model": "cantale:item/pickantaxe_iron_5x5" },
-    { "predicate": { "custom_model_data": 4 }, "model": "cantale:item/pickantaxe_iron_7x7" }
-  ]
+  "parent": "item/handheld",
+  "textures": { "layer0": "minecraft:item/iron_pickaxe" }
 }
 ```
 
-### Modèle de base — Vie (`totem_of_undying.json`)
+### Item Model Definition 1.21.4+ (`assets/minecraft/items/iron_pickaxe.json`) — dispatch réel côté client
 
 ```json
 {
-  "parent": "minecraft:item/generated",
-  "textures": { "layer0": "minecraft:item/totem_of_undying" },
-  "overrides": [
-    { "predicate": { "custom_model_data": 25 }, "model": "cantale:item/vie" }
-  ]
+  "model": {
+    "type": "minecraft:range_dispatch",
+    "property": "minecraft:custom_model_data",
+    "index": 0,
+    "fallback": { "type": "minecraft:model", "model": "minecraft:item/iron_pickaxe" },
+    "entries": [
+      { "threshold": 1001, "model": { "type": "minecraft:model", "model": "cantale:item/pickantaxe_iron_1x1" } },
+      { "threshold": 1002, "model": { "type": "minecraft:model", "model": "cantale:item/pickantaxe_iron_3x3" } },
+      { "threshold": 1003, "model": { "type": "minecraft:model", "model": "cantale:item/pickantaxe_iron_5x5" } },
+      { "threshold": 1004, "model": { "type": "minecraft:model", "model": "cantale:item/pickantaxe_iron_7x7" } }
+    ]
+  }
+}
+```
+
+### Item Model Definition — Vie (`assets/minecraft/items/totem_of_undying.json`)
+
+```json
+{
+  "model": {
+    "type": "minecraft:range_dispatch",
+    "property": "minecraft:custom_model_data",
+    "index": 0,
+    "fallback": { "type": "minecraft:model", "model": "minecraft:item/totem_of_undying" },
+    "entries": [
+      { "threshold": 7001, "model": { "type": "minecraft:model", "model": "cantale:item/vie" } }
+    ]
+  }
 }
 ```
 
@@ -377,7 +423,7 @@ Palette Cantale : rouge principal `#B01020`, or `#F0B84A`, fond sombre `#1A1A1A`
 
 ## 10. Checklist de Création
 
-- [ ] Créer `pack.mcmeta` (format 15)
+- [ ] Créer `pack.mcmeta` (format 75)
 - [ ] Créer `pack.png` (logo 64×64)
 - [ ] Dessiner les 14 textures d'items dans Blockbench
 - [ ] Créer les 25 modèles JSON dans `assets/cantale/models/item/`
@@ -385,7 +431,7 @@ Palette Cantale : rouge principal `#B01020`, or `#F0B84A`, fond sombre `#1A1A1A`
 - [ ] Dessiner `generic_54.png` (UI 54 slots)
 - [ ] Dessiner `enderchest.png` (UI ender chest)
 - [ ] Dessiner `minecraft.png` + `edition.png` (écran titre)
-- [ ] Ajouter `custom_model_data: 25` pour VIE dans `totem_of_undying.json`
+- [ ] Ajouter le CMD `7001` pour VIE dans `assets/minecraft/items/totem_of_undying.json`
 - [ ] Vérifier que `CustomItemManager.getCustomModelData()` retourne 25 pour VIE
 - [ ] Zipper le pack
 - [ ] Calculer SHA-1 du zip

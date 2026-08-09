@@ -300,11 +300,18 @@ custom-items:
 
 # ─── Resource Pack ─────────────────────────────────────────────
 # URL publique du pack Cantale (zip). Les joueurs le reçoivent à la connexion.
-# Généré avec : cd Cantale-ResourcePack && zip -r ../resourcepack.zip .
-# SHA-1 : shasum -a 1 resourcepack.zip
+# Généré avec : cd Cantale-ResourcePack-full && zip -r ../cantale-resourcepack.zip .
+# SHA-1 : shasum -a 1 cantale-resourcepack.zip
+# IMPORTANT : le pack est envoyé UNIQUEMENT via server.properties.
+# Laisser url/sha1 vides ici + send-on-join: false (sinon double envoi → kick).
+# URL à mettre dans server.properties (lien direct, sans redirect Release) :
+#   https://raw.githubusercontent.com/Annonnyx/Cantale-resourcepack/585bbda/cantale-resourcepack.zip
+#   (ou .../main/... une fois le CDN à jour)
+#   sha1 = ebeb3b899e72e0dcdd37bf959cce6d41e25964c6
 resource-pack:
-  url: "https://cantale.world/resourcepack.zip"
-  sha1: "9a97010133ed7f49f2cb0e3e996874466796ea6c"
+  send-on-join: false
+  url: ""
+  sha1: ""
 
 # ─── Système de Vote (Votifier) ────────────────────────────────
 vote:
@@ -312,13 +319,13 @@ vote:
   broadcast: true
 
   # Sites de vote affichés via /vote
-  # Format : "Nom Affiché|URL|cooldown"  →  cooldown en heures (1, 3, 24, ...)
-  # La valeur du cooldown détermine le nombre de Cadeaux du Roi gagnés :
-  #   24h → 3 caisses | 3h → 2 caisses | 1h → 1 caisse
+  # Format : "Nom Affiché|URL|cooldown" ou "Nom|URL|cooldown|alias1,alias2"
+  # cooldown (heures) → nombre de Cadeaux du Roi : 24h→3 | 3h→2 | 1h→1
+  # Les alias couvrent les serviceName Votifier/NuVotifier courants.
   sites:
-    - "Top-Serveurs.net|https://top-serveurs.net/minecraft/vote/cantale|3"
-    - "Serveur-Prive.net|https://serveur-prive.net/minecraft/cantale/vote|1"
-    - "ServeurListe.com|https://www.serveurliste.com/fr/minecraft/cantale/vote|1"
+    - "Top-Serveurs.net|https://top-serveurs.net/minecraft/vote/cantale|3|top-serveurs,TopServeurs,topserveurs"
+    - "Serveur-Prive.net|https://serveur-prive.net/minecraft/cantale/vote|1|serveur-prive,ServeurPrive,serveurprive"
+    - "ServeurListe.com|https://www.serveurliste.com/fr/minecraft/cantale/vote|1|serveurliste,ServeurListe"
 
   # Tokens de vérification fournis par les sites de vote (optionnels).
   # Peuvent servir pour les callbacks/API ou la validation des votes entrants.

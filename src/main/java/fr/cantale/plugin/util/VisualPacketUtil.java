@@ -18,5 +18,7 @@ public class VisualPacketUtil {
         ItemStack safe = item != null ? item : new ItemStack(org.bukkit.Material.AIR);
         // Paper 1.21.11 : signature (LivingEntity, EquipmentSlot, ItemStack)
         player.sendEquipmentChange(player, slot, safe);
+        // Forcer la mise à jour côté client
+        player.updateInventory();
     }
 }

@@ -99,6 +99,7 @@ public class MultiCantoolVisualAdapter implements Listener {
 
         VisualPacketUtil.sendVisualSlot(player, EquipmentSlot.HAND, createVisualItem(visualMat, hand));
         lastVisual.put(uuid, visualMat);
+        plugin.getLogger().info("[MultiCantool] " + player.getName() + " → " + visualMat.name());
     }
 
     private void restoreIfNeeded(Player player) {
@@ -170,9 +171,9 @@ public class MultiCantoolVisualAdapter implements Listener {
             originalMeta.getEnchants().forEach((ench, level) -> visualMeta.addEnchant(ench, level, true));
         }
 
-        // CMD uniquement sur la forme pioche : sinon le pack garde la texture multi-outil
-        boolean pickaxeForm = material.name().endsWith("_PICKAXE");
-        if (pickaxeForm && originalMeta.hasCustomModelData()) {
+        // CMD sur toutes les formes : le resource pack peut ainsi afficher la texture
+        // multi-outil quelle que soit la forme (pioche/hache/pelle/cisailles).
+        if (originalMeta.hasCustomModelData()) {
             visualMeta.setCustomModelData(originalMeta.getCustomModelData());
         }
 

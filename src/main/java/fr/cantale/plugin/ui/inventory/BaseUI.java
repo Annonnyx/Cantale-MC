@@ -100,7 +100,8 @@ public abstract class BaseUI implements Listener {
 
     @EventHandler
     public void onClick(InventoryClickEvent event) {
-        if (!event.getView().getTitle().equals(title)) return;
+        // Match by inventory identity: same title is reused across pages (e.g. ShopCategoryUI).
+        if (event.getView().getTopInventory() != inventory) return;
         if (!event.getWhoClicked().equals(player)) return;
 
         Inventory top = event.getView().getTopInventory();
@@ -135,16 +136,29 @@ public abstract class BaseUI implements Listener {
 
     @EventHandler
     public void onDrag(InventoryDragEvent event) {
-        if (!event.getView().getTitle().equals(title)) return;
+        if (event.getView().getTopInventory() != inventory) return;
         if (!event.getWhoClicked().equals(player)) return;
         event.setCancelled(true);
     }
 
     @EventHandler
     public void onClose(InventoryCloseEvent event) {
-        if (!event.getView().getTitle().equals(title)) return;
         if (!event.getPlayer().equals(player)) return;
-        HandlerList.unregisterAll(this);
+
+        // Do NOT unregister synchronously, and do NOT trust title or the close-event inventory
+        // identity alone. During sync openInventory(newUI) from a click handler:
+        // 1) new UI registers, 2) old inventory closes, 3) the close view can already point at
+        // the new top inventory — so a same-tick identity/title match would unregister the
+        // UI the player just opened (dead clicks). Defer: only drop the listener if this
+        // inventory is no longer the one being viewed.
+        Bukkit.getScheduler().runTask(plugin, () -> {
+            if (!registered) return;
+            if (player.isOnline() && player.getOpenInventory().getTopInventory() == inventory) {
+                return;
+            }
+            HandlerList.unregisterAll(this);
+            registered = false;
+        });
     }
 
     protected abstract void init();

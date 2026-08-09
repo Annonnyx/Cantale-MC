@@ -1,0 +1,185 @@
+# ═══════════════════════════════════════════════════════════════════════
+#  CANTALE — Admin Shop (Cantox)
+# ═══════════════════════════════════════════════════════════════════════
+# Philosophie : ce shop n'est PAS un marché équitable. C'est :
+#  1) un plancher de prix garanti (utile aux nouveaux/joueurs solo) ;
+#  2) un SINK pour absorber le Cantox généré par le minage (Pickantaxe
+#     1x1→7x7, Cantaxe one-shot) et éviter l'inflation.
+# Achat (ce que le joueur PAIE) toujours largement > Vente (ce que le
+# joueur REÇOIT). Volontairement peu rentable pour le joueur, sans être
+# arnaque : les prix restent cohérents entre eux et progressifs selon la
+# rareté. /ah (hôtel des ventes entre joueurs) reste le vrai marché.
+#
+# Repères économiques connus (pour calibrer) :
+#  - Solde de départ  : 10 000 Cantox (config.yml: economy.start-balance)
+#  - /daily (journalier) : 1000 Cantox de base + bonus de grade payant
+#    (Aventurier +2500, VIP +10000, Chèvre/Staff +100000). Ces bonus sont
+#    jugés très généreux (voir TODO.md) : un prix seul ne peut pas empêcher
+#    un Chèvre de tout acheter avec un seul /daily. C'est pourquoi les
+#    ressources rares utilisent des PLAFONDS QUOTIDIENS (daily-sell-cap /
+#    daily-buy-cap) en plus du prix. Shulker / Netherite : prix d'achat
+#    massifs (centaines de milliers) + plafonds serrés.
+#  - Vote : 100 à 1500 Cantox par vote selon le tirage (60/25/12/3%)
+#  - Hausse 2026 : prix d'achat ×2 sur toutes les catégories SAUF MINERAIS
+#    (minerais / métaux inchangés). Ventes inchangées.
+#  - Rééquilibrage post-×2 : ventes farm / drops basiques plafonnées à
+#    1 Cantox ; achats non-ultra baissés ~15–25% (netherite / shulker
+#    inchangés).
+#
+# Format de chaque entrée (items: ou patterns:) :
+#   buy               : prix d'achat (le joueur PAIE), 0 si non précisé
+#   sell              : prix de vente (le joueur REÇOIT), 0 si non précisé
+#   buy-enabled       : achat possible au shop (défaut true si buy > 0)
+#   sell-enabled      : vente possible au shop (défaut true si sell > 0)
+#   daily-sell-cap    : quantité max vendable par joueur et par jour (0 = illimité)
+#   daily-buy-cap     : quantité max achetable par joueur et par jour (0 = illimité)
+#
+# `patterns` : règles par sous-chaîne du nom de Material (ex: tous les
+# troncs `_LOG`), pour éviter d'énumérer chaque variante (bois, laines,
+# béton, terracotta, lits). Un `items:` exact prime toujours sur un pattern.
+# Tout Material absent des deux (et non couvert par un pattern) n'est PAS
+# négociable au shop — c'est la liste noire "par omission". Une liste noire
+# dure (bedrock, command blocks, spawners, livres, etc.) est en plus
+# imposée directement dans le code (ShopConfig), impossible à contourner
+# via ce fichier.
+# ═══════════════════════════════════════════════════════════════════════
+
+categories:
+  - id: BLOCS
+    display-name: "&7Blocs & Matériaux"
+    icon: COBBLESTONE
+  - id: BOIS
+    display-name: "&6Bois & Déco"
+    icon: OAK_LOG
+  - id: MINERAIS
+    display-name: "&bMinerais & Métaux"
+    icon: DIAMOND
+  - id: NETHER_END
+    display-name: "&5Nether & End"
+    icon: BLAZE_ROD
+  - id: AGRICULTURE
+    display-name: "&aAgriculture & Nourriture"
+    icon: WHEAT
+  - id: MOB_DROPS
+    display-name: "&eDrops de Mobs"
+    icon: BONE
+  - id: REDSTONE
+    display-name: "&cRedstone & Mécanismes"
+    icon: REDSTONE
+  - id: GUERRE
+    display-name: "&4Guerre & PvP"
+    icon: TNT
+
+patterns:
+  # Bûches / bois brut — Cantaxe = un arbre entier en un coup, prix bas + plafond serré
+  - match: ["_LOG", "_WOOD", "_STEM", "_HYPHAE"]
+    category: BOIS
+    buy: 10
+    sell: 1
+    daily-sell-cap: 6000
+  - match: ["_PLANKS"]
+    category: BOIS
+    buy: 5
+    sell-enabled: false
+  - match: ["_WOOL"]
+    category: BOIS
+    buy: 16
+    sell: 1
+    daily-sell-cap: 2000
+  - match: ["_CONCRETE_POWDER", "_CONCRETE", "_TERRACOTTA"]
+    category: BOIS
+    buy: 20
+    sell-enabled: false
+  - match: ["_BED"]
+    category: GUERRE
+    buy: 780
+    sell-enabled: false
+
+items:
+  # ── Blocs de base : infinis, jamais rachetés (générateur AFK = argent infini sinon) ──
+  DIRT: {category: BLOCS, buy: 2, sell-enabled: false}
+  SAND: {category: BLOCS, buy: 2, sell-enabled: false}
+  RED_SAND: {category: BLOCS, buy: 2, sell-enabled: false}
+  GRAVEL: {category: BLOCS, buy: 2, sell-enabled: false}
+  COBBLESTONE: {category: BLOCS, buy: 2, sell-enabled: false}
+  STONE: {category: BLOCS, buy: 2, sell-enabled: false}
+  NETHERRACK: {category: BLOCS, buy: 2, sell-enabled: false}
+  SANDSTONE: {category: BLOCS, buy: 3, sell-enabled: false}
+  GLASS: {category: BLOCS, buy: 10, sell-enabled: false}
+
+  # ── Minerais & métaux (buy V1 + légère baisse ~15–20% ; netherite ultra inchangé) ──
+  COAL: {category: MINERAIS, buy: 20, sell: 5}
+  COPPER_INGOT: {category: MINERAIS, buy: 28, sell: 7, daily-sell-cap: 1500}
+  IRON_INGOT: {category: MINERAIS, buy: 75, sell: 18, daily-sell-cap: 800}
+  GOLD_INGOT: {category: MINERAIS, buy: 115, sell: 28, daily-sell-cap: 500}
+  REDSTONE: {category: MINERAIS, buy: 28, sell: 6, daily-sell-cap: 3000}
+  LAPIS_LAZULI: {category: MINERAIS, buy: 45, sell: 10, daily-sell-cap: 2000}
+  QUARTZ: {category: MINERAIS, buy: 36, sell: 8, daily-sell-cap: 1500}
+  DIAMOND: {category: MINERAIS, buy: 1000, sell: 150, daily-sell-cap: 64}
+  EMERALD: {category: MINERAIS, buy: 1500, sell: 220, daily-sell-cap: 32}
+  # Netherite : sink endgame (×~8–×26 vs V1 minerais). 4 scrap shop > 1 ingot
+  # → préférer l'ingot ; bloc convenience tax vs 9 craft ; caps buy serrés.
+  NETHERITE_SCRAP: {category: MINERAIS, buy: 75000, sell: 500, daily-sell-cap: 8, daily-buy-cap: 8}
+  NETHERITE_INGOT: {category: MINERAIS, buy: 250000, sell: 1300, daily-sell-cap: 4, daily-buy-cap: 2}
+  NETHERITE_BLOCK: {category: MINERAIS, buy: 850000, sell: 8500, daily-buy-cap: 1}
+  ANCIENT_DEBRIS: {category: MINERAIS, buy: 120000, sell: 900, daily-sell-cap: 16, daily-buy-cap: 4}
+
+  # ── Nether & End ──
+  BLAZE_ROD: {category: NETHER_END, buy: 260, sell: 25, daily-sell-cap: 100}
+  ENDER_PEARL: {category: NETHER_END, buy: 240, sell: 30}
+  ENDER_EYE: {category: NETHER_END, buy: 420, sell-enabled: false}
+  CHORUS_FRUIT: {category: NETHER_END, buy: 24, sell: 1}
+  # End Crystal : item guerre PvP (crystal), sink élevé + plafond buy serré
+  END_CRYSTAL: {category: NETHER_END, buy: 100000, sell-enabled: false, daily-buy-cap: 8}
+  # Shulker : pas d'End → 300k–500k + caps (trophée Cantox, pas farm)
+  SHULKER_SHELL: {category: NETHER_END, buy: 350000, sell: 1800, daily-buy-cap: 4}
+  SHULKER_BOX: {category: NETHER_END, buy: 500000, sell: 3200, daily-buy-cap: 2}
+
+  # ── Agriculture & nourriture (revenu de base nouveaux joueurs/solo) ──
+  # Ventes farm / nourriture cuite plafonnées à 1 Cantox (anti-farm Cantox).
+  # Achats baissés ~20–25% après la hausse ×2 (ex. cultures 16→12).
+  WHEAT: {category: AGRICULTURE, buy: 12, sell: 1}
+  CARROT: {category: AGRICULTURE, buy: 12, sell: 1}
+  POTATO: {category: AGRICULTURE, buy: 12, sell: 1}
+  BEETROOT: {category: AGRICULTURE, buy: 12, sell: 1}
+  MELON_SLICE: {category: AGRICULTURE, buy: 12, sell: 1}
+  PUMPKIN: {category: AGRICULTURE, buy: 12, sell: 1}
+  SUGAR_CANE: {category: AGRICULTURE, buy: 12, sell: 1}
+  COCOA_BEANS: {category: AGRICULTURE, buy: 24, sell: 1}
+  NETHER_WART: {category: AGRICULTURE, buy: 32, sell: 1}
+  COOKED_BEEF: {category: AGRICULTURE, buy: 28, sell: 1}
+  COOKED_PORKCHOP: {category: AGRICULTURE, buy: 28, sell: 1}
+  COOKED_CHICKEN: {category: AGRICULTURE, buy: 28, sell: 1}
+  COOKED_MUTTON: {category: AGRICULTURE, buy: 28, sell: 1}
+  COOKED_RABBIT: {category: AGRICULTURE, buy: 28, sell: 1}
+  COOKED_COD: {category: AGRICULTURE, buy: 28, sell: 1}
+  COOKED_SALMON: {category: AGRICULTURE, buy: 28, sell: 1}
+  BREAD: {category: AGRICULTURE, buy: 20, sell-enabled: false}
+  GOLDEN_APPLE: {category: AGRICULTURE, buy: 75, sell-enabled: false}
+
+  # ── Drops de mobs & élevage (sell basiques → 1 Cantox max) ──
+  LEATHER: {category: MOB_DROPS, buy: 18, sell: 1}
+  FEATHER: {category: MOB_DROPS, buy: 18, sell: 1}
+  EGG: {category: MOB_DROPS, buy: 18, sell: 1}
+  STRING: {category: MOB_DROPS, buy: 18, sell: 1}
+  BONE: {category: MOB_DROPS, buy: 18, sell: 1}
+  GUNPOWDER: {category: MOB_DROPS, buy: 18, sell: 1}
+  PHANTOM_MEMBRANE: {category: MOB_DROPS, buy: 145, sell: 22}
+
+  # ── Redstone & mécanismes (achat seulement — jamais une source de farm) ──
+  REPEATER: {category: REDSTONE, buy: 40, sell-enabled: false}
+  COMPARATOR: {category: REDSTONE, buy: 48, sell-enabled: false}
+  PISTON: {category: REDSTONE, buy: 55, sell-enabled: false}
+  STICKY_PISTON: {category: REDSTONE, buy: 72, sell-enabled: false}
+  OBSERVER: {category: REDSTONE, buy: 88, sell-enabled: false}
+  DROPPER: {category: REDSTONE, buy: 64, sell-enabled: false}
+  DISPENSER: {category: REDSTONE, buy: 96, sell-enabled: false}
+  # HOPPER retiré de la vente (lag serveur si achat en masse). Ne pas réintroduire
+  # sans prix extrême + daily-buy-cap serré.
+  # HOPPER: {category: REDSTONE, buy: 140, sell-enabled: false}
+
+  # ── Guerre & PvP (cœur économique du sink de guerre) ──
+  TNT: {category: GUERRE, buy: 1320, sell-enabled: false}
+  OBSIDIAN: {category: GUERRE, buy: 5040, sell: 40, daily-sell-cap: 128}
+  ARROW: {category: GUERRE, buy: 60, sell-enabled: false}
+  SHIELD: {category: GUERRE, buy: 3480, sell-enabled: false}

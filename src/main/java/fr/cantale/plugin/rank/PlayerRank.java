@@ -6,7 +6,7 @@ public enum PlayerRank {
     AVENTURIER("Aventurier",2500,   0, 27,  0,  1,  5,  5),
     VIP("VIP",              10000,  1, 54,  0,  2, 10, 12),
     CHEVRE("Chèvre",        100000, 1, 54, 54,  3,999, 20),
-    MODERATOR("Modérateur", 100000, 1, 54, 54,  3,999, 20),
+    MODERATOR("Modo", 100000, 1, 54, 54,  3,999, 20),
     ADMIN("Admin",          100000, 1, 54, 54,  3,999, 20),
     OWNER("Owner",          100000, 1, 54, 54,  3,999, 20);
 

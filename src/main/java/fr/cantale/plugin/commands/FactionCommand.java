@@ -108,6 +108,22 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
             return;
         }
 
+        // Vérifications de zone AVANT création : impossible dans une zone protégée ou déjà claim
+        org.bukkit.Location loc = player.getLocation();
+        String world = loc.getWorld().getName();
+        int chunkX = loc.getBlockX() >> 4;
+        int chunkZ = loc.getBlockZ() >> 4;
+
+        if (!plugin.getSpawnProtection().canClaim(loc)) {
+            player.sendMessage(formatMessage("&cImpossible de créer une faction dans une zone protégée (spawn/warp)."));
+            return;
+        }
+
+        if (factionManager.getClaimAt(world, chunkX, chunkZ) != null) {
+            player.sendMessage(formatMessage("&cCe chunk est déjà claimé. Vous ne pouvez pas créer de faction ici."));
+            return;
+        }
+
         int minMembers = plugin.getConfigManager().getMinMembersCreate();
         // TODO: Vérifier qu'il y a assez de joueurs autour
 
@@ -121,22 +137,38 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
         }
 
         Faction faction = factionManager.createFaction(name, tag, "", player.getUniqueId());
-        if (faction != null) {
-            player.sendMessage(formatMessage("&aFaction &e" + name + " &acrée avec succès !"));
-            // Bridge Discord
-            if (plugin.getDiscordBot() != null && plugin.getDiscordBot().isConnected()) {
-                long ch = plugin.getDiscordBot().getConfig().getMcFactionsChannelId();
-                if (ch != 0L) {
-                    plugin.getDiscordBot().sendEmbedToChannel(
-                        ch,
-                        java.awt.Color.CYAN,
-                        "🏰 Nouvelle Faction",
-                        "**" + player.getName() + "** a créé la faction **" + name + "** [" + tag + "]"
-                    );
-                }
-            }
-        } else {
+        if (faction == null) {
             player.sendMessage(formatMessage("&cErreur lors de la création de la faction."));
+            return;
+        }
+
+        // Claim automatique du chunk courant
+        boolean claimed = factionManager.addClaim(faction.getId(), world, chunkX, chunkZ);
+
+        // Spawn de faction à la position actuelle (dans le claim fraîchement créé)
+        faction.setSpawnX(loc.getX());
+        faction.setSpawnY(loc.getY());
+        faction.setSpawnZ(loc.getZ());
+        faction.setSpawnWorld(world);
+        factionManager.saveFaction(faction);
+
+        player.sendMessage(formatMessage("&aFaction &e" + name + " &acrée avec succès !"));
+        if (claimed) {
+            player.sendMessage(formatMessage("&aChunk actuel claimé automatiquement."));
+        }
+        player.sendMessage(formatMessage("&aSpawn de faction défini à votre position."));
+
+        // Bridge Discord
+        if (plugin.getDiscordBot() != null && plugin.getDiscordBot().isConnected()) {
+            long ch = plugin.getDiscordBot().getConfig().getMcFactionsChannelId();
+            if (ch != 0L) {
+                plugin.getDiscordBot().sendEmbedToChannel(
+                    ch,
+                    java.awt.Color.CYAN,
+                    "🏰 Nouvelle Faction",
+                    "**" + player.getName() + "** a créé la faction **" + name + "** [" + tag + "]"
+                );
+            }
         }
     }
 
@@ -410,7 +442,8 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
         FactionRank current = faction.getMemberRank(targetUuid);
         FactionRank next = switch (current) {
             case RECRUIT -> FactionRank.MEMBER;
-            case MEMBER -> FactionRank.OFFICER;
+            case MEMBER -> FactionRank.VETERAN;
+            case VETERAN -> FactionRank.OFFICER;
             default -> null;
         };
         if (next == null) { player.sendMessage(formatMessage("&cImpossible de promouvoir davantage.")); return; }
@@ -430,7 +463,8 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
         if (!faction.isMember(targetUuid)) { player.sendMessage(formatMessage("&cMembre introuvable.")); return; }
         FactionRank current = faction.getMemberRank(targetUuid);
         FactionRank prev = switch (current) {
-            case OFFICER -> FactionRank.MEMBER;
+            case OFFICER -> FactionRank.VETERAN;
+            case VETERAN -> FactionRank.MEMBER;
             case MEMBER -> FactionRank.RECRUIT;
             default -> null;
         };
@@ -689,7 +723,7 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
             return;
         }
 
-        if (faction.getSpawnX() == null) {
+        if (faction.getSpawnX() == null || faction.getSpawnWorld() == null) {
             player.sendMessage(formatMessage("&cVotre faction n'a pas de spawn défini. Utilisez /f setspawn dans un claim."));
             return;
         }
@@ -713,7 +747,7 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
             return;
         }
 
-        if (faction.getSpawnX() == null) {
+        if (faction.getSpawnX() == null || faction.getSpawnWorld() == null) {
             player.sendMessage(formatMessage("&cVotre faction n'a pas de spawn défini. Utilisez /f setspawn dans un claim."));
             return;
         }

@@ -48,6 +48,26 @@ public class GuildReadyListener extends ListenerAdapter {
             verificationListener.sendVerificationPanel(guild);
         }
 
+        // Même logique pour le panel "Accepter le règlement" dans le salon règles
+        if (verificationListener != null) {
+            TextChannel rules = guild.getTextChannelById(config.getRulesChannelId());
+            if (rules != null) {
+                long botId = event.getJDA().getSelfUser().getIdLong();
+                rules.getHistory().retrievePast(20).queue(messages -> {
+                    for (Message msg : messages) {
+                        if (msg.getAuthor().getIdLong() == botId && !msg.getEmbeds().isEmpty()) {
+                            String title = msg.getEmbeds().get(0).getTitle();
+                            if (title != null && title.contains("Acceptation du règlement")) {
+                                msg.delete().queue();
+                                break;
+                            }
+                        }
+                    }
+                    verificationListener.sendRulesPanel(guild);
+                });
+            }
+        }
+
         // Setup du menu de sélection de rôles
         RoleSelectionListener roleListener = new RoleSelectionListener(config);
         roleListener.setupRoleMenu(guild);

@@ -31,6 +31,11 @@ public class RecolteCommand implements CommandExecutor {
             return true;
         }
 
+        String title = manager.getEventTitle();
+        if (title != null && !title.isBlank()) {
+            player.sendMessage(ChatColor.translateAlternateColorCodes('&',
+                    "&8[&6Récolte&8] &7Événement : &e" + title));
+        }
         new HarvestDepositUI(plugin, player, manager).open();
         return true;
     }

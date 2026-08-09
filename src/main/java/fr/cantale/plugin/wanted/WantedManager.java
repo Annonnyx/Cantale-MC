@@ -148,16 +148,20 @@ public class WantedManager {
 
         String tierLabel = getTierLabel(tier);
         String desc = "**Cible:** " + targetName + "\n**Prime ajoutée:** " + String.format("%.0f", reward) + " Cantox\n**Total:** " + String.format("%.0f", total) + " Cantox\n**Raison:** " + reason + "\n**Palier:** " + tierLabel;
-        if (tier >= 2) desc += "\n\n<@&1504909846288535705>";
 
-        plugin.getDiscordBot().sendEmbedToChannel(ch, java.awt.Color.RED, "🎯 Nouvelle Prime", desc);
+        long pingRoleId = plugin.getDiscordBot().getConfig().getWantedPingRoleId();
+        String content = pingRoleId > 0 ? "<@&" + pingRoleId + "> **Nouvelle prime Wanted !**" : null;
+
+        plugin.getDiscordBot().sendEmbedToChannel(ch, java.awt.Color.RED, "🎯 Nouvelle Prime", desc, content);
     }
 
+    /**
+     * Retire toutes les primes actives d'un joueur. La raison est optionnelle
+     * (utilisée uniquement pour le message broadcast).
+     */
     public boolean removeWanted(Player target, String reason) {
         List<Wanted> toRemove = activeWanted.stream()
-                .filter(w -> w.getTargetUuid().equals(target.getUniqueId())
-                        && w.isActive()
-                        && w.getReason().equalsIgnoreCase(reason))
+                .filter(w -> w.getTargetUuid().equals(target.getUniqueId()) && w.isActive())
                 .toList();
 
         if (toRemove.isEmpty()) {
@@ -176,7 +180,8 @@ public class WantedManager {
         for (Wanted w : toRemove) {
             plugin.getEconomyManager().addBalance(w.getIssuerUuid(), w.getReward());
         }
-        Bukkit.broadcastMessage("§8[§cWANTED§8] §e" + target.getName() + " §7n'est plus recherché pour : §e" + reason + " §7(§6" + String.format("%.0f", totalRefund) + " Cantox §7remboursés)");
+        String suffix = reason != null && !reason.isBlank() ? " §7(§e" + reason + "§7)" : "";
+        Bukkit.broadcastMessage("§8[§cWANTED§8] §e" + target.getName() + " §7n'est plus recherché" + suffix + " §7— §6" + String.format("%.0f", totalRefund) + " Cantox §7remboursés");
         return true;
     }
 }

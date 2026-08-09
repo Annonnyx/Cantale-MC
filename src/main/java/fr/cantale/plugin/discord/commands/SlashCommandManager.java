@@ -19,6 +19,7 @@ import net.dv8tion.jda.api.interactions.commands.DefaultMemberPermissions;
 import net.dv8tion.jda.api.interactions.commands.OptionType;
 import net.dv8tion.jda.api.interactions.commands.build.Commands;
 import net.dv8tion.jda.api.interactions.commands.build.OptionData;
+import net.dv8tion.jda.api.interactions.commands.build.SubcommandData;
 import net.dv8tion.jda.api.interactions.components.ActionRow;
 import net.dv8tion.jda.api.interactions.components.text.TextInput;
 import net.dv8tion.jda.api.interactions.components.text.TextInputStyle;
@@ -48,6 +49,7 @@ public class SlashCommandManager extends ListenerAdapter {
     private final FaqCore faqCore;
     private final fr.cantale.plugin.discord.commands.GiveawayManager giveawayManager;
     private fr.cantale.plugin.discord.listeners.ModConfigPanelListener modConfigPanel;
+    private fr.cantale.plugin.discord.listeners.VerificationListener verificationListener;
 
     public SlashCommandManager(CantalePlugin plugin, DiscordConfig config, FaqCore faqCore) {
         this.plugin = plugin;
@@ -58,6 +60,10 @@ public class SlashCommandManager extends ListenerAdapter {
 
     public void setModConfigPanel(fr.cantale.plugin.discord.listeners.ModConfigPanelListener panel) {
         this.modConfigPanel = panel;
+    }
+
+    public void setVerificationListener(fr.cantale.plugin.discord.listeners.VerificationListener listener) {
+        this.verificationListener = listener;
     }
 
     public void register(Guild guild) {
@@ -191,6 +197,10 @@ public class SlashCommandManager extends ListenerAdapter {
             Commands.slash("modconfig", "Ouvrir le panel de configuration de la modération Discord")
                 .setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.MODERATE_MEMBERS)),
 
+            Commands.slash("rules", "Gérer le panel d'acceptation du règlement")
+                .addSubcommands(new SubcommandData("setup", "Poster le panel d'acceptation dans le salon règles"))
+                .setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.MANAGE_CHANNEL)),
+
             Commands.slash("msg", "Envoyer un message en jeu à un joueur Minecraft")
                 .addOption(OptionType.STRING, "joueur", "Pseudo du joueur Minecraft", true)
                 .addOption(OptionType.STRING, "message", "Message à envoyer", true)
@@ -249,6 +259,7 @@ public class SlashCommandManager extends ListenerAdapter {
                 if (modConfigPanel != null) modConfigPanel.openPanel(event);
                 else event.reply("❌ Panel non initialisé.").setEphemeral(true).queue();
             }
+            case "rules" -> handleRules(event, member);
             case "partenariat" -> handlePartenariat(event, member);
             case "msg" -> handleMsg(event, member);
             case "daily", "journalier" -> handleDaily(event, member);
@@ -268,6 +279,27 @@ public class SlashCommandManager extends ListenerAdapter {
         if (member == null) return false;
         if (isOwner(member)) return true;
         return member.getRoles().stream().anyMatch(r -> config.getStaffRoleIds().contains(r.getIdLong()));
+    }
+
+    private void handleRules(SlashCommandInteractionEvent event, Member member) {
+        if (!isStaff(member)) {
+            event.reply("❌ Cette commande est réservée au staff.").setEphemeral(true).queue();
+            return;
+        }
+        if (!"setup".equals(event.getSubcommandName())) {
+            event.reply("❌ Sous-commande inconnue.").setEphemeral(true).queue();
+            return;
+        }
+        if (verificationListener == null) {
+            event.reply("❌ Listener de vérification non initialisé.").setEphemeral(true).queue();
+            return;
+        }
+        Guild guild = event.getGuild();
+        if (guild == null) return;
+
+        verificationListener.sendRulesPanel(guild);
+        event.reply("✅ Panel d'acceptation du règlement envoyé dans <#" + config.getRulesChannelId() + ">.")
+            .setEphemeral(true).queue();
     }
 
     private void handleFaqAdmin(SlashCommandInteractionEvent event, Member member) {
@@ -454,20 +486,21 @@ public class SlashCommandManager extends ListenerAdapter {
         long forumId = config.getPartnershipsChannelId();
         long partnerRoleId = config.getPartnerRoleId();
 
+        String formatted = formatAnnounceMessage(message);
+
         // Send announcement with role mention
         TextChannel announce = guild.getTextChannelById(announceChannelId);
         if (announce != null) {
-            EmbedBuilder announceEmbed = cantaleAnnounceEmbed(guild, "Partenariat", message, moderator, "Publié par");
-            announce.sendMessage("<@&" + pingRoleId + "> **Nouveau partenariat Cantale !**")
-                .setEmbeds(announceEmbed.build()).queue();
+            announce.sendMessage("<@&" + pingRoleId + "> **Nouveau partenariat Cantale !**\n\n" + formatted).queue();
         }
 
         // Create forum post (if forum channel exists)
         try {
             var forum = guild.getForumChannelById(forumId);
             if (forum != null) {
-                EmbedBuilder forumEmbed = cantaleAnnounceEmbed(guild, "Partenariat", message, moderator, "Publié par");
-                var msgData = new net.dv8tion.jda.api.utils.messages.MessageCreateBuilder().setEmbeds(forumEmbed.build()).build();
+                var msgData = new net.dv8tion.jda.api.utils.messages.MessageCreateBuilder()
+                    .setContent("**" + titre + "**\n\n" + formatted)
+                    .build();
                 forum.createForumPost(titre, msgData).queue();
             }
         } catch (Exception ignored) {}
@@ -854,6 +887,7 @@ public class SlashCommandManager extends ListenerAdapter {
                     return;
                 }
 
+                final String finalUuid = uuid;
                 final String finalStoredName = storedName;
                 if (finalStoredName != null && !finalStoredName.equalsIgnoreCase(pseudo)) {
                     org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> event.reply(
@@ -903,6 +937,18 @@ public class SlashCommandManager extends ListenerAdapter {
                             );
                         }
                     }
+
+                    try {
+                        java.util.UUID playerUuid = java.util.UUID.fromString(finalUuid);
+                        boolean inFaction = plugin.getFactionManager() != null
+                            && plugin.getFactionManager().getPlayerFaction(playerUuid) != null;
+                        if (plugin.getDiscordBot() != null && plugin.getDiscordBot().isConnected()) {
+                            plugin.getDiscordBot().syncFactionRoleForPlayer(playerUuid, inFaction);
+                        }
+                    } catch (IllegalArgumentException ignored) {
+                        // UUID invalide côté DB : on garde la liaison mais on ignore la sync faction.
+                    }
+
                     event.reply("✅ Compte lié avec succès ! Le rôle <@&1504909677786300577> t'a été attribué.").setEphemeral(true).queue();
                 });
 
@@ -1148,27 +1194,15 @@ public class SlashCommandManager extends ListenerAdapter {
     }
 
     /**
-     * Embed unifié pour toutes les commandes d'annonce (annonce, mise à jour, tournoi,
-     * événement, partenariat) — même couleur, même style de titre, même footer,
-     * pour que tous les messages publics du bot aient un aspect cohérent.
+     * Mise en forme commune des commandes d'annonce (annonce, mise à jour, tournoi,
+     * événement, partenariat), désormais envoyées en texte brut plutôt qu'en embed.
+     * Le champ STRING d'une slash command est un champ mono-ligne : Entrée envoie la
+     * commande au lieu d'insérer un saut de ligne. Le staff tape donc "\n" à la main
+     * pour aérer son texte — sans cette conversion, ça s'afficherait littéralement
+     * comme "\n" au lieu d'un vrai retour à la ligne.
      */
-    private EmbedBuilder cantaleAnnounceEmbed(Guild guild, String typeLabel, String message, Member author, String footerVerb) {
-        // Le champ STRING d'une slash command est un champ mono-ligne : Entrée envoie la
-        // commande au lieu d'insérer un saut de ligne. Le staff tape donc "\n" à la main
-        // pour aérer son texte — sans cette conversion, ça s'affichait littéralement comme
-        // "\n" dans l'embed au lieu d'un vrai retour à la ligne.
-        String formatted = message.replace("\\n", "\n");
-
-        EmbedBuilder embed = new EmbedBuilder()
-            .setColor(new Color(0x1A1A1A))
-            .setTitle("⬡ " + typeLabel.toUpperCase() + " ⬡")
-            .setDescription(formatted)
-            .setFooter("Cantale Network · " + footerVerb + " " + author.getEffectiveName(), author.getEffectiveAvatarUrl())
-            .setTimestamp(Instant.now());
-        if (guild != null && guild.getIconUrl() != null) {
-            embed.setThumbnail(guild.getIconUrl());
-        }
-        return embed;
+    private String formatAnnounceMessage(String message) {
+        return message.replace("\\n", "\n");
     }
 
     private void handleAnnonce(SlashCommandInteractionEvent event, Member member) {
@@ -1196,10 +1230,7 @@ public class SlashCommandManager extends ListenerAdapter {
         long pingRoleId = config.getAnnouncementsPingRoleId();
         String ping = pingRoleId > 0 ? "<@&" + pingRoleId + "> " : "";
 
-        EmbedBuilder embed = cantaleAnnounceEmbed(event.getGuild(), "Annonce", message, member, "Publié par");
-
-        channel.sendMessage(ping + "**Nouvelle annonce du serveur Cantale !**")
-            .setEmbeds(embed.build()).queue();
+        channel.sendMessage(ping + "**Nouvelle annonce du serveur Cantale !**\n\n" + formatAnnounceMessage(message)).queue();
 
         event.reply("✅ Annonce publiée dans " + channel.getAsMention()).setEphemeral(true).queue();
     }
@@ -1229,10 +1260,7 @@ public class SlashCommandManager extends ListenerAdapter {
         long pingRoleId = config.getUpdatePingRoleId();
         String ping = pingRoleId > 0 ? "<@&" + pingRoleId + "> " : "";
 
-        EmbedBuilder embed = cantaleAnnounceEmbed(event.getGuild(), "Mise à jour", message, member, "Publié par");
-
-        channel.sendMessage(ping + "**Nouvelle mise à jour du serveur !**")
-            .setEmbeds(embed.build()).queue();
+        channel.sendMessage(ping + "**Nouvelle mise à jour du serveur !**\n\n" + formatAnnounceMessage(message)).queue();
 
         event.reply("✅ Mise à jour publiée dans " + channel.getAsMention()).setEphemeral(true).queue();
     }
@@ -1262,10 +1290,7 @@ public class SlashCommandManager extends ListenerAdapter {
         long pingRoleId = config.getTournamentPingRoleId();
         String ping = pingRoleId > 0 ? "<@&" + pingRoleId + "> " : "";
 
-        EmbedBuilder embed = cantaleAnnounceEmbed(event.getGuild(), "Tournoi", message, member, "Organisé par");
-
-        channel.sendMessage(ping + "**Un tournoi est organisé sur Cantale !**")
-            .setEmbeds(embed.build()).queue();
+        channel.sendMessage(ping + "**Un tournoi est organisé sur Cantale !**\n\n" + formatAnnounceMessage(message)).queue();
 
         event.reply("✅ Tournoi annoncé dans " + channel.getAsMention()).setEphemeral(true).queue();
     }
@@ -1296,10 +1321,7 @@ public class SlashCommandManager extends ListenerAdapter {
         long pingRoleId = config.getEventPingRoleId();
         String ping = pingRoleId > 0 ? "<@&" + pingRoleId + "> " : "";
 
-        EmbedBuilder embed = cantaleAnnounceEmbed(event.getGuild(), "Événement", message, member, "Organisé par");
-
-        channel.sendMessage(ping + "**Un événement a lieu sur Cantale !**")
-            .setEmbeds(embed.build()).queue();
+        channel.sendMessage(ping + "**Un événement a lieu sur Cantale !**\n\n" + formatAnnounceMessage(message)).queue();
 
         event.reply("✅ Événement annoncé dans " + channel.getAsMention()).setEphemeral(true).queue();
     }

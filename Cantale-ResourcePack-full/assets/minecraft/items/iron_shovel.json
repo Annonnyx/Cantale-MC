@@ -1,0 +1,12 @@
+{
+  "model": {
+    "type": "minecraft:range_dispatch",
+    "property": "minecraft:custom_model_data",
+    "index": 0,
+    "fallback": { "type": "minecraft:model", "model": "minecraft:item/iron_shovel" },
+    "entries": [
+      { "threshold": 3001, "model": { "type": "minecraft:model", "model": "cantale:item/multicantool_iron_1x1" } },
+      { "threshold": 3002, "model": { "type": "minecraft:model", "model": "cantale:item/multicantool_iron" } }
+    ]
+  }
+}

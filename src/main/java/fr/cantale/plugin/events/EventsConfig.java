@@ -42,6 +42,10 @@ public class EventsConfig {
     private int factionDurationMinutes = 60;
     private int factionStartHour = 14;
     private int factionEndHour = 22;
+    /** Heures mini entre la fin d'un event et le début du suivant. */
+    private int factionMinHoursBetween = 8;
+    /** 0 = pas de limite ; 1 = au plus un event par jour civil. */
+    private int factionMaxEventsPerDay = 1;
     private List<FactionEventType> factionTypes = new ArrayList<>();
     private int harvestPointsPerItem = 1;
     private int miningPointsPerOre = 1;
@@ -61,6 +65,10 @@ public class EventsConfig {
     private int weeklyEndHour = 21;
     private List<CrateType> weeklyKeyTypes = new ArrayList<>();
 
+    // Player info boss bar
+    private boolean bossBarEnabled = true;
+    private int bossBarIntervalSeconds = 5;
+
     public EventsConfig(CantalePlugin plugin) {
         this.plugin = plugin;
     }
@@ -73,6 +81,7 @@ public class EventsConfig {
         loadChat(yaml.getConfigurationSection("chat-reactions"));
         loadFaction(yaml.getConfigurationSection("faction-events"));
         loadWeekly(yaml.getConfigurationSection("weekly-key-drop"));
+        loadBossBar(yaml.getConfigurationSection("player-info-bossbar"));
     }
 
     private void loadChat(ConfigurationSection section) {
@@ -135,9 +144,14 @@ public class EventsConfig {
         factionEnabled = section.getBoolean("enabled", true);
         factionPerWeekMin = section.getInt("events-per-week-min", 3);
         factionPerWeekMax = section.getInt("events-per-week-max", 4);
-        factionDurationMinutes = section.getInt("duration-minutes", 60);
+        if (factionPerWeekMax < factionPerWeekMin) {
+            factionPerWeekMax = factionPerWeekMin;
+        }
+        factionDurationMinutes = Math.max(1, section.getInt("duration-minutes", 60));
         factionStartHour = section.getInt("start-hour", 14);
         factionEndHour = section.getInt("end-hour", 22);
+        factionMinHoursBetween = Math.max(0, section.getInt("min-hours-between-events", 8));
+        factionMaxEventsPerDay = Math.max(0, section.getInt("max-events-per-day", 1));
 
         for (String typeName : section.getStringList("types")) {
             try {
@@ -248,6 +262,8 @@ public class EventsConfig {
     public int getFactionDurationMinutes() { return factionDurationMinutes; }
     public int getFactionStartHour() { return factionStartHour; }
     public int getFactionEndHour() { return factionEndHour; }
+    public int getFactionMinHoursBetween() { return factionMinHoursBetween; }
+    public int getFactionMaxEventsPerDay() { return factionMaxEventsPerDay; }
     public List<FactionEventType> getFactionTypes() { return Collections.unmodifiableList(factionTypes); }
     public int getHarvestPointsPerItem() { return harvestPointsPerItem; }
     public int getMiningPointsPerOre() { return miningPointsPerOre; }
@@ -256,6 +272,16 @@ public class EventsConfig {
     public List<Material> getMiningOres() { return Collections.unmodifiableList(miningOres); }
     public List<Integer> getRewardPower() { return Collections.unmodifiableList(rewardPower); }
     public List<Integer> getRewardCantox() { return Collections.unmodifiableList(rewardCantox); }
+
+    private void loadBossBar(ConfigurationSection section) {
+        if (section == null) {
+            bossBarEnabled = true;
+            bossBarIntervalSeconds = 5;
+            return;
+        }
+        bossBarEnabled = section.getBoolean("enabled", true);
+        bossBarIntervalSeconds = Math.max(2, section.getInt("interval-seconds", 5));
+    }
 
     // --- Getters weekly ---
     public boolean isWeeklyEnabled() { return weeklyEnabled; }
@@ -266,4 +292,8 @@ public class EventsConfig {
     public int getWeeklyStartHour() { return weeklyStartHour; }
     public int getWeeklyEndHour() { return weeklyEndHour; }
     public List<CrateType> getWeeklyKeyTypes() { return Collections.unmodifiableList(weeklyKeyTypes); }
+
+    // --- Getters boss bar ---
+    public boolean isBossBarEnabled() { return bossBarEnabled; }
+    public int getBossBarIntervalSeconds() { return bossBarIntervalSeconds; }
 }

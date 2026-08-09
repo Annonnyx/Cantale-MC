@@ -17,6 +17,7 @@ import fr.cantale.plugin.teleport.HomeManager;
 import fr.cantale.plugin.teleport.WarpManager;
 import fr.cantale.plugin.listeners.ClaimListener;
 import fr.cantale.plugin.listeners.PlayerListener;
+import fr.cantale.plugin.listeners.ResourcePackStatusListener;
 import fr.cantale.plugin.listeners.ChatListener;
 import fr.cantale.plugin.listeners.AfkListener;
 import fr.cantale.plugin.discord.DiscordBot;
@@ -126,6 +127,7 @@ public class CantalePlugin extends JavaPlugin {
     private fr.cantale.plugin.combat.CombatTagManager combatTagManager;
     private fr.cantale.plugin.shop.ShopManager shopManager;
     private fr.cantale.plugin.events.EventSystemsManager eventSystemsManager;
+    private fr.cantale.plugin.ui.bossbar.RotatingBossBarManager rotatingBossBarManager;
 
     @Override
     public void onEnable() {
@@ -356,6 +358,7 @@ public class CantalePlugin extends JavaPlugin {
         // Systèmes d'événements (chat reactions, faction events, weekly key)
         saveResource("events.yml", false);
         this.eventSystemsManager = new fr.cantale.plugin.events.EventSystemsManager(this);
+        this.rotatingBossBarManager = new fr.cantale.plugin.ui.bossbar.RotatingBossBarManager(this);
 
         // Démarrer le bot Discord (envoie le message de startup automatiquement une fois connecté)
         DiscordConfig discordConfig = new DiscordConfig(this);
@@ -366,7 +369,7 @@ public class CantalePlugin extends JavaPlugin {
         registerListeners();
         registerPluginMessageChannels();
 
-        // Démarrer ClearLag (toutes les secondes, clear toutes les 5 minutes)
+        // Démarrer ClearLag (tick/seconde, clear toutes les 3 minutes, countdown dès T-30s)
         this.clearLagTask = new ClearLagTask(this);
         this.clearLagTask.runTaskTimer(this, 20L, 20L);
 
@@ -382,11 +385,17 @@ public class CantalePlugin extends JavaPlugin {
         // Démarrer les planificateurs d'événements
         this.eventSystemsManager.start();
 
+        // BossBar infos joueur (rotation)
+        this.rotatingBossBarManager.start();
+
         getLogger().info("Cantale v" + getDescription().getVersion() + " activé avec succès !");
     }
 
     @Override
     public void onDisable() {
+        if (rotatingBossBarManager != null) {
+            rotatingBossBarManager.stop();
+        }
         if (eventSystemsManager != null) {
             eventSystemsManager.stop();
         }
@@ -450,7 +459,9 @@ public class CantalePlugin extends JavaPlugin {
         getCommand("day").setExecutor(new DayCommand(this));
         getCommand("daily").setExecutor(new fr.cantale.plugin.commands.DailyCommand(this));
         getCommand("bvn").setExecutor(welcomeCommand);
-        getCommand("crate").setExecutor(new fr.cantale.plugin.commands.CrateCommand(this));
+        fr.cantale.plugin.commands.CrateCommand crateCommand = new fr.cantale.plugin.commands.CrateCommand(this);
+        getCommand("crate").setExecutor(crateCommand);
+        getCommand("crate").setTabCompleter(crateCommand);
         getCommand("profile").setExecutor(new ProfileCommand(this));
         getCommand("listemorts").setExecutor(new ListCommand(this));
         getCommand("vote").setExecutor(new fr.cantale.plugin.commands.VoteCommand(this));
@@ -470,11 +481,14 @@ public class CantalePlugin extends JavaPlugin {
         getCommand("shop").setExecutor(new fr.cantale.plugin.commands.ShopCommand(this));
         getCommand("shop").setTabCompleter(new fr.cantale.plugin.commands.ShopCommand(this));
         getCommand("recolte").setExecutor(new fr.cantale.plugin.commands.RecolteCommand(this));
+        getCommand("feed").setExecutor(new fr.cantale.plugin.commands.FeedCommand(this));
+        getCommand("db").setExecutor(new fr.cantale.plugin.commands.DbCommand(this));
     }
 
     private void registerListeners() {
         getServer().getPluginManager().registerEvents(new ClaimListener(this), this);
         getServer().getPluginManager().registerEvents(new PlayerListener(this), this);
+        getServer().getPluginManager().registerEvents(new ResourcePackStatusListener(this), this);
         getServer().getPluginManager().registerEvents(new ChatListener(this), this);
         getServer().getPluginManager().registerEvents(afkListener, this);
         getServer().getPluginManager().registerEvents(new CustomItemListener(this), this);
@@ -503,6 +517,9 @@ public class CantalePlugin extends JavaPlugin {
                     new fr.cantale.plugin.events.ChatReactionListener(eventSystemsManager.getChatReactionManager()), this);
             getServer().getPluginManager().registerEvents(
                     new fr.cantale.plugin.events.FactionEventListener(eventSystemsManager.getFactionEventManager()), this);
+        }
+        if (rotatingBossBarManager != null) {
+            getServer().getPluginManager().registerEvents(rotatingBossBarManager, this);
         }
     }
 
@@ -727,5 +744,9 @@ public class CantalePlugin extends JavaPlugin {
 
     public fr.cantale.plugin.combat.CombatTagManager getCombatTagManager() {
         return combatTagManager;
+    }
+
+    public fr.cantale.plugin.ui.bossbar.RotatingBossBarManager getRotatingBossBarManager() {
+        return rotatingBossBarManager;
     }
 }

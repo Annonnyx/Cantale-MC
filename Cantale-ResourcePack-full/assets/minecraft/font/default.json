@@ -6,14 +6,14 @@
     },
     {
       "type": "bitmap",
-      "file": "minecraft:textures/gui/sprites/hud/cantale_life_full.png",
+      "file": "minecraft:gui/sprites/hud/cantale_life_full.png",
       "ascent": 8,
       "height": 9,
       "chars": ["\uE000"]
     },
     {
       "type": "bitmap",
-      "file": "minecraft:textures/gui/sprites/hud/cantale_life_empty.png",
+      "file": "minecraft:gui/sprites/hud/cantale_life_empty.png",
       "ascent": 8,
       "height": 9,
       "chars": ["\uE001"]

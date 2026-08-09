@@ -117,6 +117,43 @@ public class LeaderboardManager {
         return entries;
     }
 
+    /** Classement factions par pouvoir (décroissant). */
+    public List<FactionLeaderboardEntry> getTopFactionsByPower(int limit) {
+        List<FactionLeaderboardEntry> entries = new ArrayList<>();
+        String sql = "SELECT name, balance, power FROM factions ORDER BY power DESC LIMIT ?";
+
+        try (Connection conn = databaseManager.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setInt(1, limit);
+            ResultSet rs = stmt.executeQuery();
+
+            int rank = 1;
+            while (rs.next()) {
+                entries.add(new FactionLeaderboardEntry(
+                    rank++,
+                    rs.getString("name"),
+                    (int) rs.getDouble("balance"),
+                    rs.getInt("power")
+                ));
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().severe("Erreur classement factions (power) : " + e.getMessage());
+        }
+
+        return entries;
+    }
+
+    /** Rang au classement pouvoir (1 = première), ou -1 si faction inconnue. */
+    public int getFactionPowerRank(String factionName) {
+        if (factionName == null || factionName.isBlank()) return -1;
+        for (FactionLeaderboardEntry entry : getTopFactionsByPower(500)) {
+            if (entry.getName().equalsIgnoreCase(factionName)) {
+                return entry.getRank();
+            }
+        }
+        return -1;
+    }
+
     public List<LeaderboardEntry> getTopChatReactions(int limit) {
         List<LeaderboardEntry> entries = new ArrayList<>();
         String sql = "SELECT username, chat_reactions FROM players ORDER BY chat_reactions DESC LIMIT ?";

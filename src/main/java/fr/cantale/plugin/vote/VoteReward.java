@@ -5,8 +5,8 @@ import org.bukkit.inventory.ItemStack;
 import java.util.List;
 
 /**
- * Récompense unique attribuée à un vote.
- * Contient l'argent (Cantox) + les items à donner + un libellé pour l'affichage.
+ * Récompense de vote : Cadeau(x) du Roi (items) + libellé d'affichage.
+ * Le champ {@link Tier} est conservé pour compatibilité BDD (valeur ignorée côté messages).
  */
 public class VoteReward {
 

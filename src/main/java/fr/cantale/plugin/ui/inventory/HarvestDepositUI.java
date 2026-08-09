@@ -1,6 +1,7 @@
 package fr.cantale.plugin.ui.inventory;
 
 import fr.cantale.plugin.CantalePlugin;
+import fr.cantale.plugin.events.EventMaterialLabels;
 import fr.cantale.plugin.events.FactionEventManager;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
@@ -34,20 +35,27 @@ public class HarvestDepositUI implements Listener {
         this.plugin = plugin;
         this.player = player;
         this.factionEventManager = factionEventManager;
-        this.title = ChatColor.translateAlternateColorCodes('&', "&8[&6Récolte&8] &7Déposer");
+        Material target = factionEventManager.getActiveTarget();
+        String label = target != null ? EventMaterialLabels.french(target) : "récolte";
+        this.title = ChatColor.translateAlternateColorCodes('&',
+                "&8[&6Récolte&8] &e" + label);
         this.inventory = Bukkit.createInventory(null, 36, title);
     }
 
     public void open() {
+        Material target = factionEventManager.getActiveTarget();
+        String label = target != null ? EventMaterialLabels.french(target) : "récolte";
+        Material icon = target != null ? target : Material.WHEAT;
+
         for (int i = 27; i < 36; i++) {
             inventory.setItem(i, pane(Material.GRAY_STAINED_GLASS_PANE, " "));
         }
         inventory.setItem(30, pane(Material.LIME_CONCRETE, "§a§lDéposer",
-                "§7Convertit tes récoltes en points faction."));
+                "§7Convertit le " + label + " en points faction."));
         inventory.setItem(32, pane(Material.RED_CONCRETE, "§c§lAnnuler",
                 "§7Ferme et te rend les items."));
-        inventory.setItem(31, pane(Material.WHEAT, "§e§lRécolte",
-                "§7Place blé, carottes, pommes de terre…"));
+        inventory.setItem(31, pane(icon, "§e§l" + label,
+                "§7Place uniquement du " + label + "."));
 
         Bukkit.getPluginManager().registerEvents(this, plugin);
         player.openInventory(inventory);

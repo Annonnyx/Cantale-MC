@@ -16,7 +16,9 @@ import org.bukkit.plugin.PluginManager;
 
 import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 
 /**
@@ -28,7 +30,7 @@ import java.util.UUID;
  *  - Sinon, on logue un avertissement et le système devient passif (commandes /vote
  *    fonctionnent toujours mais aucun vote ne sera reçu).
  *
- * Si le joueur est en ligne : récompense immédiate.
+ * Si le joueur est en ligne : récompense immédiate (Cadeau(x) du Roi).
  * Sinon : vote stocké en pending, délivré à la prochaine connexion via {@link #onJoin}.
  */
 public class VoteListener implements Listener {
@@ -39,14 +41,13 @@ public class VoteListener implements Listener {
     private final VoteDAO voteDAO;
     private final VoteRewardManager rewardManager;
     private final VotePartyManager partyManager;
-    private final VoteReminder reminder;
 
     public VoteListener(CantalePlugin plugin) {
         this.plugin = plugin;
         this.voteDAO = plugin.getVoteDAO();
         this.rewardManager = plugin.getVoteRewardManager();
         this.partyManager = new VotePartyManager(plugin);
-        this.reminder = new VoteReminder(plugin);
+        new VoteReminder(plugin); // démarre le scheduler de rappels si activé
         VoteMonthlyManager.onStartup(plugin);
     }
 
@@ -62,7 +63,6 @@ public class VoteListener implements Listener {
             return false;
         }
 
-        // Caster en Class<? extends Event>
         if (!Event.class.isAssignableFrom(votifierEventClass)) {
             plugin.getLogger().warning("[Vote] La classe " + VOTIFIER_EVENT_CLASS + " ne dérive pas de Event ?!");
             return false;
@@ -86,7 +86,6 @@ public class VoteListener implements Listener {
 
     /**
      * Charge la classe VotifierEvent en utilisant le classloader du plugin NuVotifier/Votifier.
-     * C'est nécessaire car Bukkit isole les classloaders entre plugins.
      */
     private Class<?> loadVotifierEventClass() {
         PluginManager pm = Bukkit.getPluginManager();
@@ -106,7 +105,6 @@ public class VoteListener implements Listener {
             }
         }
 
-        // Fallback si le plugin n'est pas encore chargé dans le PluginManager
         try {
             return Class.forName(VOTIFIER_EVENT_CLASS);
         } catch (ClassNotFoundException ignored) {
@@ -114,11 +112,6 @@ public class VoteListener implements Listener {
         }
     }
 
-    /**
-     * Reçoit un VotifierEvent en tant qu'objet générique et extrait via réflexion :
-     *  - getVote() → Vote
-     *  - vote.getUsername() / getServiceName() / getAddress()
-     */
     private void handleVotifierEvent(Event event) {
         plugin.getLogger().info("[Vote] VotifierEvent reçu : " + event.getClass().getName());
         try {
@@ -171,9 +164,17 @@ public class VoteListener implements Listener {
         }
 
         VoteSite voteSite = resolveSite(site);
+        String siteLabel = voteSite != null ? voteSite.displayName() : site;
 
-        // Anti-abuse : vérifier le cooldown IP pour ce site
-        if (voteSite != null && voteDAO.hasRecentVoteFromIp(address, voteSite, plugin.getConfig().getInt("vote.ip-cooldown-hours", 1))) {
+        if (voteSite == null) {
+            plugin.getLogger().warning("[Vote] Site Votifier non reconnu : \"" + site
+                    + "\" — fallback 1× Cadeau du Roi. Vérifie le serviceName NuVotifier / config vote.sites.");
+        }
+
+        // Anti-abuse : vérifier le cooldown IP pour ce site (ou clé brute si site inconnu)
+        VoteSite cooldownKey = voteSite != null ? voteSite : new VoteSite(site, "", 1);
+        if (address != null && !address.isBlank()
+                && voteDAO.hasRecentVoteFromIp(address, cooldownKey, plugin.getConfig().getInt("vote.ip-cooldown-hours", 1))) {
             plugin.getLogger().info("[Vote] Vote ignoré pour " + resolvedName + " sur " + site
                     + " : cooldown IP actif (" + address + ").");
             return;
@@ -193,37 +194,55 @@ public class VoteListener implements Listener {
         VoteReward reward = rewardManager.roll(stats.streakDays(), voteSite);
 
         if (online != null) {
-            // Délivre uniquement les clés de vote (Cadeaux du Roi) au lieu de la récompense aléatoire
-            VoteReward keyReward = buildKeyRewardOnly(voteSite, reward.getTier());
-            rewardManager.deliverTo(online, keyReward);
-            voteDAO.recordVote(uuid, resolvedName, site, address,
-                    reward.getTier().name(), keyReward.getSummary(), true);
+            rewardManager.deliverTo(online, reward);
+            voteDAO.recordVote(uuid, resolvedName, siteLabel, address,
+                    "VOTE", reward.getSummary(), true);
 
-            plugin.getLogger().info("[Vote] " + resolvedName + " a voté sur " + site
-                    + " (online) — récompense : " + keyReward.getSummary());
-            sendThanksMessage(online, site, keyReward, stats.streakDays());
-            broadcastVote(resolvedName, site, keyReward.getTier());
+            plugin.getLogger().info("[Vote] " + resolvedName + " a voté sur " + siteLabel
+                    + " (service=" + site + ", online) — récompense : " + reward.getSummary());
+            sendThanksMessage(online, siteLabel, reward, stats.streakDays());
+            broadcastVote(resolvedName, siteLabel, reward.getSummary());
             partyManager.onVote(online);
             VoteMilestoneManager.checkAndReward(plugin, uuid, stats.totalVotes());
             VoteMonthlyManager.trackVote(plugin, uuid, resolvedName);
         } else {
-            voteDAO.recordVote(uuid, resolvedName, site, address,
-                    reward.getTier().name(), reward.getSummary(), false);
-            plugin.getLogger().info("[Vote] " + resolvedName + " a voté sur " + site
-                    + " (offline) — " + reward.getSummary() + " en attente.");
-            broadcastVote(resolvedName, site, reward.getTier());
+            voteDAO.recordVote(uuid, resolvedName, siteLabel, address,
+                    "VOTE", reward.getSummary(), false);
+            plugin.getLogger().info("[Vote] " + resolvedName + " a voté sur " + siteLabel
+                    + " (service=" + site + ", offline) — " + reward.getSummary() + " en attente.");
+            broadcastVote(resolvedName, siteLabel, reward.getSummary());
             partyManager.onVote(null);
             VoteMilestoneManager.checkAndReward(plugin, uuid, stats.totalVotes());
             VoteMonthlyManager.trackVote(plugin, uuid, resolvedName);
         }
     }
 
-    private VoteSite resolveSite(String siteName) {
-        if (siteName == null) return null;
-        for (VoteSite site : loadSites()) {
-            if (siteName.equalsIgnoreCase(site.displayName())
-                    || siteName.equalsIgnoreCase(site.url())) {
-                return site;
+    /**
+     * Résout le site configuré à partir du serviceName Votifier.
+     * Matching : displayName, URL/host, alias, clés {@code vote.tokens}, variantes alphanumériques.
+     */
+    public static VoteSite resolveSite(String siteName) {
+        if (siteName == null || siteName.isBlank()) return null;
+        List<VoteSite> sites = loadSites();
+        for (VoteSite site : sites) {
+            if (site.matches(siteName)) return site;
+        }
+
+        // Clés NuVotifier dans vote.tokens (souvent = hostname du site)
+        CantalePlugin plugin = CantalePlugin.getInstance();
+        if (plugin != null) {
+            ConfigurationSection tokens = plugin.getConfig().getConfigurationSection("vote.tokens");
+            if (tokens != null) {
+                for (String tokenKey : tokens.getKeys(false)) {
+                    VoteSite tokenAsSite = new VoteSite(tokenKey, "https://" + tokenKey, 1);
+                    if (tokenAsSite.matches(siteName)) {
+                        for (VoteSite site : sites) {
+                            if (site.matches(tokenKey) || site.host().equals(VoteSite.normalize(tokenKey))) {
+                                return site;
+                            }
+                        }
+                    }
+                }
             }
         }
         return null;
@@ -231,30 +250,46 @@ public class VoteListener implements Listener {
 
     /**
      * Charge les sites configurés dans config.yml.
-     * Format attendu : "Nom|URL|cooldownHeures".
+     * Format : "Nom|URL|cooldownHeures" ou "Nom|URL|cooldownHeures|alias1,alias2".
      */
     public static List<VoteSite> loadSites() {
         List<VoteSite> sites = new ArrayList<>();
-        var plugin = fr.cantale.plugin.CantalePlugin.getInstance();
+        var plugin = CantalePlugin.getInstance();
         if (plugin == null) return sites;
         List<String> raw = plugin.getConfig().getStringList("vote.sites");
         for (String entry : raw) {
-            String[] parts = entry.split("\\|", 3);
-            String name = parts[0];
-            String url = parts.length > 1 ? parts[1] : "";
+            String[] parts = entry.split("\\|", 4);
+            String name = parts[0].trim();
+            String url = parts.length > 1 ? parts[1].trim() : "";
             int cooldown = 24;
             if (parts.length > 2) {
                 try { cooldown = Integer.parseInt(parts[2].trim()); } catch (NumberFormatException ignored) {}
             }
-            sites.add(new VoteSite(name, url, cooldown));
+            List<String> aliases = new ArrayList<>();
+            if (parts.length > 3 && !parts[3].isBlank()) {
+                aliases.addAll(Arrays.stream(parts[3].split(","))
+                        .map(String::trim)
+                        .filter(s -> !s.isEmpty())
+                        .toList());
+            }
+            // Alias implicites depuis vote.tokens dont la clé matche l'hôte
+            ConfigurationSection tokens = plugin.getConfig().getConfigurationSection("vote.tokens");
+            if (tokens != null) {
+                String host = VoteSite.extractHost(url);
+                for (String tokenKey : tokens.getKeys(false)) {
+                    if (new VoteSite(name, url, cooldown).matches(tokenKey)
+                            || host.equals(VoteSite.normalize(tokenKey))) {
+                        aliases.add(tokenKey);
+                    }
+                }
+            }
+            sites.add(new VoteSite(name, url, cooldown, aliases));
         }
         return sites;
     }
 
     /**
-     * Délivre les votes en attente à la connexion.
-     * Re-tire une récompense de tier équivalent (les items custom doivent être
-     * reconstruits via le {@link VoteRewardManager}).
+     * Délivre les votes en attente à la connexion (Cadeau(x) du Roi uniquement).
      */
     @EventHandler(priority = EventPriority.MONITOR)
     public void onJoin(PlayerJoinEvent event) {
@@ -268,67 +303,57 @@ public class VoteListener implements Listener {
             if (!player.isOnline()) return;
 
             for (VoteDAO.PendingVote pv : pending) {
-                VoteReward.Tier tier;
-                try {
-                    tier = VoteReward.Tier.valueOf(pv.tier());
-                } catch (Exception e) {
-                    tier = VoteReward.Tier.COMMUN;
-                }
-                VoteReward reward = generateForTier(tier);
+                VoteReward reward = rewardFromPending(pv);
                 rewardManager.deliverTo(player, reward);
                 voteDAO.markDelivered(pv.id());
 
                 player.sendMessage("§8[§6Vote§8] §aRécompense en attente délivrée : §e" + reward.getSummary()
-                        + " §8(" + tier.getDisplayName() + "§8) §7via §f" + pv.site());
+                        + " §7via §f" + pv.site());
             }
 
             player.sendMessage("§8[§6Vote§8] §7Total : §a" + pending.size() + " §7vote(s) récupéré(s).");
         }, 60L);
     }
 
-    private VoteReward generateForTier(VoteReward.Tier tier) {
-        return rewardManager.roll(switch (tier) {
-            case LEGENDAIRE -> 999;
-            case EPIQUE -> 30;
-            case RARE -> 7;
-            case COMMUN -> 1;
-        });
+    /** Reconstruit la récompense clés à partir d'un pending (site ou summary). */
+    public VoteReward rewardFromPending(VoteDAO.PendingVote pv) {
+        VoteSite site = resolveSite(pv.site());
+        if (site != null) {
+            return rewardManager.roll(1, site);
+        }
+        int count = parseCrateCountFromSummary(pv.rewardSummary());
+        return rewardManager.buildKeyReward(count);
     }
 
-    private VoteReward buildKeyRewardOnly(VoteSite site, VoteReward.Tier tier) {
-        if (site == null) {
-            return new VoteReward(tier, 0, List.of(), "Aucune clé de vote");
+    static int parseCrateCountFromSummary(String summary) {
+        if (summary == null || summary.isBlank()) return 1;
+        // Formats attendus : "2× Cadeau du Roi" / "2x Cadeau du Roi"
+        String s = summary.trim().toLowerCase(Locale.ROOT);
+        if (s.contains("cadeau")) {
+            try {
+                String num = s.replaceAll("^(\\d+).*", "$1");
+                int n = Integer.parseInt(num);
+                if (n >= 1 && n <= 3) return n;
+            } catch (NumberFormatException ignored) {}
         }
-        int crateCount = site.crateCount();
-        fr.cantale.plugin.crate.CrateManager crateManager = plugin.getCrateManager();
-        if (crateManager == null || crateCount <= 0) {
-            return new VoteReward(tier, 0, List.of(), "Aucune clé de vote");
-        }
-        List<org.bukkit.inventory.ItemStack> items = new ArrayList<>();
-        for (int i = 0; i < crateCount; i++) {
-            items.add(crateManager.createCrateItem(fr.cantale.plugin.crate.CrateType.VOTE));
-        }
-        String summary = crateCount + "× Cadeau du Roi";
-        return new VoteReward(tier, 0, items, summary);
+        return 1;
     }
 
     private void sendThanksMessage(Player p, String site, VoteReward reward, int streak) {
         p.sendMessage("§8§m──────────§r §8[§6Vote§8] §8§m──────────");
         p.sendMessage("§aVote comptabilisé, récompense reçue !");
         p.sendMessage("§7Merci d'avoir voté sur §e" + site + " §7!");
-        p.sendMessage("§7Récompense " + reward.getTier().getDisplayName() + " §7: §f" + reward.getSummary());
+        p.sendMessage("§7Récompense : §f" + reward.getSummary());
         if (streak > 1) {
             p.sendMessage("§7Streak : §6" + streak + " jour(s) §7consécutifs");
-            if (streak == 6) p.sendMessage("§eDemain → bonus minimum §9Rare §egaranti !");
-            else if (streak == 29) p.sendMessage("§eDemain → bonus minimum §5Épique §egaranti !");
         }
         p.sendMessage("§8§m──────────────────────────");
     }
 
-    private void broadcastVote(String name, String site, VoteReward.Tier tier) {
+    private void broadcastVote(String name, String site, String rewardSummary) {
         if (!plugin.getConfig().getBoolean("vote.broadcast", true)) return;
         String msg = "§8[§6Vote§8] §e" + name + " §7a voté sur §f" + site
-                + " §7et obtenu " + tier.getDisplayName() + "§7 !";
+                + " §7et obtenu §f" + rewardSummary + "§7 !";
         for (Player p : Bukkit.getOnlinePlayers()) p.sendMessage(msg);
     }
 }

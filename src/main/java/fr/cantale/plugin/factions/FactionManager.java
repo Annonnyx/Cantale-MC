@@ -1,11 +1,16 @@
 package fr.cantale.plugin.factions;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+
 import fr.cantale.plugin.CantalePlugin;
 import fr.cantale.plugin.database.FactionDAO;
 import fr.cantale.plugin.factions.permissions.FactionPermission;
-
-import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 
 public class FactionManager {
 
@@ -117,6 +122,13 @@ public class FactionManager {
         Faction faction = getFaction(id);
         if (faction == null) return false;
 
+        // Les membres de la faction perdent le rôle Discord de faction.
+        if (plugin.getDiscordBot() != null && plugin.getDiscordBot().isConnected()) {
+            for (UUID member : faction.getMembers()) {
+                plugin.getDiscordBot().syncFactionRoleForPlayer(member, false);
+            }
+        }
+
         // Supprimer tous les claims de la faction
         for (Claim claim : new ArrayList<>(faction.getClaims())) {
             removeClaim(claim.getWorld(), claim.getChunkX(), claim.getChunkZ());
@@ -144,6 +156,10 @@ public class FactionManager {
         playerFactionCache.put(playerUuid, factionId);
         faction.checkPromotion();
         saveFaction(faction);
+
+        if (plugin.getDiscordBot() != null && plugin.getDiscordBot().isConnected()) {
+            plugin.getDiscordBot().syncFactionRoleForPlayer(playerUuid, true);
+        }
         return true;
     }
 
@@ -154,6 +170,10 @@ public class FactionManager {
         factionDAO.removeMember(factionId, playerUuid);
         faction.removeMember(playerUuid);
         playerFactionCache.remove(playerUuid);
+
+        if (plugin.getDiscordBot() != null && plugin.getDiscordBot().isConnected()) {
+            plugin.getDiscordBot().syncFactionRoleForPlayer(playerUuid, false);
+        }
         
         // Si c'était le dernier membre, détruire la faction
         if (faction.getMembers().isEmpty()) {

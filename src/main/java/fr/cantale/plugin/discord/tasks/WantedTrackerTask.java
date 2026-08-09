@@ -49,8 +49,10 @@ public class WantedTrackerTask extends BukkitRunnable {
             if (plugin.getDiscordBot() != null && plugin.getDiscordBot().isConnected()) {
                 long ch = plugin.getDiscordBot().getConfig().getMcDeathsChannelId();
                 if (ch != 0L) {
-                    String desc = "**" + player.getName() + "** traqué en direct !\n**Localisation:** " + loc + "\n**Prime totale:** " + String.format("%.0f", total) + " Cantox\n**Palier:** " + tierLabel + "\n\n<@&1504909846288535705>";
-                    plugin.getDiscordBot().sendEmbedToChannel(ch, java.awt.Color.RED, "🚨 WANTED — Tracker", desc);
+                    String desc = "**" + player.getName() + "** traqué en direct !\n**Localisation:** " + loc + "\n**Prime totale:** " + String.format("%.0f", total) + " Cantox\n**Palier:** " + tierLabel;
+                    long pingRoleId = plugin.getDiscordBot().getConfig().getWantedPingRoleId();
+                    String content = pingRoleId > 0 ? "<@&" + pingRoleId + "> **Un joueur Wanted est traqué en direct !**" : null;
+                    plugin.getDiscordBot().sendEmbedToChannel(ch, java.awt.Color.RED, "🚨 WANTED — Tracker", desc, content);
                 }
             }
         }

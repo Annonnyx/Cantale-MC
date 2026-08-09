@@ -2,7 +2,6 @@ package fr.cantale.plugin.commands;
 
 import fr.cantale.plugin.CantalePlugin;
 import fr.cantale.plugin.privatechest.ChestType;
-import fr.cantale.plugin.privatechest.PrivateChestService;
 import fr.cantale.plugin.rank.PlayerRank;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
@@ -12,11 +11,9 @@ import org.bukkit.entity.Player;
 public class Pc2Command implements CommandExecutor {
 
     private final CantalePlugin plugin;
-    private final PrivateChestService chestService;
 
     public Pc2Command(CantalePlugin plugin) {
         this.plugin = plugin;
-        this.chestService = new PrivateChestService(plugin);
     }
 
     @Override
@@ -28,7 +25,7 @@ public class Pc2Command implements CommandExecutor {
 
         boolean isStaff = player.hasPermission("cantale.admin");
         PlayerRank rank = isStaff ? PlayerRank.CHEVRE : plugin.getRankManager().getRank(player);
-        int chestCount = chestService.getPrivateChestCount(rank);
+        int chestCount = plugin.getPrivateChestService().getPrivateChestCount(rank);
 
         ChestType target = ChestType.PC2;
         if (args.length > 0 && args[0].equals("3")) {
@@ -46,7 +43,7 @@ public class Pc2Command implements CommandExecutor {
             return true;
         }
 
-        chestService.openChest(player, target, isStaff);
+        plugin.getPrivateChestService().openChest(player, target, isStaff);
         player.sendMessage("§8[§6Cantale§8] §7" + target.getTitle() + " §7ouvert.");
         return true;
     }

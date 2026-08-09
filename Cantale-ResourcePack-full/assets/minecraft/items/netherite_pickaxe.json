@@ -1,0 +1,16 @@
+{
+  "model": {
+    "type": "minecraft:range_dispatch",
+    "property": "minecraft:custom_model_data",
+    "index": 0,
+    "fallback": { "type": "minecraft:model", "model": "minecraft:item/netherite_pickaxe" },
+    "entries": [
+      { "threshold": 1021, "model": { "type": "minecraft:model", "model": "cantale:item/pickantaxe_netherite_1x1" } },
+      { "threshold": 1022, "model": { "type": "minecraft:model", "model": "cantale:item/pickantaxe_netherite_3x3" } },
+      { "threshold": 1023, "model": { "type": "minecraft:model", "model": "cantale:item/pickantaxe_netherite_5x5" } },
+      { "threshold": 1024, "model": { "type": "minecraft:model", "model": "cantale:item/pickantaxe_netherite_7x7" } },
+      { "threshold": 3021, "model": { "type": "minecraft:model", "model": "cantale:item/multicantool_netherite_1x1" } },
+      { "threshold": 3022, "model": { "type": "minecraft:model", "model": "cantale:item/multicantool_netherite" } }
+    ]
+  }
+}

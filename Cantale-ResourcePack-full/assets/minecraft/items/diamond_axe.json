@@ -1,0 +1,13 @@
+{
+  "model": {
+    "type": "minecraft:range_dispatch",
+    "property": "minecraft:custom_model_data",
+    "index": 0,
+    "fallback": { "type": "minecraft:model", "model": "minecraft:item/diamond_axe" },
+    "entries": [
+      { "threshold": 2002, "model": { "type": "minecraft:model", "model": "cantale:item/cantaxe_diamond" } },
+      { "threshold": 3011, "model": { "type": "minecraft:model", "model": "cantale:item/multicantool_diamond_1x1" } },
+      { "threshold": 3012, "model": { "type": "minecraft:model", "model": "cantale:item/multicantool_diamond" } }
+    ]
+  }
+}

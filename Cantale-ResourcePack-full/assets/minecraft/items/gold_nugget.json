@@ -1,0 +1,13 @@
+{
+  "model": {
+    "type": "minecraft:range_dispatch",
+    "property": "minecraft:custom_model_data",
+    "index": 0,
+    "fallback": { "type": "minecraft:model", "model": "minecraft:item/gold_nugget" },
+    "entries": [
+      { "threshold": 24, "model": { "type": "minecraft:model", "model": "cantale:item/rune_fortification" } },
+      { "threshold": 103, "model": { "type": "minecraft:model", "model": "cantale:item/crate_mythic" } },
+      { "threshold": 8001, "model": { "type": "minecraft:model", "model": "cantale:item/cantox_coin" } }
+    ]
+  }
+}

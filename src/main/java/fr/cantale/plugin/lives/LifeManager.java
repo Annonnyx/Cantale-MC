@@ -61,12 +61,34 @@ public class LifeManager {
         int currentLives = getLives(uuid);
 
         if (currentLives <= 1) {
+            playerDAO.setLives(uuid, 0);
+            playerDAO.incrementDeaths(uuid);
             banPlayer(player);
         } else {
             playerDAO.decrementLives(uuid);
             playerDAO.incrementDeaths(uuid);
             int remaining = getLives(uuid);
             player.sendMessage(formatMessage("&cVous êtes mort ! Il vous reste " + remaining + " vie(s)."));
+        }
+    }
+
+    /**
+     * Pénalité déco combat : retire toujours 1 vie.
+     * Pas d'exemption admin — le broadcast annonce déjà la perte, et la déco combat
+     * ne doit pas être gratuite pour le staff / les OP ({@code cantale.admin} default: op).
+     * Safe pendant {@code PlayerQuitEvent} (pas de sendMessage au joueur qui part).
+     */
+    public void handleCombatDisconnect(Player player) {
+        UUID uuid = player.getUniqueId();
+        int currentLives = getLives(uuid);
+
+        playerDAO.incrementDeaths(uuid);
+
+        if (currentLives <= 1) {
+            playerDAO.setLives(uuid, 0);
+            banPlayer(player);
+        } else {
+            playerDAO.decrementLives(uuid);
         }
     }
 
@@ -87,14 +109,16 @@ public class LifeManager {
         String message = ChatColor.translateAlternateColorCodes('&', plugin.getConfigManager().getBanMessage());
         String reason = ChatColor.translateAlternateColorCodes('&', "&cVous n'avez plus de vies sur Cantale !");
 
-        // Ban IP
-        plugin.getServer().getBanList(org.bukkit.BanList.Type.IP).addBan(
-                player.getAddress().getAddress().getHostAddress(),
-                reason,
-                null,
-                "Cantale"
-        );
-        
+        // Ban IP (adresse peut être null pendant un quit)
+        if (player.getAddress() != null && player.getAddress().getAddress() != null) {
+            plugin.getServer().getBanList(org.bukkit.BanList.Type.IP).addBan(
+                    player.getAddress().getAddress().getHostAddress(),
+                    reason,
+                    null,
+                    "Cantale"
+            );
+        }
+
         // Ban nom
         plugin.getServer().getBanList(org.bukkit.BanList.Type.NAME).addBan(
                 player.getName(),
@@ -103,7 +127,9 @@ public class LifeManager {
                 "Cantale"
         );
 
-        player.kickPlayer(message);
+        if (player.isOnline()) {
+            player.kickPlayer(message);
+        }
     }
 
     public boolean canGiveLife(UUID from, UUID to) {

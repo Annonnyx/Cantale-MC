@@ -35,6 +35,7 @@ public class CustomItemListener implements Listener {
     private final FactionManager factionManager;
     private final CantalameManager cantalameManager;
     private final SerialKillerManager serialKillerManager;
+    private final Set<Material> protectedStorageBlocks;
 
     public CustomItemListener(CantalePlugin plugin) {
         this.plugin = plugin;
@@ -42,9 +43,10 @@ public class CustomItemListener implements Listener {
         this.factionManager = plugin.getFactionManager();
         this.cantalameManager = new CantalameManager(plugin);
         this.serialKillerManager = new SerialKillerManager(plugin);
+        this.protectedStorageBlocks = plugin.getConfigManager().getClaimProtectedStorageBlocks();
 
         // Adaptateur visuel : faux outil côté client uniquement.
-        // Sûr tant que l'instaBreak serveur reste actif sur bois/terre/feuilles.
+        // Sûr tant que l'instaBreak serveur reste actif sur tous les blocs.
         if (plugin.getConfigManager().isMultiCantoolVisualAdapterEnabled()) {
             MultiCantoolVisualAdapter visualAdapter = new MultiCantoolVisualAdapter(plugin, customItemManager);
             visualAdapter.start();
@@ -52,8 +54,8 @@ public class CustomItemListener implements Listener {
     }
 
     /**
-     * Multi-Cantool : sur le bois, la terre et les feuilles/laines, on active setInstaBreak(true)
-     * pour offrir un minage instantané et fluide sans desync client/serveur.
+     * Multi-Cantool : insta-break sur tous les blocs minables (sauf bedrock/air).
+     * Le BlockBreakEvent vérifie ensuite les protections de claim.
      */
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onBlockDamage(BlockDamageEvent event) {
@@ -65,11 +67,13 @@ public class CustomItemListener implements Listener {
         if (type == null || !type.isMultiCantool()) return;
 
         Block block = event.getBlock();
-        String matName = block.getType().name();
+        Material mat = block.getType();
+        if (mat == Material.AIR || mat == Material.BEDROCK) return;
 
-        if (isWoodBlock(matName) || isSoftBlock(matName) || isShearsBlock(matName)) {
-            event.setInstaBreak(true);
-        }
+        // Protection spawn : pas d'insta-break dans une zone protégée
+        if (!plugin.getSpawnProtection().canBuild(block.getLocation())) return;
+
+        event.setInstaBreak(true);
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
@@ -136,12 +140,33 @@ public class CustomItemListener implements Listener {
             return true;
         }
 
+        // PASDIC : aucune destruction par un non-membre
         if (claim.isPasdic()) return false;
 
+        // Vérifier les alliances
         var diplomacy = plugin.getDiplomatieManager();
-        return playerFaction != null
+        boolean isAlly = playerFaction != null
                 && diplomacy != null
                 && diplomacy.isAllied(playerFaction.getId(), claimFaction.getId());
+        if (isAlly) return true;
+
+        // Étranger : interdiction de casser les stockages et cultures protégés
+        Material type = block.getType();
+        if (protectedStorageBlocks.contains(type) || isCultureBlock(type.name())) {
+            return false;
+        }
+
+        return true;
+    }
+
+    private boolean isCultureBlock(String matName) {
+        return matName.contains("WHEAT") || matName.contains("CARROT") || matName.contains("POTATO") || matName.contains("BEETROOT")
+                || matName.contains("NETHER_WART") || matName.contains("PUMPKIN") || matName.contains("MELON")
+                || matName.contains("CACTUS") || matName.contains("SUGAR_CANE") || matName.contains("BAMBOO")
+                || matName.contains("COCOA") || matName.contains("BERRIES") || matName.contains("SEED")
+                || matName.contains("FLOWER") || matName.contains("MUSHROOM") || matName.contains("KELP")
+                || matName.contains("SAPLING") || matName.contains("FERN") || matName.contains("GRASS")
+                || matName.contains("VINE") || matName.contains("LEAVES");
     }
 
     private void breakExtraBlock(Player player, Block block, ItemStack tool) {

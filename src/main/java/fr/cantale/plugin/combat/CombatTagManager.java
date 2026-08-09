@@ -75,6 +75,17 @@ public class CombatTagManager {
     }
 
     /**
+     * Nom de l'adversaire actuel, ou {@code null} si hors combat / joueur hors ligne.
+     */
+    public String getOpponentName(UUID uuid) {
+        if (!isInCombat(uuid)) return null;
+        UUID opponentUuid = opponents.get(uuid);
+        if (opponentUuid == null) return null;
+        Player opponent = Bukkit.getPlayer(opponentUuid);
+        return opponent != null ? opponent.getName() : null;
+    }
+
+    /**
      * Met fin au combat d'un joueur et nettoie ses tâches.
      */
     public void endCombat(UUID uuid) {
@@ -117,13 +128,18 @@ public class CombatTagManager {
 
         if (!isInCombat(uuid)) return;
 
+        UUID opponentUuid = opponents.get(uuid);
         endCombat(uuid);
+        if (opponentUuid != null) {
+            endCombat(opponentUuid);
+        }
 
         String broadcastMsg = formatMessage("&c&lDéco Combat ! &e" + player.getName() + " &cs'est déconnecté en combat et perd 1 vie.");
         Bukkit.broadcastMessage(broadcastMsg);
 
-        // Appliquer la perte d'une vie
-        plugin.getLifeManager().handleDeath(player);
+        // handleDeath() exempte cantale.admin (default: op) → message sans perte de vie.
+        // Pénalité dédiée qui retire toujours 1 vie, y compris pour le staff.
+        plugin.getLifeManager().handleCombatDisconnect(player);
     }
 
     private void startActionbarTask(Player player, String opponentName) {

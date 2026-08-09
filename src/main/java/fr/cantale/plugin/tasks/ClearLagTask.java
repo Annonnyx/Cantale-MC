@@ -15,12 +15,12 @@ public class ClearLagTask extends BukkitRunnable {
     private int countdown;
     private int interval; // Intervalle configurable en secondes
 
-    // Paliers de notification
-    private static final Set<Integer> ANNOUNCE_SECONDS = Set.of(60, 30, 10, 5, 4, 3, 2, 1);
+    // Paliers de notification (premier warning à T-30s uniquement)
+    private static final Set<Integer> ANNOUNCE_SECONDS = Set.of(30, 10, 5, 3, 2, 1);
 
     public ClearLagTask(CantalePlugin plugin) {
         this.plugin = plugin;
-        this.interval = plugin.getConfig().getInt("clearlag.interval", 300);
+        this.interval = plugin.getConfig().getInt("clearlag.interval", 180); // 3 minutes
         this.countdown = interval;
     }
 

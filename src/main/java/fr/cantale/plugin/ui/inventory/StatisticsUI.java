@@ -89,7 +89,7 @@ public class StatisticsUI extends BaseUI {
             case AVENTURIER -> "§bAventurier";
             case VIP -> "§aVIP";
             case CHEVRE -> "§6Chèvre";
-            case MODERATOR -> "§9Modérateur";
+            case MODERATOR -> "§9Modo";
             case ADMIN -> "§cAdmin";
             case OWNER -> "§4Owner";
             default -> "§7Aucun";

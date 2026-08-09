@@ -58,6 +58,15 @@ public class ProfileUI extends BaseUI {
             setItem(31, Material.ENDER_PEARL, "§eWarps", "§7Warps publics");
             setItem(33, Material.SKELETON_SKULL, "§eWanted", "§7Primes");
             setItem(35, Material.NAME_TAG, "§ePersonnaliser mes Tags", "§7Gérer vos tags et grades affichés");
+
+            boolean bossBarOn = plugin.getPlayerDAO().isBossBarEnabled(player.getUniqueId());
+            setItem(27, Material.BEACON,
+                    bossBarOn ? "§aBossBar infos" : "§cBossBar infos",
+                    "§7Barre d'infos en haut de l'écran",
+                    "§7(solde, vies, faction, events…)",
+                    "",
+                    bossBarOn ? "§aÉtat : Activée" : "§cÉtat : Désactivée",
+                    "§eClic pour " + (bossBarOn ? "désactiver" : "activer"));
         } else {
             PlayerRank rank = plugin.getRankManager().getRank(target.getUniqueId());
             Faction faction = plugin.getFactionManager().getPlayerFaction(target.getUniqueId());
@@ -84,6 +93,19 @@ public class ProfileUI extends BaseUI {
             case 13 -> nav.openUI(player, new LifeUI(plugin, player));
             case 15 -> nav.openUI(player, new EconomyUI(plugin, player));
             case 17 -> nav.openUI(player, new FactionMainUI(plugin, player));
+            case 27 -> {
+                boolean next = !plugin.getPlayerDAO().isBossBarEnabled(player.getUniqueId());
+                plugin.getPlayerDAO().setBossBarEnabled(player.getUniqueId(), next);
+                if (plugin.getRotatingBossBarManager() != null) {
+                    plugin.getRotatingBossBarManager().setPlayerEnabled(player, next);
+                }
+                if (next) {
+                    player.sendMessage("§8[§6Cantale§8] §aBossBar infos activée.");
+                } else {
+                    player.sendMessage("§8[§6Cantale§8] §cBossBar infos désactivée.");
+                }
+                init();
+            }
             case 29 -> player.performCommand("home");
             case 31 -> player.performCommand("warp");
             case 33 -> player.performCommand("wanted");
@@ -96,7 +118,7 @@ public class ProfileUI extends BaseUI {
             case AVENTURIER -> "§bAventurier";
             case VIP -> "§aVIP";
             case CHEVRE -> "§6Chèvre";
-            case MODERATOR -> "§9Modérateur";
+            case MODERATOR -> "§9Modo";
             case ADMIN -> "§cAdmin";
             case OWNER -> "§4Owner";
             default -> "§7Aucun";

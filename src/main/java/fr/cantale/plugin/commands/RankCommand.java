@@ -64,7 +64,7 @@ public class RankCommand implements CommandExecutor, TabCompleter {
                     } else if (rank == PlayerRank.AVENTURIER) {
                         target.sendMessage("§8[§6Cantale§8] §bAvantages Aventurier : 2.5k Cantox/jour, 1 Vie/mois, 5 homes, 5 ventes /ah");
                     } else if (rank == PlayerRank.MODERATOR) {
-                        target.sendMessage("§8[§6Cantale§8] §9Grade Modérateur actif.");
+                        target.sendMessage("§8[§6Cantale§8] §9Grade Modo actif.");
                     } else if (rank == PlayerRank.ADMIN) {
                         target.sendMessage("§8[§6Cantale§8] §cGrade Admin actif.");
                     } else if (rank == PlayerRank.OWNER) {

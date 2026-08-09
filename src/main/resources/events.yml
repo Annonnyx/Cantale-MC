@@ -61,7 +61,8 @@ chat-reactions:
 # ── Événements de faction (récolte / minage / PVP) ──
 faction-events:
   enabled: true
-  # Nombre cible d'événements par semaine (aléatoire autour de cette valeur)
+  # Nombre cible d'événements par semaine (aléatoire dans cet intervalle)
+  # Objectif : 3–4 events bien espacés, pas regroupés le même jour.
   events-per-week-min: 3
   events-per-week-max: 4
   # Durée d'un événement (minutes)
@@ -69,6 +70,11 @@ faction-events:
   # Fenêtre de démarrage (Europe/Paris)
   start-hour: 14
   end-hour: 22
+  # Délai minimum entre la FIN d'un événement et le DÉBUT du suivant (heures).
+  # Empêche deux events à quelques minutes / heures d'intervalle.
+  min-hours-between-events: 8
+  # Nombre max d'événements par jour civil (0 = illimité). 1 = doser correctement.
+  max-events-per-day: 1
   # Types possibles (pondération égale si tous listés)
   types:
     - HARVEST
@@ -79,7 +85,7 @@ faction-events:
     harvest-per-item: 1
     mining-per-ore: 1
     pvp-per-kill: 10
-  # Ressources acceptées pour /recolte (HARVEST)
+  # Pool HARVEST : un seul item est tiré au sort par événement (/recolte n'accepte que celui-là)
   harvest-items:
     WHEAT: 1
     CARROT: 1
@@ -91,7 +97,7 @@ faction-events:
     PUMPKIN: 2
     SWEET_BERRIES: 1
     COCOA_BEANS: 1
-  # Minerais comptés pour MINING
+  # Pool MINING : un seul type de minerai tiré au sort (deepslate = même type)
   mining-ores:
     - COAL_ORE
     - DEEPSLATE_COAL_ORE
@@ -126,6 +132,13 @@ faction-events:
       - 1000
       - 750
       - 500
+
+# ── BossBar infos joueur (rotation personnelle) ──
+# Affiche une seule info à la fois, qui tourne : Cantox → Vies → Faction → Wanted → Event → Réaction → Combat
+player-info-bossbar:
+  enabled: true
+  # Secondes entre chaque changement d'info (minimum 2)
+  interval-seconds: 5
 
 # ── Drop hebdomadaire de clé de caisse ──
 weekly-key-drop:

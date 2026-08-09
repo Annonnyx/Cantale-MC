@@ -108,7 +108,7 @@ public class CrateRewardTable {
         return table;
     }
 
-    // ─── Épique (Médaille) ───
+    // ─── Épique (Médaille sur l'autel) ───
     private List<CrateReward> epicTable() {
         List<CrateReward> table = new ArrayList<>();
         table.add(reward("Prix d'Honneur", 20, randomCantox(1000, 3000), bigOreStack(), 0));
@@ -135,7 +135,7 @@ public class CrateRewardTable {
         return table;
     }
 
-    // ─── Mythique (Pièce à la fontaine) ───
+    // ─── Mythique (Pièce jetée dans la fontaine) ───
     private List<CrateReward> mythicTable() {
         List<CrateReward> table = new ArrayList<>();
         table.add(reward("Vœu Mineur", 20, randomCantox(3000, 8000), bigOreStack(), 0));

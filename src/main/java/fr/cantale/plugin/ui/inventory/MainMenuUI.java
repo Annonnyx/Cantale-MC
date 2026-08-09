@@ -18,6 +18,7 @@ public class MainMenuUI extends BaseUI {
         setItem(4, Material.NETHER_STAR, "§6§lCANTALE", "§7Version 1.0.0", "§7Paper 1.20.4");
 
         // Ligne 2
+        setItem(10, Material.EMERALD, "§eBoutique Admin", "§7Acheter / Vendre au shop", "§7Plancher de prix garanti");
         setItem(11, Material.SHIELD, "§eFactions", "§7Gérer votre faction", "§7Claims, membres, banque");
         setItem(12, Material.GOLD_NUGGET, "§eÉconomie", "§7Balance, paiements", "§7Cantox: §6" + (int) plugin.getEconomyManager().getBalance(player));
         setItem(13, Material.EMERALD, "§eAuction House", "§7Acheter / Vendre");
@@ -48,6 +49,7 @@ public class MainMenuUI extends BaseUI {
     protected void handleClick(int slot) {
         NavigationManager nav = plugin.getUIManager().getNavigationManager();
         switch (slot) {
+            case 10 -> nav.openUI(player, new ShopMainUI(plugin, player));
             case 11 -> nav.openUI(player, new FactionMainUI(plugin, player));
             case 12 -> nav.openUI(player, new EconomyUI(plugin, player));
             case 13 -> { close(); player.performCommand("ah"); }

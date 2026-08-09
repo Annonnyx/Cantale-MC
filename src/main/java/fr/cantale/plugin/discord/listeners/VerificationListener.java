@@ -49,6 +49,15 @@ public class VerificationListener extends ListenerAdapter {
             guild.addRoleToMember(member, unverified).queue();
         }
 
+        // Ping de bienvenue dans le salon de vérification, auto-supprimé après 60s
+        // pour ne pas encombrer le salon pendant les vagues d'arrivées.
+        TextChannel verificationChannel = guild.getTextChannelById(config.getVerificationChannelId());
+        if (verificationChannel != null) {
+            verificationChannel.sendMessage("👋 " + member.getAsMention() +
+                    " Bienvenue ! Clique sur le bouton **Se vérifier** ci-dessous pour accéder au serveur.")
+                .queue(msg -> msg.delete().queueAfter(60, TimeUnit.SECONDS));
+        }
+
         // Log immédiat de l'arrivée du membre (non-vérifié) dans le salon de mod-logs
         TextChannel modLogs = guild.getTextChannelById(config.getModLogsChannelId());
         if (modLogs != null) {
@@ -83,9 +92,34 @@ public class VerificationListener extends ListenerAdapter {
             .queue();
     }
 
+    /** Envoie le panel "Accepter le règlement" dans le salon règles. */
+    public void sendRulesPanel(Guild guild) {
+        TextChannel rules = guild.getTextChannelById(config.getRulesChannelId());
+        if (rules == null) return;
+
+        EmbedBuilder embed = new EmbedBuilder()
+            .setColor(Color.ORANGE)
+            .setTitle("📜 Acceptation du règlement")
+            .setDescription("Merci de lire attentivement le règlement de ce salon.\n\n" +
+                "Quand c'est fait, clique sur le bouton **Accepter le règlement** ci-dessous pour confirmer ta lecture.")
+            .setFooter("Cantale Network", null)
+            .setTimestamp(Instant.now());
+
+        rules.sendMessageEmbeds(embed.build())
+            .addActionRow(Button.primary("accept_rules", "📜 Accepter le règlement"))
+            .queue();
+    }
+
     @Override
     public void onButtonInteraction(@NotNull ButtonInteractionEvent event) {
-        if (!"verify_button".equals(event.getComponentId())) return;
+        switch (event.getComponentId()) {
+            case "verify_button" -> handleVerifyButton(event);
+            case "accept_rules" -> handleAcceptRules(event);
+            default -> {}
+        }
+    }
+
+    private void handleVerifyButton(@NotNull ButtonInteractionEvent event) {
         if (event.getGuild() == null) return;
 
         Member member = event.getMember();
@@ -137,6 +171,40 @@ public class VerificationListener extends ListenerAdapter {
 
         // Log
         logVerification(guild, member, true);
+    }
+
+    private void handleAcceptRules(@NotNull ButtonInteractionEvent event) {
+        if (event.getGuild() == null) return;
+
+        Member member = event.getMember();
+        if (member == null) return;
+
+        Guild guild = event.getGuild();
+
+        // Seuls les membres déjà vérifiés peuvent accepter le règlement
+        Role verified = guild.getRoleById(config.getVerifiedRoleId());
+        if (verified == null || !member.getRoles().contains(verified)) {
+            event.reply("❌ Tu dois d'abord te vérifier dans <#" + config.getVerificationChannelId() +
+                    "> avant d'accepter le règlement.")
+                .setEphemeral(true).queue();
+            return;
+        }
+
+        event.reply("✅ Tu as accepté le règlement.").setEphemeral(true).queue();
+        logRulesAccept(guild, member);
+    }
+
+    private void logRulesAccept(Guild guild, Member member) {
+        TextChannel logs = guild.getTextChannelById(config.getModLogsChannelId());
+        if (logs == null) return;
+
+        EmbedBuilder embed = new EmbedBuilder()
+            .setColor(Color.BLUE)
+            .setTitle("📜 Règlement accepté")
+            .addField("Utilisateur", member.getAsMention() + " (`" + member.getId() + "`)", false)
+            .setTimestamp(Instant.now());
+
+        logs.sendMessageEmbeds(embed.build()).queue();
     }
 
     @Override

@@ -108,6 +108,15 @@ public class ConfigManager {
         return config.getString("resource-pack.sha1", "");
     }
 
+    /**
+     * Si true, le plugin renvoie le pack au join via {@code Player#setResourcePack}.
+     * Doit rester false quand le pack est déjà défini dans {@code server.properties}
+     * (sinon double envoi → reloads en boucle + kick avec require-resource-pack).
+     */
+    public boolean isResourcePackSendOnJoin() {
+        return config.getBoolean("resource-pack.send-on-join", false);
+    }
+
     public boolean isMultiCantoolVisualAdapterEnabled() {
         return config.getBoolean("custom-items.multi-cantool-visual-adapter", true);
     }

@@ -8,7 +8,8 @@ import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.entities.MessageEmbed;
 import net.dv8tion.jda.api.entities.User;
-import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
+import net.dv8tion.jda.api.entities.channel.middleman.GuildMessageChannel;
+import net.dv8tion.jda.api.exceptions.ErrorResponseException;
 import net.dv8tion.jda.api.events.interaction.ModalInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
@@ -21,6 +22,7 @@ import net.dv8tion.jda.api.interactions.components.selections.StringSelectMenu;
 import net.dv8tion.jda.api.interactions.components.text.TextInput;
 import net.dv8tion.jda.api.interactions.components.text.TextInputStyle;
 import net.dv8tion.jda.api.interactions.modals.Modal;
+import net.dv8tion.jda.api.requests.ErrorResponse;
 import net.dv8tion.jda.api.utils.messages.MessageCreateBuilder;
 import net.dv8tion.jda.api.utils.messages.MessageCreateData;
 import org.bukkit.Bukkit;
@@ -32,6 +34,7 @@ import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.logging.Level;
 
 /**
  * Gestion des giveaways Discord / Minecraft.
@@ -44,10 +47,19 @@ public class GiveawayManager {
     private final CantalePlugin plugin;
     private final Map<String, GiveawayBuilder> builders = new ConcurrentHashMap<>();
     private final Map<String, Set<String>> participants = new ConcurrentHashMap<>();
+    /** Giveaways publiés en cours, indexés par ID du message Discord. */
+    private final Map<String, ActiveGiveaway> activeGiveaways = new ConcurrentHashMap<>();
     private final Random random = new Random();
 
     public GiveawayManager(CantalePlugin plugin) {
         this.plugin = plugin;
+        // L'état des giveaways est en mémoire : un redémarrage perd les clôtures
+        // planifiées sans récupération possible. On le signale au démarrage si besoin.
+        if (!activeGiveaways.isEmpty()) {
+            plugin.getLogger().warning("[Discord] " + activeGiveaways.size()
+                + " giveaway(s) actif(s) en mémoire au démarrage : leurs clôtures planifiées"
+                + " ont été perdues et devront être effectuées manuellement.");
+        }
     }
 
     // ───────────────────────────────────────────────────────────────────────────
@@ -209,8 +221,16 @@ public class GiveawayManager {
         } else if (componentId.equals("giveaway:join")) {
             String messageId = event.getMessageId();
             String userId = event.getUser().getId();
-            participants.computeIfAbsent(messageId, k -> ConcurrentHashMap.newKeySet()).add(userId);
-            event.reply("✅ Tu participes au giveaway !").setEphemeral(true).queue();
+            Set<String> entries = participants.computeIfAbsent(messageId, k -> ConcurrentHashMap.newKeySet());
+            if (!entries.add(userId)) {
+                event.reply("⚠️ Tu participes déjà ! (**" + entries.size() + "** participant(s) au total).")
+                        .setEphemeral(true).queue();
+                return;
+            }
+            int count = entries.size();
+            event.reply("✅ Tu participes au giveaway ! (**" + count + "** participant(s) au total).")
+                    .setEphemeral(true).queue();
+            refreshPublicGiveawayEmbed(event, messageId, count);
         } else if (componentId.startsWith("giveaway:rank:")) {
             // Handled by StringSelectInteraction, should not reach here
             event.reply("❌ Action non prise en charge.").setEphemeral(true).queue();
@@ -232,14 +252,14 @@ public class GiveawayManager {
                 double amount = Double.parseDouble(value);
                 if (amount <= 0) throw new NumberFormatException();
                 builder.addReward(new Reward("CANTOX", String.valueOf(amount), 1));
-                event.getHook().editOriginalEmbeds(configEmbed(builder)).queue();
+                event.replyEmbeds(configEmbed(builder)).setEphemeral(true).queue();
             } catch (NumberFormatException e) {
                 event.reply("❌ Montant invalide.").setEphemeral(true).queue();
             }
         } else if (modalId.startsWith("giveaway:other:")) {
             String value = event.getValue("giveaway:other_text").getAsString();
             builder.addReward(new Reward("OTHER", value, 1));
-            event.getHook().editOriginalEmbeds(configEmbed(builder)).queue();
+            event.replyEmbeds(configEmbed(builder)).setEphemeral(true).queue();
         }
     }
 
@@ -264,54 +284,101 @@ public class GiveawayManager {
             return;
         }
 
-        TextChannel channel = event.getChannel().asTextChannel();
+        // GuildMessageChannel couvre TextChannel ET NewsChannel (salons annonce).
+        // asTextChannel() rejetait les salons annonce → IllegalStateException.
+        if (!(event.getChannel() instanceof GuildMessageChannel channel)) {
+            event.reply("❌ Ce salon ne permet pas de lancer un giveaway.").setEphemeral(true).queue();
+            builders.put(memberId, builder);
+            return;
+        }
         Member member = event.getMember();
         String authorName = member != null ? member.getEffectiveName() : "Anonyme";
 
+        // Discord exige un accusé de réception sous 3s : on acquitte tout de suite
+        // (deferReply) avant l'envoi du message public, qui est un second appel
+        // réseau pouvant dépasser ce délai (c'était la cause du "n'a pas répondu à temps").
+        event.deferReply(true).queue();
+
         MessageCreateData message = new MessageCreateBuilder()
-            .setEmbeds(publicGiveawayEmbed(builder, authorName))
+            .setContent("<@&1504910718338597089>")
+            .setEmbeds(publicGiveawayEmbed(builder, authorName, 0))
             .setActionRow(Button.primary("giveaway:join", "🎉 Participer"))
             .build();
 
         channel.sendMessage(message).queue(sent -> {
             String messageId = sent.getId();
-            event.reply("✅ Giveaway lancé dans " + channel.getAsMention() + " !").setEphemeral(true).queue();
+            activeGiveaways.put(messageId, new ActiveGiveaway(builder, authorName));
+            event.getHook().sendMessage("✅ Giveaway lancé dans " + channel.getAsMention() + " !").setEphemeral(true).queue();
 
             long ticks = builder.durationSeconds * 20L;
-            Bukkit.getScheduler().runTaskLaterAsynchronously(plugin, () -> endGiveaway(messageId, builder, channel), ticks);
+            // JDA est thread-safe pour les appels REST : la clôture reste sur un thread
+            // async Bukkit (les accès DB passent déjà par le scheduler). Le catch garantit
+            // la journalisation complète de toute erreur au lieu d'un échec silencieux.
+            Bukkit.getScheduler().runTaskLaterAsynchronously(plugin, () -> {
+                try {
+                    endGiveaway(messageId, builder, channel);
+                } catch (Throwable t) {
+                    plugin.getLogger().log(Level.SEVERE, "[Discord] La tâche de clôture du giveaway " + messageId + " a échoué", t);
+                }
+            }, ticks);
+        }, error -> {
+            plugin.getLogger().severe("[Discord] Erreur lors de l'envoi du giveaway : " + error.getMessage());
+            event.getHook().sendMessage("❌ Erreur lors du lancement du giveaway : " + error.getMessage()).setEphemeral(true).queue();
         });
     }
 
-    private void endGiveaway(String messageId, GiveawayBuilder builder, TextChannel channel) {
-        Set<String> entries = participants.remove(messageId);
-        if (entries == null || entries.isEmpty()) {
-            channel.sendMessage("❌ Le giveaway s'est terminé sans participant.").queue();
-            return;
-        }
+    private void endGiveaway(String messageId, GiveawayBuilder builder, GuildMessageChannel channel) {
+        try {
+            activeGiveaways.remove(messageId);
+            Set<String> entries = participants.remove(messageId);
+            int participantCount = entries != null ? entries.size() : 0;
+            if (entries == null || entries.isEmpty()) {
+                channel.sendMessage("❌ Le giveaway s'est terminé sans participant.")
+                    .queue(null, err -> plugin.getLogger().log(Level.WARNING,
+                        "[Discord] Impossible d'annoncer la fin du giveaway sans participant " + messageId, err));
+                return;
+            }
 
-        List<String> entryList = new ArrayList<>(entries);
-        Collections.shuffle(entryList, random);
-        int winnerCount = Math.min(builder.winners, entryList.size());
-        List<String> winnerIds = entryList.subList(0, winnerCount);
+            List<String> entryList = new ArrayList<>(entries);
+            Collections.shuffle(entryList, random);
+            int winnerCount = Math.min(builder.winners, entryList.size());
+            List<String> winnerIds = entryList.subList(0, winnerCount);
 
-        List<String> winnerMentions = new ArrayList<>();
-        for (String discordId : winnerIds) {
-            UUID uuid = resolveMinecraftUuid(discordId);
-            if (uuid != null) {
-                storeRewards(uuid, builder.rewards);
+            List<String> winnerMentions = new ArrayList<>();
+            List<String> unresolvedWinners = new ArrayList<>();
+            for (String discordId : winnerIds) {
+                // Le gagnant est annoncé même sans compte Minecraft lié : la récompense
+                // n'est alors pas stockée et devra être attribuée manuellement.
+                UUID uuid = resolveMinecraftUuid(discordId);
+                if (uuid != null) {
+                    storeRewards(uuid, builder.rewards);
+                } else {
+                    unresolvedWinners.add(discordId);
+                }
                 User user = channel.getJDA().getUserById(discordId);
                 winnerMentions.add(user != null ? user.getAsMention() : "<@" + discordId + ">");
             }
+
+            if (!unresolvedWinners.isEmpty()) {
+                plugin.getLogger().warning("[Discord] Giveaway " + messageId + " : " + unresolvedWinners.size()
+                    + " gagnant(s) sans compte Minecraft lié (récompenses non stockées) : "
+                    + String.join(", ", unresolvedWinners));
+            }
+
+            EmbedBuilder embed = new EmbedBuilder()
+                .setColor(new Color(0xFFD700))
+                .setTitle("🎉 Giveaway terminé !")
+                .setDescription("Gagnant(s) : " + String.join(", ", winnerMentions))
+                .addField("Participants", String.valueOf(participantCount), true)
+                .addField("Récompenses", formatRewards(builder.rewards), false)
+                .setTimestamp(Instant.now());
+
+            channel.sendMessageEmbeds(embed.build())
+                .queue(null, err -> plugin.getLogger().log(Level.SEVERE,
+                    "[Discord] Impossible d'envoyer les résultats du giveaway " + messageId, err));
+        } catch (Exception e) {
+            plugin.getLogger().log(Level.SEVERE, "[Discord] Erreur critique lors de la clôture du giveaway " + messageId, e);
         }
-
-        EmbedBuilder embed = new EmbedBuilder()
-            .setColor(new Color(0xFFD700))
-            .setTitle("🎉 Giveaway terminé !")
-            .setDescription("Gagnant(s) : " + (winnerMentions.isEmpty() ? "Aucun compte lié" : String.join(", ", winnerMentions)))
-            .addField("Récompenses", formatRewards(builder.rewards), false)
-            .setTimestamp(Instant.now());
-
-        channel.sendMessageEmbeds(embed.build()).queue();
     }
 
     private UUID resolveMinecraftUuid(String discordId) {
@@ -398,15 +465,38 @@ public class GiveawayManager {
             .build();
     }
 
-    private MessageEmbed publicGiveawayEmbed(GiveawayBuilder builder, String author) {
+    private MessageEmbed publicGiveawayEmbed(GiveawayBuilder builder, String author, int participantCount) {
         return new EmbedBuilder()
             .setColor(Color.MAGENTA)
             .setTitle("🎉 Giveaway !")
             .setDescription("Lancé par **" + author + "**\nDurée : **" + formatDuration(builder.durationSeconds) + "**\nGagnants : **" + builder.winners + "**")
+            .addField("Participants", String.valueOf(participantCount), true)
             .addField("Récompenses", formatRewards(builder.rewards), false)
             .setFooter("Clique sur 🎉 pour participer", null)
             .setTimestamp(Instant.now())
             .build();
+    }
+
+    private void refreshPublicGiveawayEmbed(ButtonInteractionEvent event, String messageId, int participantCount) {
+        try {
+            ActiveGiveaway active = activeGiveaways.get(messageId);
+            Message message = event.getMessage();
+            if (active == null || message == null) return;
+            message.editMessageEmbeds(publicGiveawayEmbed(active.builder, active.authorName, participantCount))
+                    .queue(null, err -> {
+                        // Le message public a pu être supprimé entre-temps : on arrête
+                        // alors le suivi du giveaway au lieu d'accumuler les erreurs.
+                        if (err instanceof ErrorResponseException ere
+                                && ere.getErrorResponse() == ErrorResponse.UNKNOWN_MESSAGE) {
+                            activeGiveaways.remove(messageId);
+                            plugin.getLogger().warning("[Discord] Message du giveaway " + messageId + " supprimé, suivi arrêté.");
+                        } else {
+                            plugin.getLogger().log(Level.WARNING, "[Discord] Mise à jour participants giveaway " + messageId, err);
+                        }
+                    });
+        } catch (Exception e) {
+            plugin.getLogger().log(Level.WARNING, "[Discord] Erreur lors du rafraîchissement du giveaway " + messageId, e);
+        }
     }
 
     private String formatRewards(List<Reward> rewards) {
@@ -459,4 +549,7 @@ public class GiveawayManager {
     }
 
     private record Reward(String type, String value, int quantity) {}
+
+    /** Métadonnées d'un giveaway publié (pour rafraîchir l'embed participants). */
+    private record ActiveGiveaway(GiveawayBuilder builder, String authorName) {}
 }

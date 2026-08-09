@@ -38,6 +38,9 @@ public class EventSystemsManager {
         stop();
         config.load();
         start();
+        if (plugin.getRotatingBossBarManager() != null) {
+            plugin.getRotatingBossBarManager().reload();
+        }
         plugin.getLogger().info("[Events] Configuration rechargée.");
     }
 

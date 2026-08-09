@@ -1,0 +1,89 @@
+# ═══════════════════════════════════════════════════════════════════════
+#  CANTALE — Emplacements d'interaction des caisses
+# ═══════════════════════════════════════════════════════════════════════
+#
+# Remplir world + coordonnées pour chaque station au spawn (ou ailleurs).
+#
+# Règle générale :
+#   - Liste NON VIDE → seuls ces emplacements / zones fonctionnent
+#   - Liste VIDE ou absente → comportement legacy :
+#       mailbox  → n'importe quel BARREL / LOOM
+#       chest    → clic-droit n'importe où (clef Trésor Public)
+#       fountain → n'importe quelle eau / chaudron d'eau / bubble column
+#       altar    → n'importe quelle BEACON / ENCHANTING_TABLE
+#
+# legendary (Ticket) : aucun emplacement requis (clic-droit direct).
+#
+# Coordonnées blocs = entiers (coin du bloc). Mesure avec F3 :
+#   - Pour un bloc (mailbox / chest / altar) : regarde le bloc → « Looking at »
+#   - Pour la fontaine : place-toi aux 2 coins opposés du volume d'eau,
+#     note X/Y/Z (ou Looking at) pour x1/y1/z1 et x2/y2/z2.
+#
+# Après modification : /crate reload
+# ═══════════════════════════════════════════════════════════════════════
+
+# VOTE — Cadeau du Roi (boîte aux lettres)
+mailbox:
+  # Matériaux acceptés (optionnel). Défaut : BARREL, LOOM
+  blocks:
+    - BARREL
+    - LOOM
+  # Exemple :
+  # locations:
+  #   - world: world
+  #     x: 100
+  #     y: 64
+  #     z: -20
+  #     label: Boîte aux lettres spawn
+  locations: []
+
+# RARE — Trésor Public (vrai coffre au spawn)
+# Matériaux : CHEST, TRAPPED_CHEST (défaut). Pas d'ENDER_CHEST.
+chest:
+  blocks:
+    - CHEST
+    - TRAPPED_CHEST
+  # Exemple :
+  # locations:
+  #   - world: world
+  #     x: 0
+  #     y: 64
+  #     z: 0
+  #     label: Trésor Public
+  locations: []
+
+# MYTHIC — Pièce Mythique (jet dans l'eau de la fontaine)
+# Préférer « zones » : cube défini par 2 coins (ordre indifférent, min/max auto).
+# Toute eau (WATER / WATER_CAULDRON / BUBBLE_COLUMN) dont le bloc est DANS
+# le cube est valide.
+# Si zones est vide → fallback legacy « locations » + radius (optionnel).
+# Si zones ET locations sont vides → toute eau du serveur.
+fountain:
+  # Exemple — 2 coins opposés englobant toute la fontaine :
+  # zones:
+  #   - world: world
+  #     x1: 100
+  #     y1: 64
+  #     z1: 200
+  #     x2: 110
+  #     y2: 70
+  #     z2: 210
+  #     label: Fontaine Mythique
+  zones: []
+  # Legacy (ignoré si zones non vide) :
+  # radius: 3
+  # locations: []
+
+# EPIC — Médaille du Tournoi (autel)
+altar:
+  blocks:
+    - BEACON
+    - ENCHANTING_TABLE
+  # Exemple :
+  # locations:
+  #   - world: world
+  #     x: -5
+  #     y: 64
+  #     z: 12
+  #     label: Autel du Tournoi
+  locations: []
