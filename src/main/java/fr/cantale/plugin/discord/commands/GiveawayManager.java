@@ -221,6 +221,15 @@ public class GiveawayManager {
         } else if (componentId.equals("giveaway:join")) {
             String messageId = event.getMessageId();
             String userId = event.getUser().getId();
+
+            // Un giveaway terminé (ou perdu au redémarrage) ne doit plus accepter
+            // de participation — sinon le clic crée une liste fantôme jamais tirée.
+            if (!activeGiveaways.containsKey(messageId)) {
+                event.reply("❌ Ce giveaway est terminé, tu ne peux plus participer.")
+                        .setEphemeral(true).queue();
+                return;
+            }
+
             Set<String> entries = participants.computeIfAbsent(messageId, k -> ConcurrentHashMap.newKeySet());
             if (!entries.add(userId)) {
                 event.reply("⚠️ Tu participes déjà ! (**" + entries.size() + "** participant(s) au total).")
@@ -329,9 +338,14 @@ public class GiveawayManager {
 
     private void endGiveaway(String messageId, GiveawayBuilder builder, GuildMessageChannel channel) {
         try {
-            activeGiveaways.remove(messageId);
+            ActiveGiveaway active = activeGiveaways.remove(messageId);
+            String authorName = active != null ? active.authorName() : "?";
             Set<String> entries = participants.remove(messageId);
             int participantCount = entries != null ? entries.size() : 0;
+
+            // Figer le message public : embed "terminé" + bouton désactivé
+            closePublicMessage(channel, messageId, builder, authorName, participantCount);
+
             if (entries == null || entries.isEmpty()) {
                 channel.sendMessage("❌ Le giveaway s'est terminé sans participant.")
                     .queue(null, err -> plugin.getLogger().log(Level.WARNING,
@@ -477,6 +491,27 @@ public class GiveawayManager {
             .setFooter("Clique sur 🎉 pour participer", null)
             .setTimestamp(Instant.now())
             .build();
+    }
+
+    /** Remplace l'embed public par une version "terminé" et désactive le bouton Participer. */
+    private void closePublicMessage(GuildMessageChannel channel, String messageId, GiveawayBuilder builder,
+                                    String authorName, int participantCount) {
+        MessageEmbed ended = new EmbedBuilder()
+            .setColor(Color.DARK_GRAY)
+            .setTitle("🎉 Giveaway terminé !")
+            .setDescription("Lancé par **" + authorName + "**\nGagnants : **" + builder.winners + "**")
+            .addField("Participants", String.valueOf(participantCount), true)
+            .addField("Récompenses", formatRewards(builder.rewards), false)
+            .setFooter("Ce giveaway est terminé", null)
+            .setTimestamp(Instant.now())
+            .build();
+
+        channel.retrieveMessageById(messageId).queue(msg ->
+            msg.editMessageEmbeds(ended)
+                .setComponents(ActionRow.of(Button.secondary("giveaway:join", "🎉 Participer").asDisabled()))
+                .queue(null, err -> plugin.getLogger().log(Level.WARNING,
+                    "[Discord] Impossible de désactiver le bouton du giveaway " + messageId, err)),
+            err -> { /* message supprimé entre-temps : rien à figer */ });
     }
 
     private void refreshPublicGiveawayEmbed(ButtonInteractionEvent event, String messageId, int participantCount) {
