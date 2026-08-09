@@ -61,6 +61,14 @@ public class ClaimListener implements Listener {
             return;
         }
 
+        // PASDIC : claim spécial — TOUT le claim est protégé, aucun bloc cassable.
+        // (canInteractFor a déjà envoyé le message PASDIC au joueur.)
+        Claim claim = getClaimAt(loc);
+        if (claim != null && claim.isPasdic()) {
+            event.setCancelled(true);
+            return;
+        }
+
         // Étranger : interdiction de casser les blocs de stockage et les cultures.
         if (isProtectedStorageBlock(type) || isCultureBlock(type)) {
             event.setCancelled(true);
@@ -83,6 +91,13 @@ public class ClaimListener implements Listener {
 
         // Membres, alliés et admins peuvent tout poser.
         if (canInteractFor(player, loc, false)) {
+            return;
+        }
+
+        // PASDIC : claim spécial — TOUT le claim est protégé, aucune pose (TNT incluse).
+        Claim claim = getClaimAt(loc);
+        if (claim != null && claim.isPasdic()) {
+            event.setCancelled(true);
             return;
         }
 

@@ -234,14 +234,20 @@ public class PlayerListener implements Listener {
         Player player = event.getEntity();
         lifeManager.handleDeath(player);
 
-        // Gain de pouvoir de faction pour le tueur
+        // Pouvoir de faction : +5 pour la faction du tueur, -5 pour celle de la victime (PvP)
         Player killer = player.getKiller();
         if (killer != null && !killer.getUniqueId().equals(player.getUniqueId())) {
             Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
                 boolean gained = plugin.getFactionManager().addPowerToPlayerFaction(killer.getUniqueId(), 5);
-                if (gained) {
+                boolean lost = plugin.getFactionManager().addPowerToPlayerFaction(player.getUniqueId(), -5);
+                if (gained || lost) {
                     Bukkit.getScheduler().runTask(plugin, () -> {
-                        killer.sendMessage("§8[§6Faction§8] §a+5 pouvoir pour ta faction grâce à ce kill !");
+                        if (gained) {
+                            killer.sendMessage("§8[§6Faction§8] §a+5 pouvoir pour ta faction grâce à ce kill !");
+                        }
+                        if (lost) {
+                            player.sendMessage("§8[§6Faction§8] §c-5 pouvoir pour ta faction suite à ta mort.");
+                        }
                     });
                 }
             });

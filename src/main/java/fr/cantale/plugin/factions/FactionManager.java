@@ -1,7 +1,6 @@
 package fr.cantale.plugin.factions;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -52,13 +51,22 @@ public class FactionManager {
 
     /**
      * Ajoute du pouvoir à la faction d'un joueur. Retourne true si le joueur a une faction.
+     * Les pertes sont plafonnées à 0 et déclenchent un ajustement des claims.
      */
     public boolean addPowerToPlayerFaction(UUID playerUuid, int amount) {
         Faction faction = getPlayerFaction(playerUuid);
         if (faction == null) return false;
 
-        faction.addPower(amount);
+        if (amount >= 0) {
+            faction.addPower(amount);
+        } else {
+            faction.removePower(-amount);
+        }
         factionDAO.updatePower(faction.getId(), faction.getPower());
+
+        if (amount < 0) {
+            checkAndAdjustClaims(faction.getId());
+        }
         return true;
     }
 
@@ -316,7 +324,8 @@ public class FactionManager {
         Faction faction = getFaction(factionId);
         if (faction == null) return;
 
-        int maxClaims = faction.getPower() / 10;
+        // Même quota que /f claim (plancher de 5 claims inclus)
+        int maxClaims = faction.getMaxClaims();
         int currentClaims = faction.getClaimCount();
 
         if (currentClaims <= maxClaims) return;
@@ -324,16 +333,18 @@ public class FactionManager {
         int claimsToRemove = currentClaims - maxClaims;
         List<Claim> claimsToRemoveList = new ArrayList<>(faction.getClaims());
 
-        // Mélanger la liste pour un choix aléatoire
-        Collections.shuffle(claimsToRemoveList);
+        // Retirer les claims les plus récents d'abord : la base historique est protégée
+        claimsToRemoveList.sort((a, b) -> Long.compare(b.getCreatedAt(), a.getCreatedAt()));
 
-        // Supprimer le nombre de claims nécessaires
         int removed = 0;
         for (Claim claim : claimsToRemoveList) {
             if (removed >= claimsToRemove) break;
             removeClaim(claim.getWorld(), claim.getChunkX(), claim.getChunkZ());
             removed++;
         }
+
+        plugin.getLogger().info("[Faction] " + faction.getName() + " : " + removed
+                + " claim(s) retiré(s) (quota " + currentClaims + "/" + maxClaims + ")");
     }
 
     public boolean hasPermission(UUID playerUuid, FactionPermission permission) {
