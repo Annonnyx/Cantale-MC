@@ -199,9 +199,34 @@ public class FactionManager {
         return true;
     }
 
+    /**
+     * Distance minimale (en chunks, distance de Chebyshev) entre un nouveau claim
+     * et les claims des autres factions. Les claims de la même faction peuvent
+     * rester adjacents pour permettre l'expansion d'une base.
+     */
+    public static final int MIN_ENEMY_CLAIM_DISTANCE = 2;
+
+    public boolean isTooCloseToOtherFaction(String world, int chunkX, int chunkZ, int factionId) {
+        for (int dx = -MIN_ENEMY_CLAIM_DISTANCE; dx <= MIN_ENEMY_CLAIM_DISTANCE; dx++) {
+            for (int dz = -MIN_ENEMY_CLAIM_DISTANCE; dz <= MIN_ENEMY_CLAIM_DISTANCE; dz++) {
+                if (dx == 0 && dz == 0) continue;
+                Claim claim = getClaimAt(world, chunkX + dx, chunkZ + dz);
+                if (claim != null && claim.getFactionId() != factionId) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     public boolean addClaim(int factionId, String world, int chunkX, int chunkZ) {
         Claim existing = getClaimAt(world, chunkX, chunkZ);
         if (existing != null) {
+            return false;
+        }
+
+        // Filet de sécurité central : vaut pour /f claim, l'auto-claim et tout autre appel
+        if (isTooCloseToOtherFaction(world, chunkX, chunkZ, factionId)) {
             return false;
         }
 
@@ -259,6 +284,23 @@ public class FactionManager {
         Faction faction = getPlayerFaction(playerUuid);
         if (faction == null) return false;
 
+        // Mêmes règles que /f claim : permission, quota de power, zone protégée
+        if (!hasPermission(playerUuid, fr.cantale.plugin.factions.permissions.FactionPermission.ADD_CLAIMS)) {
+            return false;
+        }
+        if (faction.getClaimCount() >= faction.getMaxClaims()) {
+            return false;
+        }
+
+        org.bukkit.World bukkitWorld = org.bukkit.Bukkit.getWorld(world);
+        if (bukkitWorld != null) {
+            org.bukkit.Location center = new org.bukkit.Location(bukkitWorld, (chunkX << 4) + 8, 64, (chunkZ << 4) + 8);
+            if (!plugin.getSpawnProtection().canClaim(center)) {
+                return false;
+            }
+        }
+
+        // La distance minimale avec les autres factions est vérifiée dans addClaim
         return addClaim(faction.getId(), world, chunkX, chunkZ);
     }
 

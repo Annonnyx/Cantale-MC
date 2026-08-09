@@ -684,6 +684,13 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
         int chunkZ = player.getLocation().getBlockZ() >> 4;
         String world = player.getWorld().getName();
 
+        // Distance minimale avec les claims d'autres factions
+        if (factionManager.isTooCloseToOtherFaction(world, chunkX, chunkZ, faction.getId())) {
+            player.sendMessage(formatMessage("&cTrop proche des claims d'une autre faction ("
+                    + FactionManager.MIN_ENEMY_CLAIM_DISTANCE + " chunks minimum)."));
+            return;
+        }
+
         if (factionManager.addClaim(faction.getId(), world, chunkX, chunkZ)) {
             player.sendMessage(formatMessage("&aChunk claimé avec succès !"));
         } else {
@@ -709,10 +716,17 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
         int chunkZ = player.getLocation().getBlockZ() >> 4;
         String world = player.getWorld().getName();
 
+        // Sécurité : on ne peut unclaim que les chunks de SA propre faction
+        Claim claim = factionManager.getClaimAt(world, chunkX, chunkZ);
+        if (claim == null || claim.getFactionId() != faction.getId()) {
+            player.sendMessage(formatMessage("&cCe chunk n'est pas claimé par votre faction."));
+            return;
+        }
+
         if (factionManager.removeClaim(world, chunkX, chunkZ)) {
             player.sendMessage(formatMessage("&aChunk unclaimé avec succès !"));
         } else {
-            player.sendMessage(formatMessage("&cCe chunk n'est pas claimé par votre faction."));
+            player.sendMessage(formatMessage("&cErreur lors de l'unclaim."));
         }
     }
 

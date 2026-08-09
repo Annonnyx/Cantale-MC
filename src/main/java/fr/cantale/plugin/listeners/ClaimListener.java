@@ -119,29 +119,19 @@ public class ClaimListener implements Listener {
 
     @EventHandler(priority = EventPriority.HIGH)
     public void onEntityExplode(EntityExplodeEvent event) {
-        // Dans les claims PASDIC, les explosions sont interdites.
-        // Dans les claims normaux, les explosions détruisent tout (stockage inclus).
-        if (isExplosionInPasdicClaim(event.blockList())) {
-            event.setCancelled(true);
-        }
+        // Seuls les blocs dans des claims PASDIC sont protégés ; le reste explose normalement.
+        event.blockList().removeIf(this::isPasdicBlock);
     }
 
     @EventHandler(priority = EventPriority.HIGH)
     public void onBlockExplode(BlockExplodeEvent event) {
         // Gère les explosions déclenchées par des blocs (lit, ancre de réapparition, cristal de l'End...)
-        if (isExplosionInPasdicClaim(event.blockList())) {
-            event.setCancelled(true);
-        }
+        event.blockList().removeIf(this::isPasdicBlock);
     }
 
-    private boolean isExplosionInPasdicClaim(java.util.List<org.bukkit.block.Block> blocks) {
-        for (org.bukkit.block.Block block : blocks) {
-            Claim claim = getClaimAt(block.getLocation());
-            if (claim != null && claim.isPasdic()) {
-                return true;
-            }
-        }
-        return false;
+    private boolean isPasdicBlock(org.bukkit.block.Block block) {
+        Claim claim = getClaimAt(block.getLocation());
+        return claim != null && claim.isPasdic();
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
@@ -165,15 +155,23 @@ public class ClaimListener implements Listener {
         }
 
         // Gestion du mode PASDIC (Adventure Mode)
+        // Exemptés : membres de la faction propriétaire, admins/ops, et joueurs
+        // en créatif/spectateur (on ne touche qu'au survival).
         boolean fromPasdic = fromClaim != null && fromClaim.isPasdic();
         boolean toPasdic = toClaim != null && toClaim.isPasdic();
 
         if (!fromPasdic && toPasdic) {
-            player.setGameMode(GameMode.ADVENTURE);
-            sendClaimMessage(player, "&bMode Adventure activé - Zone PASDIC");
+            if (player.getGameMode() == GameMode.SURVIVAL && !isPasdicExempt(player, toClaim)) {
+                player.setGameMode(GameMode.ADVENTURE);
+                sendClaimMessage(player, "&bMode Adventure activé - Zone PASDIC");
+            }
         } else if (fromPasdic && !toPasdic) {
-            player.setGameMode(GameMode.SURVIVAL);
-            sendClaimMessage(player, "&aMode Survival rétabli");
+            // L'Adventure n'étant imposé que par PASDIC sur ce serveur, tout joueur
+            // non exempté qui sort d'un PASDIC en Adventure repasse en Survival.
+            if (player.getGameMode() == GameMode.ADVENTURE && !isPasdicExempt(player, fromClaim)) {
+                player.setGameMode(GameMode.SURVIVAL);
+                sendClaimMessage(player, "&aMode Survival rétabli");
+            }
         }
 
         // Messages d'entrée/sortie de claim (avec anti-spam)
@@ -210,6 +208,15 @@ public class ClaimListener implements Listener {
 
     private boolean canInteract(Player player, org.bukkit.Location location) {
         return canInteractFor(player, location, false);
+    }
+
+    /** Membres de la faction propriétaire et staff : pas de mode Adventure forcé en PASDIC. */
+    private boolean isPasdicExempt(Player player, Claim claim) {
+        if (player.isOp() || player.hasPermission("cantale.admin")) return true;
+        Faction claimFaction = factionManager.getFaction(claim.getFactionId());
+        Faction playerFaction = factionManager.getPlayerFaction(player.getUniqueId());
+        return claimFaction != null && playerFaction != null
+                && claimFaction.getId() == playerFaction.getId();
     }
 
     /**
