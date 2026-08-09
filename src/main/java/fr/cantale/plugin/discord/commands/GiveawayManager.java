@@ -373,7 +373,9 @@ public class GiveawayManager {
                 .addField("Récompenses", formatRewards(builder.rewards), false)
                 .setTimestamp(Instant.now());
 
-            channel.sendMessageEmbeds(embed.build())
+            // Les mentions dans un embed ne pingent pas : elles doivent être dans le contenu texte.
+            channel.sendMessage("🎉 Félicitations " + String.join(", ", winnerMentions) + " !")
+                .setEmbeds(embed.build())
                 .queue(null, err -> plugin.getLogger().log(Level.SEVERE,
                     "[Discord] Impossible d'envoyer les résultats du giveaway " + messageId, err));
         } catch (Exception e) {
