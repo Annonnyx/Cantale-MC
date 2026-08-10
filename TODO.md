@@ -1,5 +1,43 @@
 # TODO Cantale
 
+## Refonte site web (août 2026) — `Site-Cantale/web/` (Next.js 16 full-stack, TS, Tailwind v4)
+- [x] Scaffold app Next.js dans `Site-Cantale/web/` (App Router, TS strict, Tailwind v4, mysql2)
+- [x] Polices locales intégrées via `next/font/local` : Zina (hero), Clash Display (titres), Cabinet Grotesk (texte), Nippo (tech/labels) — sources dans `Site-Cantale/polices/`
+- [x] DA « Registre » adaptée : hero minimaliste (CANTALE géant en Zina sur fond ash), palette ash/iron/ember/gold/steel/bone, encoches de vie forgées, tampons, bandeau registre défilant
+- [x] Layout global : header fixe (nav, compteur live, menu mobile), footer (réseaux, copie IP), `prefers-reduced-motion` respecté
+- [x] Page d'accueil v1 : hero Zina, bandeau, concept 3 vies (LifeNotches), mécaniques, histoire, CTA rejoindre
+- [x] Couche données : `src/server/db.ts` (pool mysql2, lecture seule) + repo `server-status` + route `/api/server/status` (503 tant que la table n'existe pas)
+- [x] **Plugin** : `ServerStatusTask` — upsert `server_status` (online_count, max_players, tps, updated_at) toutes les 60s (alimente compteur header + page Stats)
+- [x] **Plugin** : `WebFactionBridge` — file `web_faction_actions` (join/leave/set_rank/disband) consommée toutes les 15s via `FactionManager` sur le thread principal (statut done/failed + result + processed_at) ; le site n'écrit jamais dans `faction_members`, la sync du rôle Discord se déclenche via les événements existants
+- [x] Repositories : players, factions (+claims, filtrage `secret_until` au SQL), votes, wanted, discord_links, snapshots, leaderboards, faction-settings, faction-actions
+- [x] Page `/design` interne de preview des composants
+- [x] Auth Discord OAuth2 maison (cookie HMAC, pas Auth.js — incompatible Next 16) + paliers anonymous/discord/linked/leader + rôles via bot token (cache 60s) + page `/connexion` 3 états (skin 3D skinview3d, stats, faction, panneau leader)
+- [x] Pages livrées : Règlement (28 règles, sommaire sticky, tampons sévérité), Partenariats (formulaire contact + ticket Discord REST `partenariat-*`, même pipeline que recrutement), Recrutement (formulaire 4 étapes + ticket Discord REST compatible `/ticket close`), Wiki (21 articles / 7 catégories, recherche ⌘K), Items (13 entrées depuis `CustomItemType` — Rune de Fortification conservée car toujours active, Statio-Lytras exclus), La Liste (mémorial), Vote (3 sites, minuteurs live), Classements (métrique × période, snapshots `web_snapshots_daily` + cron `CRON_SECRET`, podium, « ta position »), Stats (compteurs live + charts CSS), Factions (annuaire, détail ★◆●○, candidatures `web_faction_applications`, panneau leader → file `web_faction_actions`), Boutique (catalogue complet, flag `SHOP_ENABLED` bloquant côté serveur, checkout 501 en attendant la décision cantale.store)
+- [x] Build de production vert + ESLint 0 erreur sur tout `src`
+- [x] Page `/carte` : canvas interactif (claims + warps + zones PASDIC protégées), API `/api/map/claims` + `/api/map/markers`, factions secrètes exclues en SQL, rafraîchissement 30s, onglet Squaremap/BlueMap uniquement si `MAP_PROVIDER_URL` est défini
+- [x] Polish : SEO (`sitemap.ts`, `robots.ts`, OG image Zina, `icon.svg`), perf (AuthEntry client → rendu statique restauré sur les vitrines), a11y (`steel-light` contraste AA), galerie accueil (lightbox, `null` si `public/screenshots/` vide)
+- [x] Nav : liens Recrutement + Partenariats (hamburger sous 1280px)
+- [x] Motion UI : système CSS centralisé (pressable / card-lift / card-soft / nav-link / chip / stamp-ink), reveal-on-scroll + stagger + fallback IntersectionObserver, transitions de page via `template.tsx`, `prefers-reduced-motion` étendu
+- [x] Découverte : footer complété (Boutique, Stats, Connexion) ; menu mobile section « Plus » (Règlement, Boutique, Stats, La Liste) sans surcharger la nav desktop (8 liens) ; `sitemap.ts` élargi (factions, classements, stats, carte, vote, la-liste, boutique, recrutement) ; CTA rejoindre → lien règlement
+- [x] Galerie : dossier `public/screenshots/` documenté (README + `.gitkeep`) — la section n'apparaît qu'avec de vraies captures
+- [x] Micro-polish motion : `.chip` / `.pressable` / `.card-soft` alignés sur classements, la-liste, carte, stats
+- [x] Hover hard-shadow 2D : ombre nette diagonale (`X Y 0 0`, blur 0) sur `.pressable` / `.card-lift` / `.card-soft` — translate haut-gauche + active compressé, easing `cubic-bezier(.16,1,.3,1)` ; pas de glow ember ni soft blur
+
+### Code-done vs ops / humain (checklist)
+
+| Statut | Item |
+| --- | --- |
+| **Code-done** | Pages, auth, factions, carte canvas, wiki, items, vote, boutique (flag off), classements, stats, SEO/a11y, motion, nav/footer/sitemap, dossier screenshots prêt |
+| **Bloqué — contenu humain** | Captures dans `public/screenshots/` (galerie) |
+| **Bloqué — contenu humain** | Section créateurs / builders sur l'accueil (noms, bios, crédits réels requis — aucun faux nom inventé) |
+| **Ops** | Déployer le nouveau JAR (`ServerStatusTask` + `WebFactionBridge` + tables `server_status` / `web_faction_actions`) |
+| **Ops** | `.env.local` web (Discord client/secret/bot token, `AUTH_SECRET`, `DATABASE_URL`, `CRON_SECRET`, optionnel `MAP_PROVIDER_URL`) + redirect OAuth `…/api/auth/discord/callback` + cron quotidien `/api/cron/snapshot` |
+| **Ops** | Installer Squaremap/BlueMap sur le serveur et renseigner `MAP_PROVIDER_URL` (onglet « Carte du monde détaillée ») |
+| **Ops** | Déploiement + DNS `cantale.world` |
+| **Décision humaine** | Valider les prix boutique (1,99/3,49/5,99/9,99 €) + paiement (cantale.store) **avant** d'activer `SHOP_ENABLED` |
+
+- Référence : plan détaillé validé (découpage T0.1 → T10.4) — ne jamais dupliquer une donnée du plugin, lecture seule sur les tables existantes
+
 ## Fait
 - [x] Fix vote : toujours 1–3 Cadeaux du Roi (plus de loot Rare/Épique au vote), matching Votifier souple (serveur-prive / serveurliste / top-serveurs), messages publics corrects, `/vote` sans liste Rare|Épique
 - [x] Mise à jour des URLs de vote et suppression des sites obsolètes (config.yml)
