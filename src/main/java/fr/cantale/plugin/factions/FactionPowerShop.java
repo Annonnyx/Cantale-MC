@@ -8,9 +8,13 @@ import java.util.UUID;
 
 /**
  * Achat de pouvoir de faction via la banque, prix exponentiel.
- * cost(i) = floor(base * growth^i) où i = power_purchased.
+ * cost(i) = floor(base * growth^(i * {@link #PURCHASED_INDEX_SCALE})) où i = power_purchased
+ * (chaque point réellement acheté compte ×10 dans l'exposant).
  */
 public final class FactionPowerShop {
+
+    /** Facteur d'escalade : 1 point acheté ≡ 10 dans l'indice de prix. */
+    public static final int PURCHASED_INDEX_SCALE = 10;
 
     public enum BuyResult {
         OK,
@@ -37,7 +41,7 @@ public final class FactionPowerShop {
         double base = plugin.getConfigManager().getPowerBuyBase();
         double growth = plugin.getConfigManager().getPowerBuyGrowth();
         if (purchasedIndex < 0) purchasedIndex = 0;
-        return Math.floor(base * Math.pow(growth, purchasedIndex));
+        return Math.floor(base * Math.pow(growth, (double) purchasedIndex * PURCHASED_INDEX_SCALE));
     }
 
     public double nextPointCost(Faction faction) {

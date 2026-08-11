@@ -53,7 +53,8 @@ factions:
   start-homes: 30
 
   # Achat de pouvoir via /f bank power (officiers + chef)
-  # cost(i) = floor(base * growth^i) où i = power_purchased
+  # cost(i) = floor(base * growth^(i * 10)) où i = power_purchased
+  # (chaque point acheté compte ×10 dans l'exposant — courbe beaucoup plus raide)
   power-buy:
     base: 5000
     growth: 1.18

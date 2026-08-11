@@ -90,20 +90,20 @@ public class ClaimListener implements Listener {
         Material type = event.getBlock().getType();
 
         // Stockage : uniquement dans les claims de SA faction (pas wilderness, pas claims étrangers/alliés).
+        // Exception wilderness : CRAFTING_TABLE + fours (FURNACE, BLAST_FURNACE, SMOKER) — ateliers utiles hors claim.
+        // Reste dans storage-blocks pour la protection casse en claim. Pas de coffres/shulkers/hoppers/etc.
         if (isProtectedStorageBlock(type) && !player.isOp() && !player.hasPermission("cantale.admin")) {
             Claim claim = getClaimAt(loc);
-            Faction playerFaction = factionManager.getPlayerFaction(player.getUniqueId());
-            Faction claimFaction = claim == null ? null : factionManager.getFaction(claim.getFactionId());
-            boolean ownClaim = claim != null && playerFaction != null && claimFaction != null
-                    && playerFaction.getId() == claimFaction.getId();
-            if (!ownClaim) {
-                event.setCancelled(true);
-                if (claim == null) {
+            if (!(claim == null && isWildernessAllowedStorage(type))) {
+                Faction playerFaction = factionManager.getPlayerFaction(player.getUniqueId());
+                Faction claimFaction = claim == null ? null : factionManager.getFaction(claim.getFactionId());
+                boolean ownClaim = claim != null && playerFaction != null && claimFaction != null
+                        && playerFaction.getId() == claimFaction.getId();
+                if (!ownClaim) {
+                    event.setCancelled(true);
                     player.sendMessage(formatMessage("&cTu ne peux poser du stockage que dans les claims de ta faction."));
-                } else {
-                    player.sendMessage(formatMessage("&cTu ne peux poser du stockage que dans les claims de ta faction."));
+                    return;
                 }
-                return;
             }
         }
 
@@ -174,7 +174,7 @@ public class ClaimListener implements Listener {
         Claim claim = getClaimAt(loc);
 
         // Hors claim (wilderness / structures générées) : tout le monde peut ouvrir coffres, portes, etc.
-        // Seule la pose de stockage est restreinte (voir onBlockPlace).
+        // Pose stockage restreinte (voir onBlockPlace) ; CRAFTING_TABLE + fours autorisés en wilderness.
         if (claim == null) {
             return;
         }
@@ -347,6 +347,14 @@ public class ClaimListener implements Listener {
 
     private boolean isProtectedStorageBlock(Material mat) {
         return protectedStorageBlocks.contains(mat);
+    }
+
+    /** Ateliers autorisés en wilderness (pose) malgré storage-blocks ; casse en claim inchangée. */
+    private boolean isWildernessAllowedStorage(Material mat) {
+        return mat == Material.CRAFTING_TABLE
+                || mat == Material.FURNACE
+                || mat == Material.BLAST_FURNACE
+                || mat == Material.SMOKER;
     }
 
     private boolean isExplosivePlaceBlock(Material mat) {

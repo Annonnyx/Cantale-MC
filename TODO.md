@@ -62,6 +62,7 @@
 - Référence : plan détaillé validé (découpage T0.1 → T10.4) — ne jamais dupliquer une donnée du plugin, lecture seule sur les tables existantes
 
 ## Fait
+- [x] Carte `/carte` : vue initiale + bouton/touche `0` recentrent toujours sur l’origine monde (chunk 0,0 / spawn schématique) à zoom 12 px/chunk — plus de fit-to-bounds qui plaçait la caméra dans le vide entre claims éloignés.
 - [x] Fix « Depuis le — » sur la liste membres faction (site) : `FactionDAO.addMember` n’écrivait jamais `joined_at` (défaut 0 → tiret). Insert avec timestamp Unix sec ; backfill leaders via `factions.created_at` au démarrage plugin ; autres grades historiques restent « — » (pas de date stockée). Affichage FR déjà via `Intl` (`12 août 2026`).
 - [x] Fix skin 3D `/connexion` : Crafatar (HTTP 521) → mc-heads.net puis **proxy same-origin** `/api/minecraft/skin|avatar` (Mojang → textures.minecraft.net, repli crafthead/mc-heads) — viewer + classements/la-liste/factions. **Ops : redeploy Vercel** (prod servait encore le bundle crafatar au 2026-08-11 ; `/joueur/[uuid]` 404 tant que non déployé)
 - [x] `/link` (Minecraft) : clic sur le code → copie presse-papiers (`ClickEvent.copyToClipboard` + hover « Clique pour copier »)
@@ -219,7 +220,8 @@
 ## Respawn & claims
 - [x] Invulnérabilité 10s au respawn (anti spawn-kill)
 - [x] Stockage (liste `claim-protection.storage-blocks`) posable uniquement dans les claims de sa faction
-- [x] Hors claim : coffres/conteneurs ouvrables par tous (structures) ; pose toujours interdite
+- [x] Exception wilderness : `CRAFTING_TABLE` + fours (`FURNACE`, `BLAST_FURNACE`, `SMOKER`) posables hors claim (`ClaimListener`) ; autres ateliers/stockage inchangés ; casse storage en claim inchangée
+- [x] Hors claim : coffres/conteneurs ouvrables par tous (structures) ; pose stockage interdite (sauf table de craft + fours)
 - [x] PvP claims : safe dans le claim de sa fac ; on peut tuer les non-membres présents dans son claim ; PASDIC = no PvP
 - [x] `/f bank power [n]` : achat de pouvoir via banque (officiers/chef), prix exponentiel (`cost = floor(base * growth^(power_purchased * 10))`)
 - [x] **Pouvoir par membre** : base création **60** + **+5** par membre (chef inclus → fac neuve = **65**) ;

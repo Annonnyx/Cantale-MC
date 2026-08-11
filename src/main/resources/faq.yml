@@ -49,8 +49,8 @@ entries:
       - "je suis pas dans une faction"
     response: |
       Pour créer une faction : /f create <nom>
-      Il faut être au moins 8 joueurs pour fonder une faction.
-      Pour rejoindre une faction existante : demande une invitation au chef (/f invite), puis tape /f accept.
+      Effet : claim auto du chunk + spawn de faction à ta position (hors zone protégée / chunk déjà claim).
+      Pour rejoindre une faction existante : demande une invitation (/f invite), puis /f accept.
 
   - id: faction_join
     triggers:
@@ -82,8 +82,8 @@ entries:
     response: |
       Pour claim le chunk où tu te trouves : /f claim
       Pour unclaim : /f unclaim
-      Le nombre de claims dépend du pouvoir de la faction.
-      Sources de pouvoir : 60 à la création + 5 par membre (y compris le chef), kills PvP, events, /f bank power.
+      Quota claims : max(5, pouvoir / 10). Distance min 2 chunks avec les autres facs.
+      Pouvoir : 60 + 5/membre à la création (65 seul), +5 join / −5 leave-kick, PvP ±5, events top, /f bank power.
 
   - id: faction_spawn
     triggers:
@@ -109,8 +109,8 @@ entries:
       - "comment creer un warp faction"
       - "f setwarp"
     response: |
-      Les warps de faction se gèrent avec /f warp [nom] et /f setwarp <nom> (dans un claim).
-      Le chef ou un officier peut les créer selon les permissions.
+      Les warps de faction : /f warp [nom], /f setwarp <nom>, /f delwarp <nom> (dans un claim).
+      Permission FWARP (Membre+). Quota : 1 si pouvoir < 60, sinon 1 + (pouvoir − 60) / 30.
 
   - id: faction_home
     triggers:
@@ -122,8 +122,8 @@ entries:
       - "f sethome"
       - "comment creer un home faction"
     response: |
-      Les homes de faction se gèrent avec /f home [nom] et /f sethome <nom> (dans un claim).
-      Le quota dépend du pouvoir de la faction.
+      Homes de faction : /f home [nom] et /f sethome <nom> (dans un claim).
+      Par joueur. Quota max(1, pouvoir / 20). Recrues ne peuvent pas sethome.
 
   - id: faction_bank
     triggers:
@@ -135,8 +135,9 @@ entries:
       - "coffre argent faction"
       - "argent commun faction"
     response: |
-      La banque de faction s'ouvre avec /f bank.
-      Permet de gérer l'argent commun de la faction.
+      Banque : /f bank | /f bank add|take <montant> | /f bank power [n]
+      Déposer : Recrue+. Retirer / acheter pouvoir : Officier ou chef.
+      Prix pouvoir : floor(5000 × 1,18^(points_achetés × 10)), max 50 points par achat.
 
   - id: money
     triggers:
