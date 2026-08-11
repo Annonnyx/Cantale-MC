@@ -55,7 +55,7 @@
 | **Ops — urgent** | Login Discord prod cassé (`echange_impossible`) : **ajouter `DISCORD_CLIENT_SECRET` sur Vercel Production** (absent au 2026-08-11) ; aligner `AUTH_URL=https://www.cantale.world` + Redirect URI Discord identique ; redeploy. Secret aussi stocké côté plugin : `discord.client-secret` dans `src/main/resources/config.yml` (OAuth app, ≠ token bot) |
 | **Ops — urgent** | **Redeploy site** : skins profil cassés (prod sert encore Crafatar 521) ; code HEAD a le proxy `/api/minecraft/*` + `/joueur/[uuid]` — sans redeploy Anox26 et tous les profils restent en image brisée |
 | **Ops** | Site prod : fix MySQL (`DB_*` fallback + env runtime) + menu desktop « Plus » ✓ 2026-08-11 (`Annonnyx/Cantale` `48396d8`) — stats/classements OK |
-| **Ops** | Carte unifiée `/carte` ✓ 2026-08-12 (`Annonnyx/Cantale` `d65fb18` → Vercel ; Cantale-MC `1c54a54`) : Leaflet + tuiles Squaremap (proxy) + overlays, fullscreen, X/Z, focus faction, spawn −67/−144. Optionnel : HTTPS dédié `map.cantale.world` |
+| **Ops** | Carte unifiée `/carte` ✓ 2026-08-12 (`Annonnyx/Cantale` `4a7e92c` → Vercel ; Cantale-MC `ad08cf7`) : Leaflet + tuiles Squaremap (proxy) + overlays, fullscreen, X/Z, focus faction, spawn −67/−144. Optionnel : HTTPS dédié `map.cantale.world` |
 | **Ops** | Déploiement + DNS `cantale.world` / `cantale.fun` — fix Vercel 404 (Framework Preset → Next.js, redeploy prod) ✓ 2026-08-10 |
 | **Décision humaine** | Valider les prix boutique (1,99/3,49/5,99/9,99 €) + paiement (cantale.store) **avant** d'activer `SHOP_ENABLED` |
 
@@ -129,6 +129,18 @@
 - [x] TPA natif : `/tpa` `/tpahere` `/tpyes` `/tpno` (absent du plugin alors que FAQ le documentait)
 - [x] `/pc` `/ec` : plus de wipe (resize au lieu d'égalité stricte, saves versionnées, `/ec` = vanilla + migration, nav PDC, vote via service)
 - [ ] **Ops** : déployer le nouveau JAR + reparer les lignes stale (`lives > 0` alors que le joueur est ban « plus de vies »)
+
+## Hotfix — loot de mort qui disparaît (2026-08-12)
+- [x] **Cause** : `ClearLagTask` supprimait TOUS les items sans grâce ; `ServerOptimizer`
+  cullait les Item via `max-entities-per-chunk: 15` en priorisant les **plus récents**
+  (loot de mort wipe) + `max-items-per-chunk: 20` sans protection.
+  Aucun `setTicksLived` / despawn 40 ticks dans le plugin (si ~2s systématique →
+  vérifier aussi `spigot.yml` → `item-despawn-rate`, défaut 6000 = 5 min).
+- [x] Fix : grâce 5 min (`clearlag.protect-recent-seconds` /
+  `optimization.protect-recent-item-seconds`), items exclus du cull entités/chunk,
+  cull items seulement hors grâce, âge sol 5 min, ClearLag min intervalle 60s.
+- [ ] Déployer le JAR + fusionner les clés `clearlag.*` / `protect-recent*` dans le
+  `config.yml` serveur si l'existant n'a pas les nouvelles entrées.
 
 ## En cours / à valider
 - [x] ClearLag : intervalle 3 min (180s), premier warning à T-30s uniquement (paliers 30/10/5/3/2/1)
