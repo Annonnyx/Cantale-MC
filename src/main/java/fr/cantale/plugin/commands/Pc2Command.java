@@ -27,8 +27,10 @@ public class Pc2Command implements CommandExecutor {
         PlayerRank rank = isStaff ? PlayerRank.CHEVRE : plugin.getRankManager().getRank(player);
         int chestCount = plugin.getPrivateChestService().getPrivateChestCount(rank);
 
-        ChestType target = ChestType.PC2;
-        if (args.length > 0 && args[0].equals("3")) {
+        // /pc3 ouvre PC3 ; /pc2 (éventuellement /pc2 3) ouvre PC2/PC3
+        String name = command.getName().toLowerCase();
+        ChestType target = "pc3".equals(name) ? ChestType.PC3 : ChestType.PC2;
+        if (target == ChestType.PC2 && args.length > 0 && args[0].equals("3")) {
             target = ChestType.PC3;
         }
 

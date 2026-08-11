@@ -113,6 +113,8 @@ public class GiveawayManager {
             handleRewardTypeSelect(event);
         } else if (componentId.startsWith("giveaway:rank:")) {
             handleRankSelect(event);
+        } else if (componentId.startsWith("giveaway:itemcat:")) {
+            handleItemCategorySelect(event);
         } else if (componentId.startsWith("giveaway:item:")) {
             handleItemSelect(event);
         }
@@ -148,13 +150,26 @@ public class GiveawayManager {
                 .build();
             event.reply("Sélectionne le grade à offrir :").addComponents(ActionRow.of(rankMenu)).setEphemeral(true).queue();
         } else if ("item".equals(selected)) {
-            StringSelectMenu itemMenu = StringSelectMenu.create("giveaway:item:" + memberId)
-                .setPlaceholder("Choisir un item custom")
-                .addOptions(Arrays.stream(CustomItemType.values())
-                    .map(t -> SelectOption.of(t.getDisplayName(), t.name()))
-                    .toList())
-                .build();
-            event.reply("Sélectionne l'item custom à offrir :").addComponents(ActionRow.of(itemMenu)).setEphemeral(true).queue();
+            // Discord limite les StringSelectMenu à 25 options — on passe par des catégories
+            // (28 CustomItemType > 25 → crash silencieux sinon, items custom impossibles).
+            try {
+                StringSelectMenu categoryMenu = StringSelectMenu.create("giveaway:itemcat:" + memberId)
+                    .setPlaceholder("Catégorie d'item custom")
+                    .addOptions(
+                        SelectOption.of("Pickantaxe", "pickantaxe"),
+                        SelectOption.of("Cantaxe", "cantaxe"),
+                        SelectOption.of("Multi-Cantool", "multicantool"),
+                        SelectOption.of("Autres (Cantalame, Vie, Garde…)", "autres")
+                    )
+                    .build();
+                event.reply("Choisis d'abord une catégorie :")
+                    .addComponents(ActionRow.of(categoryMenu))
+                    .setEphemeral(true)
+                    .queue();
+            } catch (Exception e) {
+                plugin.getLogger().log(Level.SEVERE, "[Giveaway] Impossible d'ouvrir le menu item", e);
+                event.reply("❌ Impossible d'ouvrir le menu des items custom.").setEphemeral(true).queue();
+            }
         } else if ("other".equals(selected)) {
             TextInput input = TextInput.create("giveaway:other_text", "Description de la récompense", TextInputStyle.PARAGRAPH)
                 .setPlaceholder("Ex: 1 kit de démarrage, 64 diamants...")
@@ -186,6 +201,47 @@ public class GiveawayManager {
             builder.addReward(new Reward("RANK", rank.name(), 1));
         }
         refreshConfigMessage(event, builder);
+    }
+
+    private void handleItemCategorySelect(StringSelectInteractionEvent event) {
+        String memberId = event.getMember() != null ? event.getMember().getId() : event.getUser().getId();
+        GiveawayBuilder builder = builders.get(memberId);
+        if (builder == null) {
+            event.reply("❌ Aucun giveaway en cours de configuration.").setEphemeral(true).queue();
+            return;
+        }
+
+        String category = event.getValues().get(0);
+        List<CustomItemType> types = switch (category) {
+            case "pickantaxe" -> Arrays.stream(CustomItemType.values()).filter(CustomItemType::isPickantise).toList();
+            case "cantaxe" -> Arrays.stream(CustomItemType.values()).filter(CustomItemType::isCantaxe).toList();
+            case "multicantool" -> Arrays.stream(CustomItemType.values()).filter(CustomItemType::isMultiCantool).toList();
+            case "autres" -> Arrays.stream(CustomItemType.values())
+                .filter(t -> t.isCantalame() || t == CustomItemType.VIE || t.isRuneFortification() || t.isGardeArmor())
+                .toList();
+            default -> List.of();
+        };
+
+        if (types.isEmpty()) {
+            event.reply("❌ Catégorie invalide.").setEphemeral(true).queue();
+            return;
+        }
+
+        try {
+            StringSelectMenu itemMenu = StringSelectMenu.create("giveaway:item:" + memberId)
+                .setPlaceholder("Choisir un item custom")
+                .addOptions(types.stream()
+                    .map(t -> SelectOption.of(t.getDisplayName(), t.name()))
+                    .toList())
+                .build();
+            event.reply("Sélectionne l'item custom à offrir :")
+                .addComponents(ActionRow.of(itemMenu))
+                .setEphemeral(true)
+                .queue();
+        } catch (Exception e) {
+            plugin.getLogger().log(Level.SEVERE, "[Giveaway] Menu item catégorie=" + category, e);
+            event.reply("❌ Impossible d'ouvrir la liste d'items.").setEphemeral(true).queue();
+        }
     }
 
     private void handleItemSelect(StringSelectInteractionEvent event) {

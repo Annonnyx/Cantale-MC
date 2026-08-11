@@ -638,6 +638,42 @@ public class DatabaseManager {
                 )
                 """);
 
+            // Statut serveur pour le site web : ligne unique (id = 1) upsertée par ServerStatusTask.
+            // updated_at est un vrai TIMESTAMP (le site le lit comme une Date), contrairement
+            // aux colonnes epoch INTEGER des autres tables.
+            stmt.execute("""
+                CREATE TABLE IF NOT EXISTS server_status (
+                    id INTEGER PRIMARY KEY,
+                    online_count INTEGER DEFAULT 0,
+                    max_players INTEGER DEFAULT 0,
+                    tps REAL DEFAULT 20.0,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+                """);
+
+            // File d'actions faction déposées par le site web (Next.js). Le site n'écrit
+            // JAMAIS dans faction_members : il dépose ici une intention (status='pending')
+            // que WebFactionBridge rejoue via FactionManager, donc toute la logique métier
+            // (cache, power, sync du rôle Discord "a une faction") se déclenche naturellement.
+            // type : 'join' | 'leave' | 'set_rank' | 'disband'
+            // payload : rang cible pour set_rank ('RECRUIT'|'MEMBER'|'VETERAN'|'OFFICER'), NULL sinon
+            // status : 'pending' | 'done' | 'failed' (result contient la raison si failed)
+            // created_at/processed_at sont de vrais TIMESTAMP (lus comme des Dates par le site).
+            // AUTO_INCREMENT est une syntaxe MySQL refusée par SQLite : AUTOINCREMENT là-bas.
+            stmt.execute("""
+                CREATE TABLE IF NOT EXISTS web_faction_actions (
+                    id INTEGER PRIMARY KEY %s,
+                    type VARCHAR(16) NOT NULL,
+                    faction_id INTEGER NOT NULL,
+                    player_uuid VARCHAR(36) NOT NULL,
+                    payload VARCHAR(255),
+                    status VARCHAR(16) DEFAULT 'pending',
+                    result VARCHAR(255),
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    processed_at TIMESTAMP NULL DEFAULT NULL
+                )
+                """.formatted(isSQLite() ? "AUTOINCREMENT" : "AUTO_INCREMENT"));
+
             plugin.getLogger().info("Tables créées / vérifiées avec succès.");
         } catch (SQLException e) {
             plugin.getLogger().severe("Erreur lors de la création des tables : " + e.getMessage());

@@ -13,9 +13,9 @@
 # Repères économiques connus (pour calibrer) :
 #  - Solde de départ  : 10 000 Cantox (config.yml: economy.start-balance)
 #  - /daily (journalier) : 1000 Cantox de base + bonus de grade payant
-#    (Aventurier +2500, VIP +10000, Chèvre/Staff +100000). Ces bonus sont
-#    jugés très généreux (voir TODO.md) : un prix seul ne peut pas empêcher
-#    un Chèvre de tout acheter avec un seul /daily. C'est pourquoi les
+#    (Aventurier +2500, VIP +10000, Chèvre +100000 ; staff = base seule).
+#    Ces bonus sont jugés très généreux (voir TODO.md) : un prix seul ne peut
+#    pas empêcher un Chèvre de tout acheter avec un seul /daily. C'est pourquoi les
 #    ressources rares utilisent des PLAFONDS QUOTIDIENS (daily-sell-cap /
 #    daily-buy-cap) en plus du prix. Shulker / Netherite : prix d'achat
 #    massifs (centaines de milliers) + plafonds serrés.

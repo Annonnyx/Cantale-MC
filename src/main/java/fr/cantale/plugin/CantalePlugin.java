@@ -123,11 +123,14 @@ public class CantalePlugin extends JavaPlugin {
     private fr.cantale.plugin.tag.TagManager tagManager;
     private fr.cantale.plugin.tasks.ClearLagTask clearLagTask;
     private fr.cantale.plugin.teleport.TeleportDelayManager teleportDelayManager;
+    private fr.cantale.plugin.teleport.TpaManager tpaManager;
     private fr.cantale.plugin.anticheat.AntiCheatManager antiCheatManager;
     private fr.cantale.plugin.combat.CombatTagManager combatTagManager;
     private fr.cantale.plugin.shop.ShopManager shopManager;
     private fr.cantale.plugin.events.EventSystemsManager eventSystemsManager;
     private fr.cantale.plugin.ui.bossbar.RotatingBossBarManager rotatingBossBarManager;
+    private fr.cantale.plugin.web.ServerStatusTask serverStatusTask;
+    private fr.cantale.plugin.web.WebFactionBridge webFactionBridge;
 
     @Override
     public void onEnable() {
@@ -337,6 +340,7 @@ public class CantalePlugin extends JavaPlugin {
         this.welcomeCommand = new fr.cantale.plugin.commands.WelcomeCommand(this);
         this.tagManager = new fr.cantale.plugin.tag.TagManager(this);
         this.teleportDelayManager = new fr.cantale.plugin.teleport.TeleportDelayManager(this);
+        this.tpaManager = new fr.cantale.plugin.teleport.TpaManager(this);
         this.uiManager = new UIManager(this);
         this.customItemManager = new CustomItemManager();
         this.crateManager = new fr.cantale.plugin.crate.CrateManager(this);
@@ -388,11 +392,25 @@ public class CantalePlugin extends JavaPlugin {
         // BossBar infos joueur (rotation)
         this.rotatingBossBarManager.start();
 
+        // Statut serveur pour le site web (upsert server_status toutes les 60s, asynchrone)
+        this.serverStatusTask = new fr.cantale.plugin.web.ServerStatusTask(this);
+        this.serverStatusTask.start();
+
+        // Bridge faction du site web (consomme web_faction_actions toutes les 15s, asynchrone)
+        this.webFactionBridge = new fr.cantale.plugin.web.WebFactionBridge(this);
+        this.webFactionBridge.start();
+
         getLogger().info("Cantale v" + getDescription().getVersion() + " activé avec succès !");
     }
 
     @Override
     public void onDisable() {
+        if (webFactionBridge != null) {
+            webFactionBridge.stop();
+        }
+        if (serverStatusTask != null) {
+            serverStatusTask.stop();
+        }
         if (rotatingBossBarManager != null) {
             rotatingBossBarManager.stop();
         }
@@ -418,6 +436,9 @@ public class CantalePlugin extends JavaPlugin {
         if (antiCheatManager != null) {
             antiCheatManager.shutdown();
         }
+        if (tpaManager != null) {
+            tpaManager.shutdown();
+        }
         unregisterPluginMessageChannels();
         getLogger().info("Cantale désactivé.");
     }
@@ -439,6 +460,13 @@ public class CantalePlugin extends JavaPlugin {
         getCommand("warp").setExecutor(new WarpCommand(this));
         getCommand("spawn").setExecutor(spawnCommand);
         getCommand("rtp").setExecutor(rtpCommand);
+        fr.cantale.plugin.commands.TpaCommand tpaCommand = new fr.cantale.plugin.commands.TpaCommand(this);
+        getCommand("tpa").setExecutor(tpaCommand);
+        getCommand("tpa").setTabCompleter(tpaCommand);
+        getCommand("tpahere").setExecutor(tpaCommand);
+        getCommand("tpahere").setTabCompleter(tpaCommand);
+        getCommand("tpyes").setExecutor(tpaCommand);
+        getCommand("tpno").setExecutor(tpaCommand);
         getCommand("moderation").setExecutor(moderationCommand);
         getCommand("vanish").setExecutor(vanishCommand);
         getCommand("modhelp").setExecutor(new ModHelpCommand(this));
@@ -732,6 +760,10 @@ public class CantalePlugin extends JavaPlugin {
 
     public fr.cantale.plugin.tasks.ClearLagTask getClearLagTask() {
         return clearLagTask;
+    }
+
+    public fr.cantale.plugin.teleport.TpaManager getTpaManager() {
+        return tpaManager;
     }
 
     public fr.cantale.plugin.teleport.TeleportDelayManager getTeleportDelayManager() {

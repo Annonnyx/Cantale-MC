@@ -33,7 +33,7 @@
 | **Ops** | Déployer le nouveau JAR (`ServerStatusTask` + `WebFactionBridge` + tables `server_status` / `web_faction_actions`) |
 | **Ops** | `.env.local` web (Discord client/secret/bot token, `AUTH_SECRET`, `DATABASE_URL`, `CRON_SECRET`, optionnel `MAP_PROVIDER_URL`) + redirect OAuth `…/api/auth/discord/callback` + cron quotidien `/api/cron/snapshot` |
 | **Ops** | Installer Squaremap/BlueMap sur le serveur et renseigner `MAP_PROVIDER_URL` (onglet « Carte du monde détaillée ») |
-| **Ops** | Déploiement + DNS `cantale.world` |
+| **Ops** | Déploiement + DNS `cantale.world` / `cantale.fun` — fix Vercel 404 (Framework Preset → Next.js, redeploy prod) ✓ 2026-08-10 |
 | **Décision humaine** | Valider les prix boutique (1,99/3,49/5,99/9,99 €) + paiement (cantale.store) **avant** d'activer `SHOP_ENABLED` |
 
 - Référence : plan détaillé validé (découpage T0.1 → T10.4) — ne jamais dupliquer une donnée du plugin, lecture seule sur les tables existantes
@@ -88,6 +88,14 @@
 - [x] Compiler + corriger si besoin (OK, 0 erreur)
 - [ ] Smoke test sur serveur Paper 1.21.11
 - [ ] Déployer le JAR + maj `faq.yml` serveur
+
+## Hotfix urgents (2026-08-10)
+- [x] Giveaway Discord : menu « Item custom » cassé (28 options > limite Discord 25) → catégories Pickantaxe/Cantaxe/Multi-Cantool/Autres ; Cantalame via `CantalameManager` à la claim
+- [x] Vies à la co : `getLives` fail-closed (plus de fallback fantôme à 3) ; ban PROFILE (UUID) + gate `AsyncPlayerPreLoginEvent` ; `setLives` upsert si 0 ligne
+- [x] Staff : `/daily` sans bonus (Modo/Admin/Owner = base 1000 comme joueur normal) ; plus de vies mensuelles staff
+- [x] TPA natif : `/tpa` `/tpahere` `/tpyes` `/tpno` (absent du plugin alors que FAQ le documentait)
+- [x] `/pc` `/ec` : plus de wipe (resize au lieu d'égalité stricte, saves versionnées, `/ec` = vanilla + migration, nav PDC, vote via service)
+- [ ] **Ops** : déployer le nouveau JAR + reparer les lignes stale (`lives > 0` alors que le joueur est ban « plus de vies »)
 
 ## En cours / à valider
 - [x] ClearLag : intervalle 3 min (180s), premier warning à T-30s uniquement (paliers 30/10/5/3/2/1)

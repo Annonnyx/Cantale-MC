@@ -3,8 +3,6 @@ package fr.cantale.plugin.vote;
 import fr.cantale.plugin.CantalePlugin;
 import fr.cantale.plugin.crate.CrateManager;
 import fr.cantale.plugin.crate.CrateType;
-import fr.cantale.plugin.privatechest.ChestType;
-import fr.cantale.plugin.privatechest.PrivateChestDAO;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 
@@ -74,28 +72,18 @@ public class VoteRewardManager {
             var leftoverInv = player.getInventory().addItem(item.clone());
             if (leftoverInv.isEmpty()) continue;
 
-            boolean pcSuccess = false;
             try {
-                PrivateChestDAO dao = new PrivateChestDAO(plugin);
-                var snapshot = dao.loadChest(player.getUniqueId(), ChestType.PC1, 27);
-                org.bukkit.inventory.Inventory pcInventory = org.bukkit.Bukkit.createInventory(null, snapshot.size(), ChestType.PC1.getTitle());
-                if (snapshot.contents() != null && snapshot.contents().length == snapshot.size()) {
-                    pcInventory.setContents(snapshot.contents());
-                }
-                var leftoverPc = pcInventory.addItem(leftoverInv.values().toArray(new ItemStack[0]));
-                if (leftoverPc.isEmpty()) {
-                    dao.saveChest(player.getUniqueId(), ChestType.PC1, pcInventory.getContents());
-                    pcSuccess = true;
+                var leftoverList = new java.util.ArrayList<>(leftoverInv.values());
+                var stillLeft = plugin.getPrivateChestService().storeItemsInPrivateChest(
+                    player.getUniqueId(), leftoverList);
+                if (stillLeft.size() < leftoverList.size()) {
                     player.sendMessage("§8[§6Vote§8] §7Item envoyé dans votre §eCoffre Privé §7(faute de place).");
-                } else {
-                    dao.saveChest(player.getUniqueId(), ChestType.PC1, pcInventory.getContents());
-                    leftoverInv = leftoverPc;
+                }
+                for (ItemStack drop : stillLeft) {
+                    player.getWorld().dropItemNaturally(player.getLocation(), drop);
                 }
             } catch (Exception e) {
                 plugin.getLogger().warning("[Vote] Erreur coffre privé pour " + player.getName() + ": " + e.getMessage());
-            }
-
-            if (!pcSuccess) {
                 for (ItemStack drop : leftoverInv.values()) {
                     player.getWorld().dropItemNaturally(player.getLocation(), drop);
                 }

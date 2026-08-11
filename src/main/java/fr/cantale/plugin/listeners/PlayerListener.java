@@ -1,6 +1,8 @@
 package fr.cantale.plugin.listeners;
 
 import fr.cantale.plugin.CantalePlugin;
+import fr.cantale.plugin.custom.CantalameManager;
+import fr.cantale.plugin.custom.CustomItemType;
 import fr.cantale.plugin.database.PlayerDAO;
 import fr.cantale.plugin.lives.LifeManager;
 import org.bukkit.ChatColor;
@@ -9,9 +11,9 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.PlayerDeathEvent;
+import org.bukkit.event.player.AsyncPlayerPreLoginEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.Bukkit;
-import org.bukkit.event.player.PlayerLoginEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 
 import java.util.UUID;
@@ -33,12 +35,41 @@ public class PlayerListener implements Listener {
         this.lifeManager = plugin.getLifeManager();
     }
 
+    /**
+     * Gate pré-login : refuse les comptes à 0 vie avant qu'ils n'entrent en jeu
+     * (évite le bypass BanList NAME via changement de pseudo).
+     */
+    @EventHandler(priority = EventPriority.HIGH)
+    public void onAsyncPreLogin(AsyncPlayerPreLoginEvent event) {
+        if (!plugin.getConfigManager().isBanOnZero()) return;
+        if (event.getLoginResult() != AsyncPlayerPreLoginEvent.Result.ALLOWED) return;
+
+        UUID uuid = event.getUniqueId();
+        // Assurer la ligne joueur (INSERT default lives pour les vrais nouveaux)
+        playerDAO.createOrUpdatePlayer(uuid, event.getName());
+        int lives = lifeManager.getLives(uuid);
+        if (lives <= 0) {
+            event.disallow(
+                AsyncPlayerPreLoginEvent.Result.KICK_BANNED,
+                ChatColor.translateAlternateColorCodes('&',
+                    "&cVous n'avez plus de vies ! Achetez-en une ou attendez qu'un ami vous en donne une.")
+            );
+        }
+    }
+
     @EventHandler(priority = EventPriority.HIGH)
     public void onPlayerJoin(PlayerJoinEvent event) {
         Player player = event.getPlayer();
         UUID uuid = player.getUniqueId();
 
         playerDAO.createOrUpdatePlayer(uuid, player.getName());
+
+        int lives = lifeManager.getLives(uuid);
+        if (lives <= 0 && plugin.getConfigManager().isBanOnZero()) {
+            player.kickPlayer(ChatColor.translateAlternateColorCodes('&',
+                    "&cVous n'avez plus de vies ! Achetez-en une ou attendez qu'un ami vous en donne une."));
+            return;
+        }
 
         if (plugin.getDiscordBot() != null && plugin.getDiscordBot().isConnected()) {
             boolean inFaction = plugin.getFactionManager() != null
@@ -60,13 +91,6 @@ public class PlayerListener implements Listener {
 
         // Logger la connexion
         plugin.getActionLogger().logJoin(player.getName());
-
-        int lives = lifeManager.getLives(uuid);
-        if (lives <= 0 && plugin.getConfigManager().isBanOnZero()) {
-            player.kickPlayer(ChatColor.translateAlternateColorCodes('&',
-                    "&cVous n'avez plus de vies ! Achetez-en une ou attendez qu'un ami vous en donne une."));
-            return;
-        }
 
         player.sendMessage(formatMessage("&eBienvenue sur Cantale ! Vous avez &6" + lives + " &evie(s)."));
         player.sendMessage(formatMessage("&7Solde : &6" + playerDAO.getBalance(uuid) + " &7Cantox"));
@@ -335,11 +359,15 @@ public class PlayerListener implements Listener {
                 break;
             case "ITEM":
                 try {
-                    fr.cantale.plugin.custom.CustomItemType itemType = fr.cantale.plugin.custom.CustomItemType.valueOf(value.toUpperCase());
-                    ItemStack itemStack = plugin.getCustomItemManager().createCustomItem(itemType);
+                    CustomItemType itemType = CustomItemType.valueOf(value.toUpperCase());
+                    // Cantalame doit passer par CantalameManager (PDC kills/victimes),
+                    // pas createCustomItem — sinon l'épée ne progresse pas.
+                    ItemStack itemStack = itemType.isCantalame()
+                        ? new CantalameManager(plugin).createCantalame()
+                        : plugin.getCustomItemManager().createCustomItem(itemType);
                     if (itemStack != null) {
                         itemStack.setAmount(quantity);
-                        player.sendMessage("§8[§6Giveaway§8] §aFélicitations ! Tu as gagné §e" + quantity + "x " + itemType.name() + " §asur Discord !");
+                        player.sendMessage("§8[§6Giveaway§8] §aFélicitations ! Tu as gagné §e" + quantity + "x " + itemType.getDisplayName() + " §asur Discord !");
                         
                         // Essayer d'ajouter à l'inventaire
                         java.util.HashMap<Integer, ItemStack> remaining = player.getInventory().addItem(itemStack.clone());

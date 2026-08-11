@@ -41,6 +41,11 @@ public class PlayerDAO {
         }
     }
 
+    /**
+     * Lit les vies en DB. Fail-closed : ligne absente / erreur SQL → 0
+     * (jamais le default 3 — sinon un ban/mort à 0 vie peut « réapparaître » avec 3 vies).
+     * Les nouveaux joueurs doivent passer par {@link #createOrUpdatePlayer} avant.
+     */
     public int getLives(UUID uuid) {
         String sql = "SELECT lives FROM players WHERE uuid = ?";
         try (Connection conn = databaseManager.getConnection();
@@ -50,19 +55,31 @@ public class PlayerDAO {
             if (rs.next()) {
                 return rs.getInt("lives");
             }
+            plugin.getLogger().warning("getLives: aucune ligne pour " + uuid + " → 0 (fail-closed)");
         } catch (SQLException e) {
             plugin.getLogger().severe("Erreur getLives : " + e.getMessage());
         }
-        return plugin.getConfigManager().getDefaultLives();
+        return 0;
     }
 
     public void setLives(UUID uuid, int lives) {
+        int value = Math.max(lives, plugin.getConfigManager().getMinLives());
         String sql = "UPDATE players SET lives = ? WHERE uuid = ?";
         try (Connection conn = databaseManager.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setInt(1, Math.max(lives, plugin.getConfigManager().getMinLives()));
+            stmt.setInt(1, value);
             stmt.setString(2, uuid.toString());
-            stmt.executeUpdate();
+            int updated = stmt.executeUpdate();
+            if (updated == 0) {
+                plugin.getLogger().warning("setLives: 0 ligne mise à jour pour " + uuid
+                    + " (valeur demandée=" + value + ") — upsert de secours");
+                createOrUpdatePlayer(uuid, "unknown");
+                try (PreparedStatement retry = conn.prepareStatement(sql)) {
+                    retry.setInt(1, value);
+                    retry.setString(2, uuid.toString());
+                    retry.executeUpdate();
+                }
+            }
         } catch (SQLException e) {
             plugin.getLogger().severe("Erreur setLives : " + e.getMessage());
         }

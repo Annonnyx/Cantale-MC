@@ -1,7 +1,6 @@
 package fr.cantale.plugin.commands;
 
 import fr.cantale.plugin.CantalePlugin;
-import fr.cantale.plugin.privatechest.ChestType;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -22,9 +21,9 @@ public class EnderChestCommand implements CommandExecutor {
             return true;
         }
 
-        boolean isStaff = player.hasPermission("cantale.admin");
-        plugin.getPrivateChestService().openChest(player, ChestType.EC, isStaff);
-        player.sendMessage("§8[§6Cantale§8] §7Ender Chest ouvert.");
+        // Toujours l'ender chest vanilla (persistance Minecraft) + migration éventuelle
+        // depuis l'ancienne sauvegarde virtuelle private_chests.ec
+        plugin.getPrivateChestService().openVanillaEnderChest(player);
         return true;
     }
 }

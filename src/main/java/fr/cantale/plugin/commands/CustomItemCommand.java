@@ -4,9 +4,12 @@ import fr.cantale.plugin.CantalePlugin;
 import fr.cantale.plugin.custom.CantalameManager;
 import fr.cantale.plugin.custom.CustomItemManager;
 import fr.cantale.plugin.custom.CustomItemType;
+import org.bukkit.Bukkit;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
+import org.bukkit.command.ConsoleCommandSender;
+import org.bukkit.command.RemoteConsoleCommandSender;
 import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
@@ -14,6 +17,7 @@ import org.bukkit.inventory.ItemStack;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.stream.Collectors;
 
 public class CustomItemCommand implements CommandExecutor, TabCompleter {
@@ -34,56 +38,96 @@ public class CustomItemCommand implements CommandExecutor, TabCompleter {
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
-        if (!(sender instanceof Player player)) {
-            sender.sendMessage("§cCette commande est réservée aux joueurs.");
-            return true;
-        }
-
-        if (!player.hasPermission("cantale.admin")) {
-            player.sendMessage("§cVous n'avez pas la permission d'utiliser cette commande.");
+        boolean console = sender instanceof ConsoleCommandSender || sender instanceof RemoteConsoleCommandSender;
+        if (!console && !sender.hasPermission("cantale.admin")) {
+            sender.sendMessage("§cVous n'avez pas la permission d'utiliser cette commande.");
             return true;
         }
 
         if (args.length == 0) {
-            sendHelp(player);
+            sendHelp(sender);
             return true;
         }
 
-        try {
-            CustomItemType type = CustomItemType.valueOf(args[0].toUpperCase());
-            ItemStack item;
-            
-            if (type.isCantalame()) {
-                item = cantalameManager.createCantalame();
-            } else {
-                item = customItemManager.createCustomItem(type);
+        // Console : /customitem <type> <joueur>
+        // Joueur  : /customitem <type> [joueur]  (défaut = soi-même)
+        Player target;
+        String typeArg = args[0];
+
+        if (console) {
+            if (args.length < 2) {
+                sender.sendMessage("§cUsage console : customitem <type> <joueur>");
+                return true;
             }
-            
-            player.getInventory().addItem(item);
-            player.sendMessage("§8[§6Cantale§8] §aItem custom donné : §e" + type.getDisplayName());
+            target = Bukkit.getPlayer(args[1]);
+            if (target == null) {
+                sender.sendMessage("§cJoueur introuvable (doit être en ligne).");
+                return true;
+            }
+        } else {
+            if (args.length >= 2) {
+                target = Bukkit.getPlayer(args[1]);
+                if (target == null) {
+                    sender.sendMessage("§cJoueur introuvable : §e" + args[1]);
+                    return true;
+                }
+            } else {
+                target = (Player) sender;
+            }
+        }
+
+        try {
+            CustomItemType type = CustomItemType.valueOf(typeArg.toUpperCase(Locale.ROOT));
+            ItemStack item = type.isCantalame()
+                ? cantalameManager.createCantalame()
+                : customItemManager.createCustomItem(type);
+
+            var leftover = target.getInventory().addItem(item);
+            if (!leftover.isEmpty()) {
+                leftover.values().forEach(i ->
+                    target.getWorld().dropItemNaturally(target.getLocation(), i));
+                sender.sendMessage("§8[§6Cantale§8] §eInventaire plein — item droppé aux pieds de §e" + target.getName());
+            }
+
+            sender.sendMessage("§8[§6Cantale§8] §aItem §e" + type.getDisplayName()
+                + " §adonné à §e" + target.getName() + "§a.");
+            if (sender != target) {
+                target.sendMessage("§8[§6Cantale§8] §aTu as reçu : §e" + type.getDisplayName());
+            }
         } catch (IllegalArgumentException e) {
-            player.sendMessage("§8[§6Cantale§8] §cType d'item inconnu : §e" + args[0]);
-            sendHelp(player);
+            sender.sendMessage("§8[§6Cantale§8] §cType d'item inconnu : §e" + typeArg);
+            sendHelp(sender);
         }
 
         return true;
     }
 
-    private void sendHelp(Player player) {
-        player.sendMessage("§8[§6Cantale§8] §7=== Items Custom ===");
-        player.sendMessage("§7Usage : /customitem <type>");
-        player.sendMessage("§7Types disponibles :");
+    private void sendHelp(CommandSender sender) {
+        sender.sendMessage("§8[§6Cantale§8] §7=== Items Custom ===");
+        sender.sendMessage("§7Usage joueur  : /customitem <type> [joueur]");
+        sender.sendMessage("§7Usage console : customitem <type> <joueur>");
+        sender.sendMessage("§7Types :");
         for (CustomItemType type : CustomItemType.values()) {
-            player.sendMessage("§7  - §e" + type.name().toLowerCase());
+            sender.sendMessage("§7  - §e" + type.name().toLowerCase(Locale.ROOT));
         }
     }
 
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         if (args.length == 1) {
+            String prefix = args[0].toLowerCase(Locale.ROOT);
             return Arrays.stream(CustomItemType.values())
-                    .map(type -> type.name().toLowerCase())
-                    .collect(Collectors.toList());
+                .map(t -> t.name().toLowerCase(Locale.ROOT))
+                .filter(n -> n.startsWith(prefix))
+                .collect(Collectors.toList());
+        }
+        if (args.length == 2) {
+            String prefix = args[1].toLowerCase(Locale.ROOT);
+            return Bukkit.getOnlinePlayers().stream()
+                .map(Player::getName)
+                .filter(n -> n.toLowerCase(Locale.ROOT).startsWith(prefix))
+                .sorted()
+                .collect(Collectors.toList());
         }
         return Collections.emptyList();
     }

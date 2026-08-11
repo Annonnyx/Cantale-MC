@@ -109,23 +109,30 @@ public class LifeManager {
         String message = ChatColor.translateAlternateColorCodes('&', plugin.getConfigManager().getBanMessage());
         String reason = ChatColor.translateAlternateColorCodes('&', "&cVous n'avez plus de vies sur Cantale !");
 
+        // Ban UUID/profil en premier — résiste au changement de pseudo.
+        // player.ban(..., kickPlayer=false) : on kick avec le message config ensuite.
+        try {
+            player.ban(reason, (java.time.Instant) null, "Cantale", false);
+        } catch (Exception e) {
+            plugin.getLogger().warning("Ban PROFILE échoué pour " + player.getName() + " : " + e.getMessage());
+            // Fallback name ban si l'API profil échoue
+            plugin.getServer().getBanList(org.bukkit.BanList.Type.NAME).addBan(
+                    player.getName(),
+                    reason,
+                    (java.util.Date) null,
+                    "Cantale"
+            );
+        }
+
         // Ban IP (adresse peut être null pendant un quit)
         if (player.getAddress() != null && player.getAddress().getAddress() != null) {
             plugin.getServer().getBanList(org.bukkit.BanList.Type.IP).addBan(
                     player.getAddress().getAddress().getHostAddress(),
                     reason,
-                    null,
+                    (java.util.Date) null,
                     "Cantale"
             );
         }
-
-        // Ban nom
-        plugin.getServer().getBanList(org.bukkit.BanList.Type.NAME).addBan(
-                player.getName(),
-                reason,
-                null,
-                "Cantale"
-        );
 
         if (player.isOnline()) {
             player.kickPlayer(message);

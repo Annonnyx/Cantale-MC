@@ -27,15 +27,16 @@ commands:
     description: Sacrifier une vie
     usage: /dropvie
   givevie:
-    description: Donner une vie à un joueur
+    description: Donner une vie à un joueur (console = grant admin sans coût)
     usage: /givevie <joueur>
     permission: cantale.givevie
+    permission-message: "§cPermission manquante (cantale.givevie). Depuis la console : givevie <joueur>"
   addlife:
-    description: Ajouter des vies à un joueur (admin)
+    description: Ajouter des vies à un joueur (admin / console)
     usage: /addlife <joueur> <nombre>
     permission: cantale.admin
   removelife:
-    description: Retirer des vies à un joueur (admin)
+    description: Retirer des vies à un joueur (admin / console)
     usage: /removelife <joueur> <nombre>
     permission: cantale.admin
   f:
@@ -67,8 +68,8 @@ commands:
     usage: /trade <joueur|accept|decline>
     aliases: [trades]
   customitem:
-    description: Donner un item custom (admin)
-    usage: /customitem <type>
+    description: Donner un item custom (admin / console)
+    usage: /customitem <type> [joueur]
     permission: cantale.admin
   home:
     description: Gérer ses homes personnels
@@ -82,6 +83,20 @@ commands:
   rtp:
     description: Téléportation aléatoire
     usage: /rtp
+  tpa:
+    description: Demander à se téléporter vers un joueur
+    usage: /tpa <joueur>
+  tpahere:
+    description: Demander à un joueur de se téléporter vers toi
+    usage: /tpahere <joueur>
+  tpyes:
+    description: Accepter une demande de téléportation
+    usage: /tpyes
+    aliases: [tpaccept]
+  tpno:
+    description: Refuser une demande de téléportation
+    usage: /tpno
+    aliases: [tpdeny]
   moderation:
     description: Outils de modération
     usage: /moderation <kick|mute|unmute|tp|tphere|vanish>
