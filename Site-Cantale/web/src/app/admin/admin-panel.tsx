@@ -25,6 +25,7 @@ export function AdminPanel() {
   const [debouncedListQuery, setDebouncedListQuery] = useState("");
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [updatedAt, setUpdatedAt] = useState<string | null>(null);
+  const [listError, setListError] = useState<string | null>(null);
 
   const refreshTickets = useCallback(async () => {
     try {
@@ -58,33 +59,58 @@ export function AdminPanel() {
         });
         if (debouncedListQuery.trim()) params.set("q", debouncedListQuery.trim());
         const res = await fetch(`/api/admin/players?${params}`, { cache: "no-store" });
-        if (!res.ok || cancelled) return;
+        if (cancelled) return;
+        if (!res.ok) {
+          let message = `Erreur ${res.status} en chargeant la liste.`;
+          try {
+            const body = (await res.json()) as { error?: string };
+            if (body.error) message = body.error;
+          } catch {
+            /* keep status message */
+          }
+          if (res.status === 404) {
+            message =
+              "Route /api/admin/players absente du déploiement — redeploy le site (repo Vercel = code web à jour).";
+          }
+          setListError(message);
+          setPlayers([]);
+          setPlayersTotal(0);
+          return;
+        }
         const data = (await res.json()) as {
           players?: ListedPlayer[];
           total?: number;
           online?: number;
           max?: number | null;
           updatedAt?: string | null;
+          error?: string;
         };
         if (cancelled) return;
+        setListError(null);
         setPlayers(data.players ?? []);
         setPlayersTotal(Number(data.total) || 0);
         setOnline(Number(data.online) || 0);
         setMax(data.max ?? null);
         setUpdatedAt(data.updatedAt ?? null);
       } catch {
-        /* ignore */
+        if (cancelled) return;
+        setListError("Impossible de joindre /api/admin/players.");
+        setPlayers([]);
+        setPlayersTotal(0);
       }
     }
 
-    void loadPlayers();
-    void refreshTickets();
+    const kickoff = setTimeout(() => {
+      void loadPlayers();
+      void refreshTickets();
+    }, 0);
     const interval = setInterval(() => {
       void loadPlayers();
       void refreshTickets();
     }, 15_000);
     return () => {
       cancelled = true;
+      clearTimeout(kickoff);
       clearInterval(interval);
     };
   }, [debouncedListQuery, playersPage, refreshTickets]);
@@ -112,7 +138,9 @@ export function AdminPanel() {
         />
 
         <ul className="mt-4 max-h-[32rem] space-y-1 overflow-y-auto">
-          {players.length === 0 ? (
+          {listError ? (
+            <li className="text-sm text-ember-glow">{listError}</li>
+          ) : players.length === 0 ? (
             <li className="text-sm text-steel">
               {debouncedListQuery.trim()
                 ? "Aucun joueur trouvé."

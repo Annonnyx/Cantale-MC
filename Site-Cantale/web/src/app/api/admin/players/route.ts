@@ -13,7 +13,11 @@ export async function GET(request: Request) {
   const limit = Number.parseInt(url.searchParams.get("limit") ?? "50", 10);
 
   try {
-    const status = await getOnlinePlayersFromStatus();
+    // Statut online = optionnel (badge / compteurs). La liste players ne doit jamais dépendre de server_status.
+    const status = await getOnlinePlayersFromStatus().catch((error) => {
+      console.error("[api/admin/players] status", error);
+      return { online: 0, max: null as number | null, updatedAt: null as string | null, players: [] as { uuid: string; name: string }[] };
+    });
     const onlineUuids = status.players.map((p) => p.uuid);
     const onlineSet = new Set(onlineUuids.map((u) => u.toLowerCase()));
 

@@ -1,7 +1,6 @@
 "use client";
 
-/* Avatars servis par mc-heads.net (tiers) : <img> natif — next/image exigerait
- * une entrée remotePatterns dans next.config, hors du périmètre de cette page. */
+/* Avatars via /api/minecraft/avatar (proxy serveur) : <img> natif. */
 /* eslint-disable @next/next/no-img-element */
 
 import Link from "next/link";
@@ -12,6 +11,7 @@ import type {
 } from "@/server/repo/leaderboards";
 import type { LeaderboardPeriod } from "@/server/repo/snapshots";
 import { PlayerLink } from "@/components/player/player-link";
+import { minecraftAvatarUrl } from "@/lib/minecraft-skin";
 
 const METRIC_TABS: { key: LeaderboardMetric; label: string; unit: LeaderboardUnit }[] = [
   { key: "cantox", label: "Cantox", unit: "cantox" },
@@ -50,7 +50,7 @@ function formatValue(value: number, unit: LeaderboardUnit): string {
 }
 
 function avatarUrl(uuid: string): string {
-  return `https://mc-heads.net/avatar/${uuid}/64`;
+  return minecraftAvatarUrl(uuid, 64);
 }
 
 /** Variation textuelle vs période précédente — ▲ / ▼, jamais d'emoji. */

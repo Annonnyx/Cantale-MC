@@ -33,13 +33,26 @@ export async function getOnlinePlayersFromStatus(): Promise<{
   type Row = {
     online_count: number;
     max_players: number | null;
-    online_json: string | null;
+    online_json?: string | null;
     updated_at: Date | string;
   };
-  const rows = await query<Row>(
-    `SELECT online_count, max_players, online_json, updated_at
-     FROM server_status ORDER BY updated_at DESC LIMIT 1`,
-  );
+
+  let rows: Row[];
+  try {
+    rows = await query<Row>(
+      `SELECT online_count, max_players, online_json, updated_at
+       FROM server_status ORDER BY updated_at DESC LIMIT 1`,
+    );
+  } catch (error) {
+    // Colonne online_json absente tant que le JAR n'a pas migré : fallback compteurs seuls.
+    const msg = error instanceof Error ? error.message : String(error);
+    if (!/online_json|Unknown column/i.test(msg)) throw error;
+    rows = await query<Row>(
+      `SELECT online_count, max_players, updated_at
+       FROM server_status ORDER BY updated_at DESC LIMIT 1`,
+    );
+  }
+
   const row = rows[0];
   if (!row) return { online: 0, max: null, updatedAt: null, players: [] };
 

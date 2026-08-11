@@ -1,5 +1,15 @@
 # TODO Cantale
 
+## Wiki — Factions / claims / pouvoir / banque (août 2026)
+- [x] Refonte articles wiki `factions/*` + récompenses events : tables depuis le code
+  (`FactionManager`, `Faction`, `FactionPowerShop`, `FactionBankCommand`, `ClaimListener`,
+  `FactionPermissions`, `config.yml` factions.*, `events.yml` rewards). Couvre toutes les `/f`,
+  sources pouvoir (65 création, +5/membre, PvP ±5, bank ×10 exposant, events top, `/admin addpower`),
+  quotas claims/fhomes/warps, rangs, wilderness/PASDIC, règles stockage/explosifs.
+- [x] Support `WikiTable` dans `wiki-content.ts` + rendu page article + index recherche.
+- [x] Alignement `faq.yml` (création, claim/pouvoir, warps, homes, banque) sur les mêmes formules.
+- [ ] Redeploy site + redeploy `faq.yml` serveur si besoin.
+
 ## Refonte site web (août 2026) — `Site-Cantale/web/` (Next.js 16 full-stack, TS, Tailwind v4)
 - [x] Scaffold app Next.js dans `Site-Cantale/web/` (App Router, TS strict, Tailwind v4, mysql2)
 - [x] Polices locales intégrées via `next/font/local` : Zina (hero), Clash Display (titres), Cabinet Grotesk (texte), Nippo (tech/labels) — sources dans `Site-Cantale/polices/`
@@ -12,7 +22,8 @@
 - [x] Repositories : players, factions (+claims, filtrage `secret_until` au SQL), votes, wanted, discord_links, snapshots, leaderboards, faction-settings, faction-actions
 - [x] Page `/design` interne de preview des composants
 - [x] Auth Discord OAuth2 maison (cookie HMAC, pas Auth.js — incompatible Next 16) + paliers anonymous/discord/linked/leader + rôles via bot token (cache 60s) + page `/connexion` 3 états (skin 3D skinview3d, stats, faction, panneau leader)
-- [x] Pages livrées : Règlement (28 règles, sommaire sticky, tampons sévérité), Partenariats (formulaire contact + ticket Discord REST `partenariat-*`, même pipeline que recrutement), Recrutement (formulaire 4 étapes + ticket Discord REST compatible `/ticket close`), Wiki (21 articles / 7 catégories, recherche ⌘K), Items (13 entrées depuis `CustomItemType` — Rune de Fortification conservée car toujours active, Statio-Lytras exclus), La Liste (mémorial), Vote (3 sites, minuteurs live), Classements (métrique × période, snapshots `web_snapshots_daily` + cron `CRON_SECRET`, podium, « ta position »), Stats (compteurs live + charts CSS), Factions (annuaire, détail ★◆●○, candidatures `web_faction_applications`, panneau leader → file `web_faction_actions`), Boutique (catalogue complet, flag `SHOP_ENABLED` bloquant côté serveur, checkout 501 en attendant la décision cantale.store)
+- [x] Pages livrées : Règlement (28 règles, sommaire sticky, tampons sévérité), Partenariats (formulaire contact + ticket Discord REST `partenariat-*`, même pipeline que recrutement), Recrutement (formulaire 4 étapes + ticket Discord REST compatible `/ticket close`), Wiki (25 articles / 7 catégories, recherche ⌘K), Items (13 entrées depuis `CustomItemType` — Rune de Fortification conservée car toujours active, Statio-Lytras exclus), La Liste (mémorial), Vote (3 sites, minuteurs live), Classements (métrique × période, snapshots `web_snapshots_daily` + cron `CRON_SECRET`, podium, « ta position »), Stats (compteurs live + charts CSS), Factions (annuaire, détail ★◆●○, candidatures `web_faction_applications`, panneau leader → file `web_faction_actions`), Boutique (catalogue complet, flag `SHOP_ENABLED` bloquant côté serveur, checkout 501 en attendant la décision cantale.store)
+- [x] Wiki Items (slice pratique) : `items-forges`, `cantalame`, `item-vie`, `rune-de-fortification`, `armure-du-garde`, `caisses-cles` — tableaux obtention/durabilité/effets/CMD depuis plugin only (zéro lore inventée)
 - [x] Build de production vert + ESLint 0 erreur sur tout `src`
 - [x] Page `/carte` : canvas interactif (claims + warps + zones PASDIC protégées), API `/api/map/claims` + `/api/map/markers`, factions secrètes exclues en SQL, rafraîchissement 30s, onglet Squaremap/BlueMap uniquement si `MAP_PROVIDER_URL` est défini
 - [x] Polish : SEO (`sitemap.ts`, `robots.ts`, OG image Zina, `icon.svg`), perf (AuthEntry client → rendu statique restauré sur les vitrines), a11y (`steel-light` contraste AA), galerie accueil (lightbox, `null` si `public/screenshots/` vide)
@@ -33,6 +44,7 @@
 | **Ops** | Déployer le nouveau JAR (`ServerStatusTask` + `WebFactionBridge` + tables `server_status` / `web_faction_actions`) |
 | **Ops** | `.env.local` web (Discord client/secret/bot token, `AUTH_SECRET`, `DATABASE_URL` ou `DB_*`, `CRON_SECRET`, optionnel `MAP_PROVIDER_URL`) + redirect OAuth `…/api/auth/discord/callback` + cron quotidien `/api/cron/snapshot` |
 | **Ops — urgent** | Login Discord prod cassé (`echange_impossible`) : **ajouter `DISCORD_CLIENT_SECRET` sur Vercel Production** (absent au 2026-08-11) ; aligner `AUTH_URL=https://www.cantale.world` + Redirect URI Discord identique ; redeploy. Secret aussi stocké côté plugin : `discord.client-secret` dans `src/main/resources/config.yml` (OAuth app, ≠ token bot) |
+| **Ops — urgent** | **Redeploy site** : skins profil cassés (prod sert encore Crafatar 521) ; code HEAD a le proxy `/api/minecraft/*` + `/joueur/[uuid]` — sans redeploy Anox26 et tous les profils restent en image brisée |
 | **Ops** | Site prod : fix MySQL (`DB_*` fallback + env runtime) + menu desktop « Plus » ✓ 2026-08-11 (`Annonnyx/Cantale` `48396d8`) — stats/classements OK |
 | **Ops** | Installer Squaremap/BlueMap sur le serveur et renseigner `MAP_PROVIDER_URL` (onglet « Carte du monde détaillée ») |
 | **Ops** | Déploiement + DNS `cantale.world` / `cantale.fun` — fix Vercel 404 (Framework Preset → Next.js, redeploy prod) ✓ 2026-08-10 |
@@ -42,7 +54,7 @@
 
 ## Fait
 - [x] Fix « Depuis le — » sur la liste membres faction (site) : `FactionDAO.addMember` n’écrivait jamais `joined_at` (défaut 0 → tiret). Insert avec timestamp Unix sec ; backfill leaders via `factions.created_at` au démarrage plugin ; autres grades historiques restent « — » (pas de date stockée). Affichage FR déjà via `Intl` (`12 août 2026`).
-- [x] Fix skin 3D `/connexion` : Crafatar (HTTP 521) → mc-heads.net (UUID, CORS OK) via `lib/minecraft-skin.ts` + `skin-viewer.tsx` — même fournisseur que classements/la-liste
+- [x] Fix skin 3D `/connexion` : Crafatar (HTTP 521) → mc-heads.net puis **proxy same-origin** `/api/minecraft/skin|avatar` (Mojang → textures.minecraft.net, repli crafthead/mc-heads) — viewer + classements/la-liste/factions. **Ops : redeploy Vercel** (prod servait encore le bundle crafatar au 2026-08-11 ; `/joueur/[uuid]` 404 tant que non déployé)
 - [x] `/link` (Minecraft) : clic sur le code → copie presse-papiers (`ClickEvent.copyToClipboard` + hover « Clique pour copier »)
 - [x] Commande admin `/linkforce <Pseudo MC> <ID Discord>` (Minecraft + Discord) — upsert `discord_links`, permission `cantale.admin` / Discord ADMINISTRATOR, gestion des conflits
 - [x] Exclusion publique **Anox26** (owner) : Cantox/vies en circulation + tous les classements (site `public-ranking-exclusions.ts`, API legacy, `/leaderboard` jeu, Discord `/leaderboard` + daily LB, tops votes) — liste centrale réutilisable (UUID optionnel)
@@ -200,7 +212,7 @@
 - [x] Stockage (liste `claim-protection.storage-blocks`) posable uniquement dans les claims de sa faction
 - [x] Hors claim : coffres/conteneurs ouvrables par tous (structures) ; pose toujours interdite
 - [x] PvP claims : safe dans le claim de sa fac ; on peut tuer les non-membres présents dans son claim ; PASDIC = no PvP
-- [x] `/f bank power [n]` : achat de pouvoir via banque (officiers/chef), prix exponentiel (`power_purchased`)
+- [x] `/f bank power [n]` : achat de pouvoir via banque (officiers/chef), prix exponentiel (`cost = floor(base * growth^(power_purchased * 10))`)
 - [x] **Pouvoir par membre** : base création **60** + **+5** par membre (chef inclus → fac neuve = **65**) ;
   join (`FactionManager#addMember`) **+5** ; leave/kick (`#removeMember`) **-5** (plancher 0 + ajustement claims).
   Pas de double-compte à la création (leader via DAO, pas via `addMember`). `PowerManager` quotidien non branché.
@@ -217,6 +229,16 @@
 - [x] Profil public `/joueur/[uuid]` (stats, vies, faction, online) ; si admin (`ADMIN_DISCORD_ID`) : panneau Direction (inspect/edit via le même pont admin). Liens joueur sur classements, stats, la-liste, factions, admin
 - [ ] Déployer JAR (inspect + édition inventaires + bridges + ServerStatusTask online_json) + Vercel `ADMIN_DISCORD_ID` + redeploy site
 - [ ] Carte : MySQL site (`DATABASE_URL` ou `DB_*`) pour le canvas claims ; optionnel Squaremap/BlueMap + `MAP_PROVIDER_URL` pour l’onglet monde détaillé
+
+## Wiki — réécriture pratique (août 2026)
+- [x] **Slice Combat & Vies** (`wiki-content.ts`) : `trois-vies` + `primes-wanted` + section PvP claims — chiffres depuis `LifeManager` / `config.yml` / `WantedManager` / `ClaimListener` / ranks / caisses (pas d'invention ; buy-price Cantox non branché documenté comme tel).
+- [x] **Slice Events / TP / AFK / carte** (`wiki-content.ts`) depuis code only :
+  - `events-faction` / `reactions-chat` / `recompenses-regulieres` ← `events.yml` + `FactionEventManager` / `ChatReactionManager` / `WeeklyKeyDropManager` / `/recolte` UI (récompenses top 5 exactes, calendriers, `/events` = warps staff ≠ events fac auto)
+  - `teleportation` : `/rtp` cooldown 2 min (VIP+ / bypass), distance 500–5000, warmup 3 s ; warps cooldown 20 s
+  - `afk-clearlag` (nouvel article) : AFK 10/30/60/∞ par grade (`AfkListener`) ; clear-lag 180 s + warnings 30/10/5/3/2/1 (`ClearLagTask`)
+  - `claims-territoire` + `discord-site` : page `/carte` (claims, PASDIC, warps, secret exclu, refresh 30 s)
+  - Compteur wiki : **25 articles** / 7 catégories
+- [ ] Redeploy site pour publier le wiki mis à jour
 
 ## Combat — Bugs
 - [x] **Fix déco combat : message affiché mais vie non retirée** : `CombatTagManager#handleCombatLog`
@@ -242,7 +264,7 @@
   enchants (Prot 9, Thorns 5, Unbreaking 10, Mending + extras), CMD 9001–9004, bonus set via
   `AttributeModifier` joueur (cumulatif 25%/pièce → +12 HP / +30% speed / +25% jump). Listener
   `GardeArmorListener`.
-- [x] **Réaction chat** : scramble FR + premier à casser un bloc, max 8–9/jour, 200–500 Cantox,
+- [x] **Réaction chat** : scramble FR + premier à casser un bloc, max **9**/jour (`events.yml`), 200–500 Cantox,
   colonne DB `chat_reactions`, leaderboard MC + Discord + daily task (salon optionnel).
 - [x] **Événements faction** : HARVEST/MINING/PVP, 3–4×/semaine, 1h, 14h–22h Europe/Paris, sidebar
   scoreboard, `/recolte` + UI dépôt, top 5 power + Cantox. Chaque HARVEST/MINING cible **une**

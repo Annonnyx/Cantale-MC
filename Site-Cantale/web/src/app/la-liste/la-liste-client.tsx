@@ -1,7 +1,6 @@
 "use client";
 
-/* Avatars servis par mc-heads.net (tiers) : <img> natif — next/image exigerait
- * une entrée remotePatterns dans next.config, hors du périmètre de cette page. */
+/* Avatars via /api/minecraft/avatar (proxy serveur) : <img> natif. */
 /* eslint-disable @next/next/no-img-element */
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -10,6 +9,7 @@ import { LifeNotches } from "@/components/ui/life-notches";
 import { Stamp } from "@/components/ui/stamp";
 import { playerProfilePath } from "@/lib/player-profile";
 import { PlayerLink } from "@/components/player/player-link";
+import { minecraftAvatarUrl } from "@/lib/minecraft-skin";
 
 export type DeadPlayer = {
   uuid: string;
@@ -48,7 +48,7 @@ function formatPlaytime(seconds: number): string {
 }
 
 function avatarUrl(uuid: string): string {
-  return `https://mc-heads.net/avatar/${uuid}/64`;
+  return minecraftAvatarUrl(uuid, 64);
 }
 
 export function LaListeClient({ players }: { players: DeadPlayer[] }) {
