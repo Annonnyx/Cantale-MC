@@ -125,9 +125,12 @@ public class LifeManager {
         }
 
         // Ban IP (adresse peut être null pendant un quit)
+        String ip = null;
         if (player.getAddress() != null && player.getAddress().getAddress() != null) {
+            ip = player.getAddress().getAddress().getHostAddress();
+            playerDAO.setLastIp(player.getUniqueId(), ip);
             plugin.getServer().getBanList(org.bukkit.BanList.Type.IP).addBan(
-                    player.getAddress().getAddress().getHostAddress(),
+                    ip,
                     reason,
                     (java.util.Date) null,
                     "Cantale"
@@ -136,6 +139,41 @@ public class LifeManager {
 
         if (player.isOnline()) {
             player.kickPlayer(message);
+        }
+    }
+
+    /**
+     * Lève ban NAME + PROFILE + IP après restauration de vies.
+     * L'IP vient du joueur en ligne, sinon de {@code players.last_ip}.
+     */
+    public void pardonLifeBan(UUID uuid, String playerName) {
+        if (playerName != null && !playerName.isBlank()) {
+            try {
+                plugin.getServer().getBanList(org.bukkit.BanList.Type.NAME).pardon(playerName);
+            } catch (Exception ignored) {}
+            try {
+                plugin.getServer().getBanList(org.bukkit.BanList.Type.PROFILE).pardon(playerName);
+            } catch (Exception ignored) {}
+        }
+
+        String ip = null;
+        Player online = uuid != null ? plugin.getServer().getPlayer(uuid) : null;
+        if (online != null && online.getAddress() != null && online.getAddress().getAddress() != null) {
+            ip = online.getAddress().getAddress().getHostAddress();
+        }
+        if (ip == null && uuid != null) {
+            ip = playerDAO.getLastIp(uuid);
+        }
+        if (ip != null && !ip.isBlank()) {
+            try {
+                plugin.getServer().getBanList(org.bukkit.BanList.Type.IP).pardon(ip);
+                plugin.getLogger().info("[Lives] Ban IP levé pour " + playerName + " (" + ip + ")");
+            } catch (Exception e) {
+                plugin.getLogger().warning("[Lives] Impossible de lever le ban IP " + ip + " : " + e.getMessage());
+            }
+        } else {
+            plugin.getLogger().warning("[Lives] Pas d'IP connue pour " + playerName
+                    + " — utilise /unbanip <ip> (voir banned-ips.json)");
         }
     }
 

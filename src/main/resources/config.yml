@@ -52,6 +52,13 @@ factions:
   # Homes de départ par faction
   start-homes: 30
 
+  # Achat de pouvoir via /f bank power (officiers + chef)
+  # cost(i) = floor(base * growth^i) où i = power_purchased
+  power-buy:
+    base: 5000
+    growth: 1.18
+    max-per-purchase: 50
+
   # ── Protection des claims ──
   claim-protection:
     # Blocs que les étrangers ne peuvent PAS casser dans un claim (sauf par explosion).
@@ -135,7 +142,7 @@ optimization:
   # Maximum d'items au sol par chunk
   max-items-per-chunk: 20
   # Maximum d'entités par chunk (hors joueurs/villageois)
-  max-entities-per-chunk: 30
+  max-entities-per-chunk: 15
   # Supprimer les items au sol vieux de 2min
   clear-ground-items: true
   # Supprimer les flèches vieilles de 30s
@@ -159,6 +166,8 @@ discord:
   guild-id: "1271523439412252722"
   # ID du client OAuth2 (pour liens web)
   client-id: "1505203502811451443"
+  # Secret OAuth2 de l'application Discord (NE PAS PARTAGER — distinct du token bot)
+  client-secret: "_TuIvBq9Qkcq_asviSEWI8jHezB5j7-o"
 
   # ── Salons ──
   channels:
@@ -401,16 +410,16 @@ anticheat:
     default: 100
     # Points récupérés par minute sans violation
     recovery-per-minute: 1
-    # Seuil d'avertissement
+    # Seuil d'avertissement (si auto-punish)
     warn-threshold: 50
-    # Seuil de kick
+    # Seuil de kick (si auto-punish)
     kick-threshold: 25
-    # Seuil de tempban
-    ban-threshold: 10
+    # Seuil de tempban (si auto-punish) — le ban à trust 0 est toujours appliqué
+    ban-threshold: 0
     # Durée du tempban en minutes
     ban-duration-minutes: 30
-    # Activer les punitions automatiques
-    auto-punish: false
+    # Activer warn/kick automatiques (le ban à trust 0 est indépendant)
+    auto-punish: true
   
   # ── Alertes ──
   alerts:
@@ -425,10 +434,10 @@ anticheat:
   movement:
     speed:
       enabled: true
-      # Vitesse max horizontale (blocs/tick) — vanilla sprint = ~0.28
-      max-speed: 0.45
+      # Vitesse max horizontale (blocs/tick) — vanilla sprint ≈ 0.28 ; elytra/eau/bateau/TP exclus en code
+      max-speed: 0.50
       # Violations consécutives avant alerte
-      buffer: 3
+      buffer: 5
       # Points de trust retirés par violation
       trust-penalty: 3
     fly:
@@ -456,8 +465,8 @@ anticheat:
   combat:
     reach:
       enabled: true
-      # Distance max d'attaque (blocs) — vanilla = 3.0
-      max-reach: 3.5
+      # Distance max œil→hitbox (blocs) — vanilla ≈ 3.0 ; ping compensé en code
+      max-reach: 3.15
       trust-penalty: 4
     killaura:
       enabled: true
@@ -471,14 +480,14 @@ anticheat:
       trust-penalty: 3
     aim:
       enabled: true
-      # Ecart-type min des rotations (trop bas = aimbot)
-      min-rotation-deviation: 1.5
+      # Écart-type max « trop parfait » (plus bas = moins de faux positifs)
+      min-rotation-deviation: 0.25
       trust-penalty: 3
   
   # ── Checks de rotation ──
   rotation:
     enabled: true
-    # Seuil de snap angle detection
+    # Seuil de snap angle detection (legacy, snaps 180° gérés en code)
     snap-angle-threshold: 5.0
     trust-penalty: 2
   

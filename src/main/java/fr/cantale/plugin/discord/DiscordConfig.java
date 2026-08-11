@@ -19,6 +19,7 @@ public class DiscordConfig {
     private final String token;
     private final long guildId;
     private final String clientId;
+    private final String clientSecret;
 
     // Salons
     private final long verificationChannelId;
@@ -116,6 +117,7 @@ public class DiscordConfig {
             this.token = "";
             this.guildId = 0L;
             this.clientId = "";
+            this.clientSecret = "";
             this.verificationChannelId = 0L;
             this.welcomeChannelId = 0L;
             this.rulesChannelId = 0L;
@@ -185,6 +187,7 @@ public class DiscordConfig {
         this.token = discord.getString("token", "");
         this.guildId = parseLong(discord.getString("guild-id", "0"));
         this.clientId = discord.getString("client-id", "");
+        this.clientSecret = discord.getString("client-secret", "");
 
         ConfigurationSection channels = discord.getConfigurationSection("channels");
         if (channels != null) {
@@ -337,6 +340,7 @@ public class DiscordConfig {
     public String getToken() { return token; }
     public long getGuildId() { return guildId; }
     public String getClientId() { return clientId; }
+    public String getClientSecret() { return clientSecret; }
 
     public long getVerificationChannelId() { return verificationChannelId; }
     public long getWelcomeChannelId() { return welcomeChannelId; }

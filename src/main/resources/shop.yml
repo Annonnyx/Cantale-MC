@@ -134,6 +134,8 @@ items:
   # Shulker : pas d'End → 300k–500k + caps (trophée Cantox, pas farm)
   SHULKER_SHELL: {category: NETHER_END, buy: 350000, sell: 1800, daily-buy-cap: 4}
   SHULKER_BOX: {category: NETHER_END, buy: 500000, sell: 3200, daily-buy-cap: 2}
+  # Élytra : sink endgame (mobilité PvP / exploration). Très cher, 1/jour, pas de revente shop.
+  ELYTRA: {category: NETHER_END, buy: 2000000, sell-enabled: false, daily-buy-cap: 1}
 
   # ── Agriculture & nourriture (revenu de base nouveaux joueurs/solo) ──
   # Ventes farm / nourriture cuite plafonnées à 1 Cantox (anti-farm Cantox).

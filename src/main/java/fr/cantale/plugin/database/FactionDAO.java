@@ -170,9 +170,22 @@ public class FactionDAO {
         }
     }
 
+    public void updatePowerPurchase(int factionId, int power, int powerPurchased) {
+        String sql = "UPDATE factions SET power = ?, power_purchased = ? WHERE id = ?";
+        try (Connection conn = databaseManager.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setInt(1, power);
+            stmt.setInt(2, powerPurchased);
+            stmt.setInt(3, factionId);
+            stmt.executeUpdate();
+        } catch (SQLException e) {
+            plugin.getLogger().severe("Erreur updatePowerPurchase : " + e.getMessage());
+        }
+    }
+
     public void updateFaction(Faction faction) {
         String sql = "UPDATE factions SET name = ?, tag = ?, description = ?, leader_uuid = ?, " +
-                "balance = ?, power = ?, type = ?, spawn_x = ?, spawn_y = ?, spawn_z = ?, spawn_world = ?, secret_until = ? WHERE id = ?";
+                "balance = ?, power = ?, type = ?, spawn_x = ?, spawn_y = ?, spawn_z = ?, spawn_world = ?, secret_until = ?, power_purchased = ? WHERE id = ?";
         try (Connection conn = databaseManager.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setString(1, faction.getName());
@@ -187,7 +200,8 @@ public class FactionDAO {
             stmt.setDouble(10, faction.getSpawnZ() != null ? faction.getSpawnZ() : 0);
             stmt.setString(11, faction.getSpawnWorld());
             stmt.setLong(12, faction.getSecretUntil());
-            stmt.setInt(13, faction.getId());
+            stmt.setInt(13, faction.getPowerPurchased());
+            stmt.setInt(14, faction.getId());
             stmt.executeUpdate();
         } catch (SQLException e) {
             plugin.getLogger().severe("Erreur updateFaction : " + e.getMessage());
@@ -232,7 +246,33 @@ public class FactionDAO {
         // Load secret status
         faction.setSecretUntil(rs.getLong("secret_until"));
 
+        try {
+            faction.setDiscordRoleId(rs.getLong("discord_role_id"));
+            if (rs.wasNull()) faction.setDiscordRoleId(0L);
+        } catch (SQLException e) {
+            // Colonne absente sur très anciennes bases — ignoré
+        }
+
+        try {
+            faction.setPowerPurchased(rs.getInt("power_purchased"));
+            if (rs.wasNull()) faction.setPowerPurchased(0);
+        } catch (SQLException e) {
+            faction.setPowerPurchased(0);
+        }
+
         return faction;
+    }
+
+    public void updateDiscordRoleId(int factionId, long discordRoleId) {
+        String sql = "UPDATE factions SET discord_role_id = ? WHERE id = ?";
+        try (Connection conn = databaseManager.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setLong(1, discordRoleId);
+            stmt.setInt(2, factionId);
+            stmt.executeUpdate();
+        } catch (SQLException e) {
+            plugin.getLogger().severe("Erreur updateDiscordRoleId : " + e.getMessage());
+        }
     }
 
     private void loadMembers(Faction faction) {
@@ -276,12 +316,14 @@ public class FactionDAO {
     }
 
     public void addMember(int factionId, UUID playerUuid, FactionRank rank) {
-        String sql = "INSERT INTO faction_members (faction_id, player_uuid, rank) VALUES (?, ?, ?)";
+        // joined_at en secondes Unix (même unité que factions.created_at / claims.created_at)
+        String sql = "INSERT INTO faction_members (faction_id, player_uuid, rank, joined_at) VALUES (?, ?, ?, ?)";
         try (Connection conn = databaseManager.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setInt(1, factionId);
             stmt.setString(2, playerUuid.toString());
             stmt.setString(3, rank.name());
+            stmt.setLong(4, System.currentTimeMillis() / 1000L);
             stmt.executeUpdate();
         } catch (SQLException e) {
             plugin.getLogger().severe("Erreur addMember : " + e.getMessage());

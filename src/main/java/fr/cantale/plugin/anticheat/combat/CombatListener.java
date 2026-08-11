@@ -56,7 +56,7 @@ public class CombatListener implements Listener {
         // ── Reach Check ──
         Check reachCheck = manager.getCheckRegistry().get(CheckType.REACH);
         if (reachCheck != null && reachCheck.isEnabled() && reachCheck instanceof ReachCheck reach) {
-            CheckResult result = reach.checkReach(attacker, target);
+            CheckResult result = reach.checkReach(attacker, target, data);
             if (result.isViolated()) {
                 manager.handleViolation(attacker, result, reachCheck);
             }

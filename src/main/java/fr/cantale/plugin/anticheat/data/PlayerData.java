@@ -67,6 +67,14 @@ public class PlayerData {
     /** Le joueur est-il en train de tomber */
     private boolean falling;
 
+    // ── Exemptions / buffers ──
+    /** Jusqu'à quand ignorer les checks de mouvement (après TP, etc.) */
+    private long movementExemptUntil;
+    /** Buffer de violations Aim consécutives */
+    private int aimBuffer;
+    /** Buffer de violations Reach consécutives */
+    private int reachBuffer;
+
     public PlayerData(UUID playerId) {
         this.playerId = playerId;
         this.lastMoveTimestamp = System.currentTimeMillis();
@@ -312,6 +320,45 @@ public class PlayerData {
 
     public void setFalling(boolean falling) {
         this.falling = falling;
+    }
+
+    // ═══════════════════════════════════════════════════
+    //  Exemptions / buffers
+    // ═══════════════════════════════════════════════════
+
+    public void exemptMovement(long durationMs) {
+        long until = System.currentTimeMillis() + Math.max(0L, durationMs);
+        if (until > this.movementExemptUntil) {
+            this.movementExemptUntil = until;
+        }
+    }
+
+    public boolean isMovementExempt() {
+        return System.currentTimeMillis() < movementExemptUntil;
+    }
+
+    public int getAimBuffer() {
+        return aimBuffer;
+    }
+
+    public void incrementAimBuffer() {
+        this.aimBuffer++;
+    }
+
+    public void resetAimBuffer() {
+        this.aimBuffer = 0;
+    }
+
+    public int getReachBuffer() {
+        return reachBuffer;
+    }
+
+    public void incrementReachBuffer() {
+        this.reachBuffer++;
+    }
+
+    public void resetReachBuffer() {
+        this.reachBuffer = 0;
     }
 
     // ═══════════════════════════════════════════════════

@@ -38,7 +38,7 @@ public class ServerOptimizer {
         this.autoSaveIntervalMinutes = plugin.getConfig().getInt("optimization.autosave-interval", 5);
         this.entityCleanupIntervalSeconds = plugin.getConfig().getInt("optimization.entity-cleanup-interval", 60);
         this.maxItemsPerChunk = plugin.getConfig().getInt("optimization.max-items-per-chunk", 20);
-        this.maxEntitiesPerChunk = plugin.getConfig().getInt("optimization.max-entities-per-chunk", 30);
+        this.maxEntitiesPerChunk = plugin.getConfig().getInt("optimization.max-entities-per-chunk", 15);
         this.clearGroundItems = plugin.getConfig().getBoolean("optimization.clear-ground-items", true);
         this.clearArrows = plugin.getConfig().getBoolean("optimization.clear-arrows", true);
         this.clearExperience = plugin.getConfig().getBoolean("optimization.clear-experience", false);

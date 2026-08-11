@@ -68,7 +68,7 @@ public class StatisticsUI extends BaseUI {
                 "",
                 "§7Kills / Morts");
 
-        long playtimeSeconds = player.getStatistic(org.bukkit.Statistic.PLAY_ONE_MINUTE) / 20L;
+        long playtimeSeconds = fr.cantale.plugin.tasks.PlaytimeSyncTask.playtimeSeconds(player);
         String playtime = formatDuration(playtimeSeconds);
 
         setItem(31, Material.CLOCK, "§b§lTemps de jeu",

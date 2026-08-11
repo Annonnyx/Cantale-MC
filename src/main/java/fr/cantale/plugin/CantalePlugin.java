@@ -131,6 +131,8 @@ public class CantalePlugin extends JavaPlugin {
     private fr.cantale.plugin.ui.bossbar.RotatingBossBarManager rotatingBossBarManager;
     private fr.cantale.plugin.web.ServerStatusTask serverStatusTask;
     private fr.cantale.plugin.web.WebFactionBridge webFactionBridge;
+    private fr.cantale.plugin.web.WebChatBridge webChatBridge;
+    private fr.cantale.plugin.web.WebAdminBridge webAdminBridge;
 
     @Override
     public void onEnable() {
@@ -380,6 +382,10 @@ public class CantalePlugin extends JavaPlugin {
         // Démarrer AFK check (toutes les minutes)
         new AfkCheckTask(this, afkListener).runTaskTimer(this, 20L * 60, 20L * 60);
 
+        // Sync playtime → BDD (toutes les 5 min) pour le site / classements
+        new fr.cantale.plugin.tasks.PlaytimeSyncTask(this)
+                .runTaskTimer(this, 20L * 60, 20L * 60 * 5);
+
         // Démarrer Taxe de territoire (tous les jours = 24 heures)
         new TerritoryTaxTask(this).runTaskTimer(this, 20L * 60 * 5, 20L * 60 * 60 * 24);
 
@@ -400,11 +406,25 @@ public class CantalePlugin extends JavaPlugin {
         this.webFactionBridge = new fr.cantale.plugin.web.WebFactionBridge(this);
         this.webFactionBridge.start();
 
+        // Bridge chat du site web (consomme web_chat_outbox toutes les 2s)
+        this.webChatBridge = new fr.cantale.plugin.web.WebChatBridge(this);
+        this.webChatBridge.start();
+
+        // Bridge admin du site web (consomme web_admin_actions toutes les 2s)
+        this.webAdminBridge = new fr.cantale.plugin.web.WebAdminBridge(this);
+        this.webAdminBridge.start();
+
         getLogger().info("Cantale v" + getDescription().getVersion() + " activé avec succès !");
     }
 
     @Override
     public void onDisable() {
+        if (webAdminBridge != null) {
+            webAdminBridge.stop();
+        }
+        if (webChatBridge != null) {
+            webChatBridge.stop();
+        }
         if (webFactionBridge != null) {
             webFactionBridge.stop();
         }
@@ -497,6 +517,9 @@ public class CantalePlugin extends JavaPlugin {
         getCommand("web").setExecutor(new fr.cantale.plugin.commands.WebCommand(this));
         getCommand("web").setTabCompleter(new fr.cantale.plugin.commands.WebCommand(this));
         getCommand("link").setExecutor(new fr.cantale.plugin.commands.LinkCommand(this));
+        fr.cantale.plugin.commands.LinkForceCommand linkForceCommand = new fr.cantale.plugin.commands.LinkForceCommand(this);
+        getCommand("linkforce").setExecutor(linkForceCommand);
+        getCommand("linkforce").setTabCompleter(linkForceCommand);
         getCommand("events").setExecutor(new EventsCommand(this));
         getCommand("tag").setExecutor(new fr.cantale.plugin.tag.TagCommand(this));
         getCommand("tag").setTabCompleter(new fr.cantale.plugin.tag.TagCommand(this));

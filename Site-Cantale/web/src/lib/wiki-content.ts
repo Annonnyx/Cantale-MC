@@ -351,7 +351,15 @@ export const WIKI_CATEGORIES: WikiCategory[] = [
             id: "pouvoir",
             title: "Pouvoir & limites",
             paragraphs: [
-              "Chaque faction accumule du pouvoir, notamment par les kills de ses membres et les événements. Le pouvoir détermine le nombre maximum de claims et de warps de faction : plus la faction pèse, plus elle s'étend.",
+              "Chaque faction accumule du pouvoir. À la création : 60 de base (starter) + 5 pour le chef (= 65). Ensuite, chaque membre qui rejoint ajoute +5, et chaque départ / kick retire 5 (plancher à 0). Les kills PvP (±5), les événements faction et l'achat banque complètent le total. Le pouvoir détermine le nombre maximum de claims, fhomes et warps : plus la faction pèse, plus elle s'étend.",
+              "Les officiers et le chef peuvent aussi convertir le trésor de la banque (`/f bank power`) en pouvoir. Le prix part accessible puis monte de façon exponentielle à chaque point acheté (environ 10 pouvoir = 1 claim).",
+            ],
+            commands: [
+              {
+                syntax: "/f bank power [nombre]",
+                description:
+                  "Achète du pouvoir avec le solde de la banque de faction (officiers / chef). Défaut : 1 point.",
+              },
             ],
           },
         ],

@@ -52,6 +52,10 @@ commands:
   link:
     description: Génère un code pour lier son compte Discord
     usage: /link
+  linkforce:
+    description: Force la liaison Discord ↔ Minecraft (admin)
+    usage: /linkforce <Pseudo MC> <ID Discord>
+    permission: cantale.admin
   pay:
     description: Payer un joueur en Cantox
     usage: /pay <joueur> <montant>

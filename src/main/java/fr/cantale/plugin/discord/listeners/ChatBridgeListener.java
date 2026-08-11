@@ -126,9 +126,10 @@ public class ChatBridgeListener extends ListenerAdapter {
             .replace("%name%", name)
             .replace("%message%", message);
 
-        // Envoyer sur le serveur Minecraft
+        // Envoyer sur le serveur Minecraft + fil public du site
         Bukkit.getScheduler().runTask(plugin, () -> {
             Bukkit.broadcastMessage(format);
         });
+        fr.cantale.plugin.web.WebChatLog.append(plugin, "discord", null, name, message);
     }
 }

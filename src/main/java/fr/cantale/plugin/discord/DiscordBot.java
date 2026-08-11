@@ -209,54 +209,174 @@ public class DiscordBot {
         return jda != null && jda.getStatus() == JDA.Status.CONNECTED;
     }
 
+    /**
+     * Synchronise les rôles Discord faction d'un joueur lié :
+     *  - rôle générique « a une faction » ({@link #FACTION_MEMBER_ROLE_ID})
+     *  - rôle dédié au nom de sa faction (créé à la création de la fac)
+     */
     public void syncFactionRoleForPlayer(UUID playerUuid, boolean inFaction) {
         if (playerUuid == null || !isConnected()) return;
 
+        fr.cantale.plugin.factions.Faction faction = null;
+        if (inFaction && plugin.getFactionManager() != null) {
+            faction = plugin.getFactionManager().getPlayerFaction(playerUuid);
+        }
+        syncFactionDiscordRoles(playerUuid, faction);
+    }
+
+    /**
+     * Crée le rôle Discord au nom de la faction s'il n'existe pas encore,
+     * le persiste, puis l'attribue à tous les membres Discord liés.
+     */
+    public void ensureFactionDiscordRole(fr.cantale.plugin.factions.Faction faction) {
+        if (faction == null || !isConnected()) return;
+
         org.bukkit.Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
-            String discordId = null;
-            try (java.sql.Connection conn = plugin.getDatabaseManager().getConnection();
-                 java.sql.PreparedStatement stmt = conn.prepareStatement(
-                     "SELECT discord_id FROM discord_links WHERE uuid = ?")) {
-                stmt.setString(1, playerUuid.toString());
-                try (java.sql.ResultSet rs = stmt.executeQuery()) {
-                    if (rs.next()) {
-                        discordId = rs.getString("discord_id");
+            Guild guild = jda.getGuildById(config.getGuildId());
+            if (guild == null) return;
+
+            long existingId = faction.getDiscordRoleId();
+            if (existingId > 0) {
+                Role existing = guild.getRoleById(existingId);
+                if (existing != null) {
+                    for (UUID memberUuid : faction.getMembers()) {
+                        syncFactionDiscordRoles(memberUuid, faction);
                     }
+                    return;
                 }
-            } catch (Exception e) {
-                plugin.getLogger().warning("[Discord] Sync rôle faction impossible pour " + playerUuid + ": " + e.getMessage());
-                return;
+                // Rôle disparu sur Discord — on en recrée un.
+                faction.setDiscordRoleId(0L);
             }
 
+            String roleName = truncateDiscordRoleName(faction.getName());
+            guild.createRole()
+                .setName(roleName)
+                .setMentionable(true)
+                .setHoisted(false)
+                .reason("Faction Minecraft créée : " + faction.getName())
+                .queue(role -> {
+                    faction.setDiscordRoleId(role.getIdLong());
+                    if (plugin.getFactionManager() != null) {
+                        plugin.getFactionManager().saveFactionDiscordRoleId(faction.getId(), role.getIdLong());
+                    }
+                    plugin.getLogger().info("[Discord] Rôle faction créé : " + role.getName() + " (" + role.getId() + ")");
+                    for (UUID memberUuid : faction.getMembers()) {
+                        syncFactionDiscordRoles(memberUuid, faction);
+                    }
+                }, error -> plugin.getLogger().warning(
+                    "[Discord] Impossible de créer le rôle pour la faction " + faction.getName() + ": " + error.getMessage()
+                ));
+        });
+    }
+
+    /** Supprime le rôle Discord dédié d'une faction (appelé à la dissolution). */
+    public void deleteFactionDiscordRole(fr.cantale.plugin.factions.Faction faction) {
+        if (faction == null || !isConnected()) return;
+        long roleId = faction.getDiscordRoleId();
+        if (roleId <= 0) return;
+
+        org.bukkit.Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+            Guild guild = jda.getGuildById(config.getGuildId());
+            if (guild == null) return;
+            Role role = guild.getRoleById(roleId);
+            if (role == null) return;
+            role.delete().reason("Faction Minecraft dissoute : " + faction.getName()).queue(
+                success -> plugin.getLogger().info("[Discord] Rôle faction supprimé : " + role.getName()),
+                error -> plugin.getLogger().warning(
+                    "[Discord] Impossible de supprimer le rôle " + roleId + ": " + error.getMessage()
+                )
+            );
+        });
+    }
+
+    private void syncFactionDiscordRoles(UUID playerUuid, fr.cantale.plugin.factions.Faction factionOrNull) {
+        if (playerUuid == null || !isConnected()) return;
+
+        org.bukkit.Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+            String discordId = lookupDiscordId(playerUuid);
             if (discordId == null || discordId.isBlank()) return;
 
             Guild guild = jda.getGuildById(config.getGuildId());
             if (guild == null) return;
 
-            Role factionRole = guild.getRoleById(FACTION_MEMBER_ROLE_ID);
-            if (factionRole == null) return;
+            java.util.Set<Long> knownFactionRoleIds = collectKnownFactionRoleIds();
 
-            guild.retrieveMemberById(discordId).queue(member -> applyFactionRole(guild, member, factionRole, inFaction), error -> {
-                // Membres non présents dans la guilde ou ID invalide : on ignore silencieusement.
+            guild.retrieveMemberById(discordId).queue(member -> {
+                Role genericRole = guild.getRoleById(FACTION_MEMBER_ROLE_ID);
+                boolean shouldHaveGeneric = factionOrNull != null;
+                if (genericRole != null) {
+                    applyRole(guild, member, genericRole, shouldHaveGeneric);
+                }
+
+                long wantedRoleId = factionOrNull != null ? factionOrNull.getDiscordRoleId() : 0L;
+                for (Long roleId : knownFactionRoleIds) {
+                    if (roleId == null || roleId <= 0) continue;
+                    Role role = guild.getRoleById(roleId);
+                    if (role == null) continue;
+                    applyRole(guild, member, role, roleId == wantedRoleId);
+                }
+
+                // Faction fraîchement créée : le rôle peut ne pas encore être dans knownFactionRoleIds
+                // (cache mémoire) — on force l'ajout du rôle voulu.
+                if (wantedRoleId > 0 && !knownFactionRoleIds.contains(wantedRoleId)) {
+                    Role role = guild.getRoleById(wantedRoleId);
+                    if (role != null) applyRole(guild, member, role, true);
+                }
+            }, error -> {
+                // Membres absents de la guilde ou ID invalide : ignorer.
             });
         });
     }
 
-    private void applyFactionRole(Guild guild, Member member, Role factionRole, boolean shouldHaveRole) {
-        boolean hasRole = member.getRoles().stream().anyMatch(r -> r.getIdLong() == FACTION_MEMBER_ROLE_ID);
+    private String lookupDiscordId(UUID playerUuid) {
+        try (java.sql.Connection conn = plugin.getDatabaseManager().getConnection();
+             java.sql.PreparedStatement stmt = conn.prepareStatement(
+                 "SELECT discord_id FROM discord_links WHERE uuid = ?")) {
+            stmt.setString(1, playerUuid.toString());
+            try (java.sql.ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) return rs.getString("discord_id");
+            }
+        } catch (Exception e) {
+            plugin.getLogger().warning("[Discord] Sync rôle faction impossible pour " + playerUuid + ": " + e.getMessage());
+        }
+        return null;
+    }
+
+    private java.util.Set<Long> collectKnownFactionRoleIds() {
+        java.util.Set<Long> ids = new java.util.HashSet<>();
+        var factionManager = plugin.getFactionManager();
+        if (factionManager == null) return ids;
+        try {
+            for (fr.cantale.plugin.factions.Faction faction : factionManager.getAllFactions()) {
+                if (faction.getDiscordRoleId() > 0) ids.add(faction.getDiscordRoleId());
+            }
+        } catch (Exception ignored) {}
+        return ids;
+    }
+
+    private void applyRole(Guild guild, Member member, Role role, boolean shouldHaveRole) {
+        boolean hasRole = member.getRoles().stream().anyMatch(r -> r.getIdLong() == role.getIdLong());
         if (shouldHaveRole && !hasRole) {
-            guild.addRoleToMember(member, factionRole).queue(
+            guild.addRoleToMember(member, role).queue(
                 success -> {},
-                error -> plugin.getLogger().warning("[Discord] Impossible d'ajouter le rôle faction à " + member.getId() + ": " + error.getMessage())
+                error -> plugin.getLogger().warning(
+                    "[Discord] Impossible d'ajouter le rôle " + role.getName() + " à " + member.getId() + ": " + error.getMessage()
+                )
             );
-            return;
-        }
-        if (!shouldHaveRole && hasRole) {
-            guild.removeRoleFromMember(member, factionRole).queue(
+        } else if (!shouldHaveRole && hasRole) {
+            guild.removeRoleFromMember(member, role).queue(
                 success -> {},
-                error -> plugin.getLogger().warning("[Discord] Impossible de retirer le rôle faction à " + member.getId() + ": " + error.getMessage())
+                error -> plugin.getLogger().warning(
+                    "[Discord] Impossible de retirer le rôle " + role.getName() + " à " + member.getId() + ": " + error.getMessage()
+                )
             );
         }
+    }
+
+    private static String truncateDiscordRoleName(String name) {
+        if (name == null || name.isBlank()) return "Faction";
+        String trimmed = name.trim();
+        return trimmed.length() > 100 ? trimmed.substring(0, 100) : trimmed;
     }
 
     private void syncAllFactionRoles() {
@@ -267,9 +387,7 @@ public class DiscordBot {
         org.bukkit.Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
             try {
                 for (fr.cantale.plugin.factions.Faction faction : factionManager.getAllFactions()) {
-                    for (UUID memberUuid : faction.getMembers()) {
-                        syncFactionRoleForPlayer(memberUuid, true);
-                    }
+                    ensureFactionDiscordRole(faction);
                 }
             } catch (Exception e) {
                 plugin.getLogger().warning("[Discord] Erreur pendant la sync globale des rôles faction: " + e.getMessage());

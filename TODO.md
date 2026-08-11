@@ -31,7 +31,9 @@
 | **Bloqué — contenu humain** | Captures dans `public/screenshots/` (galerie) |
 | **Bloqué — contenu humain** | Section créateurs / builders sur l'accueil (noms, bios, crédits réels requis — aucun faux nom inventé) |
 | **Ops** | Déployer le nouveau JAR (`ServerStatusTask` + `WebFactionBridge` + tables `server_status` / `web_faction_actions`) |
-| **Ops** | `.env.local` web (Discord client/secret/bot token, `AUTH_SECRET`, `DATABASE_URL`, `CRON_SECRET`, optionnel `MAP_PROVIDER_URL`) + redirect OAuth `…/api/auth/discord/callback` + cron quotidien `/api/cron/snapshot` |
+| **Ops** | `.env.local` web (Discord client/secret/bot token, `AUTH_SECRET`, `DATABASE_URL` ou `DB_*`, `CRON_SECRET`, optionnel `MAP_PROVIDER_URL`) + redirect OAuth `…/api/auth/discord/callback` + cron quotidien `/api/cron/snapshot` |
+| **Ops — urgent** | Login Discord prod cassé (`echange_impossible`) : **ajouter `DISCORD_CLIENT_SECRET` sur Vercel Production** (absent au 2026-08-11) ; aligner `AUTH_URL=https://www.cantale.world` + Redirect URI Discord identique ; redeploy. Secret aussi stocké côté plugin : `discord.client-secret` dans `src/main/resources/config.yml` (OAuth app, ≠ token bot) |
+| **Ops** | Site prod : fix MySQL (`DB_*` fallback + env runtime) + menu desktop « Plus » ✓ 2026-08-11 (`Annonnyx/Cantale` `48396d8`) — stats/classements OK |
 | **Ops** | Installer Squaremap/BlueMap sur le serveur et renseigner `MAP_PROVIDER_URL` (onglet « Carte du monde détaillée ») |
 | **Ops** | Déploiement + DNS `cantale.world` / `cantale.fun` — fix Vercel 404 (Framework Preset → Next.js, redeploy prod) ✓ 2026-08-10 |
 | **Décision humaine** | Valider les prix boutique (1,99/3,49/5,99/9,99 €) + paiement (cantale.store) **avant** d'activer `SHOP_ENABLED` |
@@ -39,6 +41,13 @@
 - Référence : plan détaillé validé (découpage T0.1 → T10.4) — ne jamais dupliquer une donnée du plugin, lecture seule sur les tables existantes
 
 ## Fait
+- [x] Fix « Depuis le — » sur la liste membres faction (site) : `FactionDAO.addMember` n’écrivait jamais `joined_at` (défaut 0 → tiret). Insert avec timestamp Unix sec ; backfill leaders via `factions.created_at` au démarrage plugin ; autres grades historiques restent « — » (pas de date stockée). Affichage FR déjà via `Intl` (`12 août 2026`).
+- [x] Fix skin 3D `/connexion` : Crafatar (HTTP 521) → mc-heads.net (UUID, CORS OK) via `lib/minecraft-skin.ts` + `skin-viewer.tsx` — même fournisseur que classements/la-liste
+- [x] `/link` (Minecraft) : clic sur le code → copie presse-papiers (`ClickEvent.copyToClipboard` + hover « Clique pour copier »)
+- [x] Commande admin `/linkforce <Pseudo MC> <ID Discord>` (Minecraft + Discord) — upsert `discord_links`, permission `cantale.admin` / Discord ADMINISTRATOR, gestion des conflits
+- [x] Exclusion publique **Anox26** (owner) : Cantox/vies en circulation + tous les classements (site `public-ranking-exclusions.ts`, API legacy, `/leaderboard` jeu, Discord `/leaderboard` + daily LB, tops votes) — liste centrale réutilisable (UUID optionnel)
+- [x] Fix playtime site : sync BDD à la connexion + toutes les 5 min (avant : uniquement au quit → stats à 0 / périmées)
+- [x] Shop : Élytra à 2 000 000 Cantox (`NETHER_END`, sell off, daily-buy-cap 1) — ajouter manuellement si `shop.yml` serveur déjà généré
 - [x] Fix vote : toujours 1–3 Cadeaux du Roi (plus de loot Rare/Épique au vote), matching Votifier souple (serveur-prive / serveurliste / top-serveurs), messages publics corrects, `/vote` sans liste Rare|Épique
 - [x] Mise à jour des URLs de vote et suppression des sites obsolètes (config.yml)
 - [x] Onglet statistiques dans `/profile`
@@ -46,6 +55,7 @@
 - [x] Commande admin `/tag color`
 - [x] Unification rank / permissions + ajout du grade `ADMIN`
 - [x] Fix `/rtp` asynchrone (World#getChunkAtAsync)
+- [x] `/rtp` : cooldown 2 min (joueurs / aventuriers) ; VIP+ sans cooldown
 - [x] Fix `/discord mp` (compatible nom Discord ET nom MC)
 - [x] Commandes `/daily` / `/journalier` sync Discord/Minecraft
 - [x] Retrait des codes couleur `§` des messages Discord
@@ -172,6 +182,41 @@
 - [x] **Fix `/giveaway` → « Ce salon ne permet pas de lancer un giveaway » dans les salons annonce** :
   `asTextChannel()` rejetait les `NewsChannel` (salons annonce Discord). Corrigé en acceptant
   `GuildMessageChannel` (TextChannel + NewsChannel). Pas de whitelist de salon trop restrictive.
+- [x] **Fix noms salons tickets illisibles** : Discord normalisait `[OPEN]`/`[CLOSED]` → les
+  renommages concaténaient au lieu de remplacer. Convention `open-<raison>-<demandeur>` /
+  `closed-…` avec réécriture complète à chaque close/reopen (site web aligné `open-…`).
+- [x] **Rôles Discord par faction** : à la création MC, rôle Discord au nom de la fac
+  (`discord_role_id` en DB) ; attribué aux comptes liés membres ; retiré au leave ; rôle
+  supprimé à la dissolution. Backfill au démarrage du bot pour les facs existantes.
+
+## Anti-cheat — chantier à venir
+- [x] FP Speed : grâce 3s post-TP, exemptions élytra/riptide/véhicules/vol, tolérances eau/dolphin/soul speed
+- [x] Aim/Rotation assouplis (buffer + seuils) ; Reach œil→AABB + ping
+- [x] Ban automatique à trust 0 (Paper ban API) ; warn/kick si `auto-punish`
+- [ ] Tester les détections en jeu et retoucher les seuils si besoin
+
+## Respawn & claims
+- [x] Invulnérabilité 10s au respawn (anti spawn-kill)
+- [x] Stockage (liste `claim-protection.storage-blocks`) posable uniquement dans les claims de sa faction
+- [x] Hors claim : coffres/conteneurs ouvrables par tous (structures) ; pose toujours interdite
+- [x] PvP claims : safe dans le claim de sa fac ; on peut tuer les non-membres présents dans son claim ; PASDIC = no PvP
+- [x] `/f bank power [n]` : achat de pouvoir via banque (officiers/chef), prix exponentiel (`power_purchased`)
+- [x] **Pouvoir par membre** : base création **60** + **+5** par membre (chef inclus → fac neuve = **65**) ;
+  join (`FactionManager#addMember`) **+5** ; leave/kick (`#removeMember`) **-5** (plancher 0 + ajustement claims).
+  Pas de double-compte à la création (leader via DAO, pas via `addMember`). `PowerManager` quotidien non branché.
+
+## Chat web (août 2026)
+- [x] Tables `web_chat_messages` + `web_chat_outbox` ; log MC/Discord → fil ; `WebChatBridge` (outbox → broadcast `[Web]`)
+- [x] Site `/chat` + `GET/POST /api/chat` : lecture publique, envoi si compte Discord lié ; nav/footer/sitemap
+- [x] Chat faction : `faction_id` sur messages/outbox ; onglet Faction sur `/chat` ; log depuis `sendFactionMessage` ; en jeu `/fc`
+- [x] Tag faction auto 3 → 4 caractères à la création
+- [x] Page `/admin` (env `ADMIN_DISCORD_ID`) : online JSON, money/vies/items/ban/unban/msg/DM, tickets Discord ; `web_admin_actions` + `WebAdminBridge`
+- [x] Admin inspect : inventaire / armure / offhand / PC1–3 / EC / effets (+ contenu shulker/bundle) → `inspect_player` + `web_admin_snapshots`
+- [x] Admin édition : clear conteneurs, remove slot (y compris dans shulker), vider shulker, give/clear effets (`clear_container` / `remove_slot` / `clear_shulker` / `give_effect` / `clear_effect`)
+- [x] Admin liste **tous** les joueurs (table `players`, online + offline) : `GET /api/admin/players` (recherche + pagination), badges online via `server_status.online_json`, clic → profil
+- [x] Profil public `/joueur/[uuid]` (stats, vies, faction, online) ; si admin (`ADMIN_DISCORD_ID`) : panneau Direction (inspect/edit via le même pont admin). Liens joueur sur classements, stats, la-liste, factions, admin
+- [ ] Déployer JAR (inspect + édition inventaires + bridges + ServerStatusTask online_json) + Vercel `ADMIN_DISCORD_ID` + redeploy site
+- [ ] Carte : MySQL site (`DATABASE_URL` ou `DB_*`) pour le canvas claims ; optionnel Squaremap/BlueMap + `MAP_PROVIDER_URL` pour l’onglet monde détaillé
 
 ## Combat — Bugs
 - [x] **Fix déco combat : message affiché mais vie non retirée** : `CombatTagManager#handleCombatLog`

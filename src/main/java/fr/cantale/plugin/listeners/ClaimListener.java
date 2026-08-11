@@ -89,6 +89,24 @@ public class ClaimListener implements Listener {
         org.bukkit.Location loc = event.getBlock().getLocation();
         Material type = event.getBlock().getType();
 
+        // Stockage : uniquement dans les claims de SA faction (pas wilderness, pas claims étrangers/alliés).
+        if (isProtectedStorageBlock(type) && !player.isOp() && !player.hasPermission("cantale.admin")) {
+            Claim claim = getClaimAt(loc);
+            Faction playerFaction = factionManager.getPlayerFaction(player.getUniqueId());
+            Faction claimFaction = claim == null ? null : factionManager.getFaction(claim.getFactionId());
+            boolean ownClaim = claim != null && playerFaction != null && claimFaction != null
+                    && playerFaction.getId() == claimFaction.getId();
+            if (!ownClaim) {
+                event.setCancelled(true);
+                if (claim == null) {
+                    player.sendMessage(formatMessage("&cTu ne peux poser du stockage que dans les claims de ta faction."));
+                } else {
+                    player.sendMessage(formatMessage("&cTu ne peux poser du stockage que dans les claims de ta faction."));
+                }
+                return;
+            }
+        }
+
         // Membres, alliés et admins peuvent tout poser.
         if (canInteractFor(player, loc, false)) {
             return;
@@ -108,27 +126,62 @@ public class ClaimListener implements Listener {
         }
     }
 
-    @EventHandler(priority = EventPriority.HIGH)
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onEntityDamage(EntityDamageByEntityEvent event) {
-        if (event.getDamager() instanceof Player && event.getEntity() instanceof Player) {
-            Player damager = (Player) event.getDamager();
-            Player victim = (Player) event.getEntity();
+        if (!(event.getEntity() instanceof Player victim)) return;
 
-            Claim claim = getClaimAt(victim.getLocation());
-            if (claim != null) {
-                // PvP désactivé dans les warps (claims spéciaux)
-                // Pour l'instant, PvP autorisé dans les claims de faction
-            }
+        Player attacker = null;
+        if (event.getDamager() instanceof Player direct) {
+            attacker = direct;
+        } else if (event.getDamager() instanceof org.bukkit.entity.Projectile projectile
+                && projectile.getShooter() instanceof Player shooter) {
+            attacker = shooter;
         }
+        if (attacker == null || attacker.getUniqueId().equals(victim.getUniqueId())) return;
+
+        // Admins / ops : pas de restriction claim
+        if (attacker.isOp() || attacker.hasPermission("cantale.admin")) return;
+
+        Claim claim = getClaimAt(victim.getLocation());
+        if (claim == null) return; // wilderness : PvP libre
+
+        // Zones PASDIC (spawn/warp) : pas de PvP
+        if (claim.isPasdic()) {
+            event.setCancelled(true);
+            return;
+        }
+
+        Faction claimFaction = factionManager.getFaction(claim.getFactionId());
+        if (claimFaction == null) return;
+
+        Faction victimFaction = factionManager.getPlayerFaction(victim.getUniqueId());
+
+        // Safe : on ne peut pas être tué dans le claim de SA propre faction
+        if (victimFaction != null && victimFaction.getId() == claimFaction.getId()) {
+            event.setCancelled(true);
+            attacker.sendMessage(formatMessage("&cCe joueur est protégé dans le claim de sa faction."));
+            return;
+        }
+
+        // Sinon (intrus dans ton claim, claim ennemi, etc.) : PvP autorisé
     }
 
     @EventHandler(priority = EventPriority.HIGH)
     public void onPlayerInteract(PlayerInteractEvent event) {
-        if (event.getClickedBlock() != null) {
-            if (!canInteract(event.getPlayer(), event.getClickedBlock().getLocation())) {
-                event.setCancelled(true);
-                event.getPlayer().sendMessage(formatMessage("&cVous ne pouvez pas interagir avec ce block dans ce claim."));
-            }
+        if (event.getClickedBlock() == null) return;
+
+        org.bukkit.Location loc = event.getClickedBlock().getLocation();
+        Claim claim = getClaimAt(loc);
+
+        // Hors claim (wilderness / structures générées) : tout le monde peut ouvrir coffres, portes, etc.
+        // Seule la pose de stockage est restreinte (voir onBlockPlace).
+        if (claim == null) {
+            return;
+        }
+
+        if (!canInteract(event.getPlayer(), loc)) {
+            event.setCancelled(true);
+            event.getPlayer().sendMessage(formatMessage("&cVous ne pouvez pas interagir avec ce block dans ce claim."));
         }
     }
 

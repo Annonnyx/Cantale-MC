@@ -8,13 +8,14 @@ const NAV_LINKS = [
   { href: "/factions", label: "Factions" },
   { href: "/classements", label: "Classements" },
   { href: "/carte", label: "Carte" },
+  { href: "/chat", label: "Chat" },
   { href: "/wiki", label: "Wiki" },
   { href: "/vote", label: "Vote" },
   { href: "/recrutement", label: "Recrutement" },
   { href: "/partenariats", label: "Partenariats" },
 ];
 
-/** Découverte secondaire — footer + hamburger « Plus », pas la barre desktop. */
+/** Découverte secondaire — footer + section « Plus » du menu. */
 const EXTRA_LINKS = [
   { href: "/reglement", label: "Règlement" },
   { href: "/boutique", label: "Boutique" },
@@ -32,18 +33,6 @@ export function SiteHeader() {
         >
           CANTALE
         </Link>
-
-        <nav aria-label="Navigation principale" className="hidden items-center gap-7 xl:flex">
-          {NAV_LINKS.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              className="nav-link font-tech text-[11px] uppercase tracking-[0.22em] text-steel-light hover:text-bone"
-            >
-              {link.label}
-            </Link>
-          ))}
-        </nav>
 
         <div className="flex items-center gap-4">
           <LiveCounter />

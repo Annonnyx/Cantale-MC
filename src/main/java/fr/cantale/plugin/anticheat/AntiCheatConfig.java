@@ -111,9 +111,9 @@ public class AntiCheatConfig {
         this.recoveryPerMinute = config.getInt("anticheat.trust.recovery-per-minute", 1);
         this.warnThreshold = config.getInt("anticheat.trust.warn-threshold", 50);
         this.kickThreshold = config.getInt("anticheat.trust.kick-threshold", 25);
-        this.banThreshold = config.getInt("anticheat.trust.ban-threshold", 10);
+        this.banThreshold = config.getInt("anticheat.trust.ban-threshold", 0);
         this.banDurationMinutes = config.getInt("anticheat.trust.ban-duration-minutes", 30);
-        this.autoPunish = config.getBoolean("anticheat.trust.auto-punish", false);
+        this.autoPunish = config.getBoolean("anticheat.trust.auto-punish", true);
 
         // Alertes
         this.alertCooldownSeconds = config.getInt("anticheat.alerts.cooldown-seconds", 5);
@@ -122,8 +122,8 @@ public class AntiCheatConfig {
 
         // Movement — Speed
         this.speedEnabled = config.getBoolean("anticheat.movement.speed.enabled", true);
-        this.maxSpeed = config.getDouble("anticheat.movement.speed.max-speed", 0.45);
-        this.speedBuffer = config.getInt("anticheat.movement.speed.buffer", 3);
+        this.maxSpeed = config.getDouble("anticheat.movement.speed.max-speed", 0.50);
+        this.speedBuffer = config.getInt("anticheat.movement.speed.buffer", 5);
         this.speedTrustPenalty = config.getInt("anticheat.movement.speed.trust-penalty", 3);
 
         // Movement — Fly
@@ -148,7 +148,7 @@ public class AntiCheatConfig {
 
         // Combat — Reach
         this.reachEnabled = config.getBoolean("anticheat.combat.reach.enabled", true);
-        this.maxReach = config.getDouble("anticheat.combat.reach.max-reach", 3.5);
+        this.maxReach = config.getDouble("anticheat.combat.reach.max-reach", 3.15);
         this.reachTrustPenalty = config.getInt("anticheat.combat.reach.trust-penalty", 4);
 
         // Combat — KillAura
@@ -163,7 +163,7 @@ public class AntiCheatConfig {
 
         // Combat — Aim
         this.aimEnabled = config.getBoolean("anticheat.combat.aim.enabled", true);
-        this.minRotationDeviation = config.getDouble("anticheat.combat.aim.min-rotation-deviation", 1.5);
+        this.minRotationDeviation = config.getDouble("anticheat.combat.aim.min-rotation-deviation", 0.25);
         this.aimTrustPenalty = config.getInt("anticheat.combat.aim.trust-penalty", 3);
 
         // Rotation

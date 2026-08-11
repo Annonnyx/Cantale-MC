@@ -57,6 +57,59 @@ public class PrivateChestService {
         };
     }
 
+    /**
+     * Lecture sans ouvrir d'inventaire (cache mémoire ou DB) — pour l'inspection admin web.
+     * Ne renvoie pas les boutons de navigation PC.
+     */
+    public ItemStack[] peekStorage(UUID uuid, ChestType type) {
+        if (uuid == null || type == null) return new ItemStack[0];
+        ItemStack[] cached = getCached(uuid, type);
+        if (cached != null) {
+            return cloneContents(cached);
+        }
+        PlayerRank rank = plugin.getRankManager().getRank(uuid);
+        int size = type == ChestType.EC ? 27 : getPrivateChestSize(rank);
+        ChestSnapshot snapshot = chestDAO.loadChest(uuid, type, size);
+        ItemStack[] contents = snapshot.contents() != null ? snapshot.contents() : new ItemStack[size];
+        return resizeContents(contents, size);
+    }
+
+    /**
+     * Remplace le contenu d'un PC (ou EC legacy) côté admin web, persiste en DB,
+     * et ferme l'inventaire ouvert du joueur s'il regarde ce coffre.
+     */
+    public void adminReplaceStorage(UUID uuid, ChestType type, ItemStack[] contents) {
+        if (uuid == null || type == null) return;
+        PlayerRank rank = plugin.getRankManager().getRank(uuid);
+        int size = type == ChestType.EC ? 27 : getPrivateChestSize(rank);
+        ItemStack[] resized = resizeContents(contents, size);
+        updateCache(uuid, type, resized);
+
+        String key = saveKey(uuid, type);
+        long gen = saveGenerations.computeIfAbsent(key, k -> new AtomicLong()).incrementAndGet();
+        ItemStack[] snapshot = cloneContents(resized);
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+            AtomicLong current = saveGenerations.get(key);
+            if (current == null || current.get() != gen) return;
+            chestDAO.saveChest(uuid, type, snapshot);
+        });
+
+        Player online = Bukkit.getPlayer(uuid);
+        if (online != null && online.isOnline()) {
+            Inventory top = online.getOpenInventory().getTopInventory();
+            if (top.getHolder() instanceof PrivateChestHolder holder && holder.getType() == type) {
+                online.closeInventory();
+            }
+        }
+    }
+
+    public void adminClearChest(UUID uuid, ChestType type) {
+        if (uuid == null || type == null) return;
+        PlayerRank rank = plugin.getRankManager().getRank(uuid);
+        int size = type == ChestType.EC ? 27 : getPrivateChestSize(rank);
+        adminReplaceStorage(uuid, type, new ItemStack[size]);
+    }
+
     public ChestType getNextPrivateChest(PlayerRank rank, ChestType current) {
         int count = getPrivateChestCount(rank);
         return switch (current) {

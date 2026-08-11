@@ -10,11 +10,8 @@ import org.bukkit.entity.Player;
 import java.util.Deque;
 
 /**
- * Détection de rotations anormales.
- *
- * Vérifie si les mouvements de caméra sont trop parfaits ou trop réguliers,
- * ce qui indiquerait un cheat de rotation (snap, head rotation bots).
- * Analyse la distribution des deltas yaw/pitch sur les derniers ticks.
+ * Détection de snaps de caméra extrêmes (quasi 180° en un tick sans pitch).
+ * Les heuristiques « pitch constant » ont été retirées (trop de faux positifs).
  */
 public class RotationCheck extends Check {
 
@@ -24,53 +21,33 @@ public class RotationCheck extends Check {
 
     @Override
     public CheckResult check(Player player, PlayerData data) {
+        if (data.isMovementExempt()) {
+            return CheckResult.pass(type);
+        }
+
         Deque<Float> yawHistory = data.getYawHistory();
         Deque<Float> pitchHistory = data.getPitchHistory();
 
-        if (yawHistory.size() < 10 || pitchHistory.size() < 10) {
+        if (yawHistory.size() < 8 || pitchHistory.size() < 8) {
             return CheckResult.pass(type);
         }
 
         Float[] yaws = yawHistory.toArray(new Float[0]);
         Float[] pitches = pitchHistory.toArray(new Float[0]);
 
-        // Compter les rotations identiques consécutives (pitch identiques = suspect)
-        int identicalPitchCount = 0;
-        for (int i = 1; i < pitches.length; i++) {
-            if (Math.abs(pitches[i] - pitches[i - 1]) < 0.001f && Math.abs(pitches[i]) > 0.1f) {
-                identicalPitchCount++;
-            }
-        }
-
-        // Si plus de 80% des pitch sont identiques et non nuls
-        double identicalRatio = (double) identicalPitchCount / (pitches.length - 1);
-        if (identicalRatio > 0.8 && pitches.length >= 8) {
-            // Vérifier que le yaw change (le joueur bouge la souris en X mais pas en Y = snap)
-            int yawChanges = 0;
-            for (int i = 1; i < yaws.length; i++) {
-                if (Math.abs(normalizeAngle(yaws[i] - yaws[i - 1])) > 1.0f) {
-                    yawChanges++;
-                }
-            }
-
-            if (yawChanges > 3) {
-                String details = String.format("identicalPitch=%.0f%% yawChanges=%d",
-                        identicalRatio * 100, yawChanges);
-                return CheckResult.violation(type, identicalRatio, details);
-            }
-        }
-
-        // Vérifier les changements de yaw trop rapides (180° en 1 tick = snap rotation)
+        // Snap quasi-instantané (ex. head rotation cheat) — seuil très haut pour éviter les FP DPI
+        int snapHits = 0;
         for (int i = 1; i < yaws.length; i++) {
             float deltaYaw = Math.abs(normalizeAngle(yaws[i] - yaws[i - 1]));
-            if (deltaYaw > 170) {
-                // Un 180° en 1 tick est très suspect sauf si le joueur ne bouge pas
-                float deltaPitch = Math.abs(pitches[i] - pitches[i - 1]);
-                if (deltaPitch < 1.0f) {
-                    String details = String.format("instantYaw=%.1f° deltaPitch=%.1f°", deltaYaw, deltaPitch);
-                    return CheckResult.violation(type, deltaYaw / 180.0, details);
-                }
+            float deltaPitch = Math.abs(pitches[i] - pitches[i - 1]);
+            if (deltaYaw > 175 && deltaPitch < 0.5f) {
+                snapHits++;
             }
+        }
+
+        if (snapHits >= 2) {
+            String details = String.format("instantYawSnaps=%d", snapHits);
+            return CheckResult.violation(type, snapHits, details);
         }
 
         return CheckResult.pass(type);

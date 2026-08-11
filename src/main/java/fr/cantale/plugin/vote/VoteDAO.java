@@ -1,5 +1,6 @@
 package fr.cantale.plugin.vote;
 
+import fr.cantale.plugin.util.PublicRankingExclusions;
 import fr.cantale.plugin.CantalePlugin;
 
 import java.sql.*;
@@ -173,7 +174,9 @@ public class VoteDAO {
 
     public List<VoteStats> getTopVoters(int limit) {
         List<VoteStats> result = new ArrayList<>();
-        String sql = "SELECT * FROM vote_stats ORDER BY total_votes DESC LIMIT ?";
+        String sql = "SELECT * FROM vote_stats"
+                + PublicRankingExclusions.whereExclude("player_name", "player_uuid")
+                + " ORDER BY total_votes DESC LIMIT ?";
         try (Connection conn = plugin.getDatabaseManager().getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setInt(1, limit);
@@ -271,7 +274,9 @@ public class VoteDAO {
      */
     public List<VoteStats> getMonthlyTop(int month, int limit) {
         List<VoteStats> result = new ArrayList<>();
-        String sql = "SELECT * FROM vote_stats WHERE last_month = ? ORDER BY monthly_votes DESC LIMIT ?";
+        String sql = "SELECT * FROM vote_stats WHERE last_month = ?"
+                + PublicRankingExclusions.andExclude("player_name", "player_uuid")
+                + " ORDER BY monthly_votes DESC LIMIT ?";
         try (Connection conn = plugin.getDatabaseManager().getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setInt(1, month);

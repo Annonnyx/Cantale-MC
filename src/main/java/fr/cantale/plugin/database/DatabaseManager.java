@@ -166,6 +166,15 @@ public class DatabaseManager {
                 }
             }
 
+            // Migration : rôle Discord dédié par faction
+            try {
+                stmt.execute("ALTER TABLE factions ADD COLUMN discord_role_id BIGINT DEFAULT 0");
+            } catch (SQLException e) {
+                if (!e.getMessage().contains("duplicate column name")) {
+                    plugin.getLogger().warning("Erreur lors de la migration discord_role_id : " + e.getMessage());
+                }
+            }
+
             // Membres de faction
             stmt.execute("""
                 CREATE TABLE IF NOT EXISTS faction_members (
@@ -626,6 +635,35 @@ public class DatabaseManager {
                 stmt.execute("ALTER TABLE players ADD COLUMN boss_bar_enabled INTEGER DEFAULT 1");
             } catch (java.sql.SQLException ignored) {}
 
+            // Migration : dernière IP (lever ban IP après redonner des vies)
+            try {
+                stmt.execute("ALTER TABLE players ADD COLUMN last_ip VARCHAR(45)");
+            } catch (java.sql.SQLException ignored) {}
+
+            // Migration : points de pouvoir achetés via banque (courbe de prix)
+            try {
+                stmt.execute("ALTER TABLE factions ADD COLUMN power_purchased INTEGER DEFAULT 0");
+            } catch (java.sql.SQLException ignored) {}
+
+            // Backfill joined_at manquant : seuls les leaders ont une date fiable (création faction).
+            // Les autres grades avec joined_at=0 restent à 0 (jamais enregistré historiquement).
+            // SQL portable MySQL + SQLite (pas de UPDATE…JOIN).
+            try {
+                stmt.execute("""
+                    UPDATE faction_members
+                    SET joined_at = (
+                        SELECT f.created_at FROM factions f
+                        WHERE f.id = faction_members.faction_id AND f.created_at > 0
+                    )
+                    WHERE (joined_at IS NULL OR joined_at = 0)
+                      AND UPPER(rank) = 'LEADER'
+                      AND EXISTS (
+                        SELECT 1 FROM factions f
+                        WHERE f.id = faction_members.faction_id AND f.created_at > 0
+                      )
+                    """);
+            } catch (java.sql.SQLException ignored) {}
+
             // Admin Shop : plafonds quotidiens d'achat/vente par joueur et par item
             stmt.execute("""
                 CREATE TABLE IF NOT EXISTS shop_daily_limits (
@@ -671,6 +709,90 @@ public class DatabaseManager {
                     result VARCHAR(255),
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     processed_at TIMESTAMP NULL DEFAULT NULL
+                )
+                """.formatted(isSQLite() ? "AUTOINCREMENT" : "AUTO_INCREMENT"));
+
+            // Fil de chat pour le site (MC / Discord / Web / faction).
+            // faction_id NULL = chat global ; sinon chat de faction.
+            // source : 'mc' | 'discord' | 'web' | 'system' | 'faction'
+            stmt.execute("""
+                CREATE TABLE IF NOT EXISTS web_chat_messages (
+                    id INTEGER PRIMARY KEY %s,
+                    source VARCHAR(16) NOT NULL,
+                    player_uuid VARCHAR(36),
+                    player_name VARCHAR(64) NOT NULL,
+                    message VARCHAR(512) NOT NULL,
+                    faction_id INTEGER NULL DEFAULT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+                """.formatted(isSQLite() ? "AUTOINCREMENT" : "AUTO_INCREMENT"));
+
+            try {
+                stmt.execute("ALTER TABLE web_chat_messages ADD COLUMN faction_id INTEGER NULL DEFAULT NULL");
+            } catch (SQLException e) {
+                if (!e.getMessage().toLowerCase().contains("duplicate column")) {
+                    plugin.getLogger().warning("Migration web_chat_messages.faction_id : " + e.getMessage());
+                }
+            }
+
+            // File d'envoi site → jeu. faction_id NULL = global, sinon faction.
+            stmt.execute("""
+                CREATE TABLE IF NOT EXISTS web_chat_outbox (
+                    id INTEGER PRIMARY KEY %s,
+                    player_uuid VARCHAR(36) NOT NULL,
+                    player_name VARCHAR(64) NOT NULL,
+                    message VARCHAR(512) NOT NULL,
+                    faction_id INTEGER NULL DEFAULT NULL,
+                    status VARCHAR(16) DEFAULT 'pending',
+                    result VARCHAR(255),
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    processed_at TIMESTAMP NULL DEFAULT NULL
+                )
+                """.formatted(isSQLite() ? "AUTOINCREMENT" : "AUTO_INCREMENT"));
+
+            try {
+                stmt.execute("ALTER TABLE web_chat_outbox ADD COLUMN faction_id INTEGER NULL DEFAULT NULL");
+            } catch (SQLException e) {
+                if (!e.getMessage().toLowerCase().contains("duplicate column")) {
+                    plugin.getLogger().warning("Migration web_chat_outbox.faction_id : " + e.getMessage());
+                }
+            }
+
+            // Liste des joueurs en ligne (JSON) pour la page admin du site.
+            try {
+                stmt.execute("ALTER TABLE server_status ADD COLUMN online_json TEXT");
+            } catch (SQLException e) {
+                if (!e.getMessage().toLowerCase().contains("duplicate column")) {
+                    plugin.getLogger().warning("Migration server_status.online_json : " + e.getMessage());
+                }
+            }
+
+            // File d'actions admin déposées par le site (ADMIN_DISCORD_ID).
+            // type : set_money | add_money | set_lives | add_lives | give_item | ban | unban | msg | discord_dm | inspect_player
+            stmt.execute("""
+                CREATE TABLE IF NOT EXISTS web_admin_actions (
+                    id INTEGER PRIMARY KEY %s,
+                    type VARCHAR(32) NOT NULL,
+                    target_uuid VARCHAR(36),
+                    target_name VARCHAR(64),
+                    payload VARCHAR(1024),
+                    actor_discord_id VARCHAR(32) NOT NULL,
+                    status VARCHAR(16) DEFAULT 'pending',
+                    result VARCHAR(255),
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    processed_at TIMESTAMP NULL DEFAULT NULL
+                )
+                """.formatted(isSQLite() ? "AUTOINCREMENT" : "AUTO_INCREMENT"));
+
+            // Snapshots d'inspection (inventaire / PC / EC / effets) — payload trop gros pour result VARCHAR(255).
+            stmt.execute("""
+                CREATE TABLE IF NOT EXISTS web_admin_snapshots (
+                    id INTEGER PRIMARY KEY %s,
+                    action_id INTEGER NOT NULL,
+                    player_uuid VARCHAR(36) NOT NULL,
+                    kind VARCHAR(32) NOT NULL,
+                    payload TEXT NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
                 """.formatted(isSQLite() ? "AUTOINCREMENT" : "AUTO_INCREMENT"));
 

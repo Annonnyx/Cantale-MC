@@ -3,49 +3,54 @@ package fr.cantale.plugin.anticheat.alert;
 import fr.cantale.plugin.CantalePlugin;
 import fr.cantale.plugin.anticheat.AntiCheatManager;
 import fr.cantale.plugin.anticheat.check.Check;
+import org.bukkit.BanList;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.entity.Player;
 
+import java.time.Duration;
+import java.time.Instant;
+import java.util.Date;
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Gère l'application de sanctions automatiques graduelles
- * en fonction du score de confiance (trust) du joueur.
+ * Sanctions automatiques selon le trust.
+ * Trust à 0 → ban (toujours). Warn/kick si {@code auto-punish}.
  */
 public class PunishmentManager {
 
     private final CantalePlugin plugin;
     private final AntiCheatManager manager;
+    private final Set<UUID> banQueued = ConcurrentHashMap.newKeySet();
 
     public PunishmentManager(CantalePlugin plugin, AntiCheatManager manager) {
         this.plugin = plugin;
         this.manager = manager;
     }
 
-    /**
-     * Evalue si le score de confiance actuel d'un joueur nécessite une punition.
-     */
     public void evaluate(Player player, int trust, Check check) {
+        // Ban dès que le trust est épuisé (0), même si auto-punish est off
+        if (trust <= 0) {
+            executeBan(player, check);
+            return;
+        }
+
         if (!manager.getConfig().isAutoPunish()) {
             return;
         }
 
-        UUID uuid = player.getUniqueId();
-
-        // 1. Seuil de tempban
         if (trust <= manager.getConfig().getBanThreshold()) {
             executeBan(player, check);
             return;
         }
 
-        // 2. Seuil de kick
         if (trust <= manager.getConfig().getKickThreshold()) {
             executeKick(player, check);
             return;
         }
 
-        // 3. Seuil de warn (avertissement textuel)
         if (trust <= manager.getConfig().getWarnThreshold()) {
             executeWarn(player, check);
         }
@@ -58,40 +63,58 @@ public class PunishmentManager {
     }
 
     private void executeKick(Player player, Check check) {
-        // Kick synchrone sur le thread principal
         Bukkit.getScheduler().runTask(plugin, () -> {
-            if (player.isOnline()) {
-                String message = ChatColor.translateAlternateColorCodes('&',
-                        "&cVous avez été éjecté de Cantale.\n&7Raison: Comportement de déplacement/combat suspect.\n&7Detection: "
-                        + check.getType().getDisplayName());
-                
-                player.kickPlayer(message);
-                
-                // Annoncer au staff
-                Bukkit.broadcast(ChatColor.translateAlternateColorCodes('&',
-                        "&8[&cAC&8] &e" + player.getName() + " &7a été expulsé automatiquement pour violations répétées."),
-                        manager.getConfig().getAlertsPermission());
-            }
+            if (!player.isOnline()) return;
+            String message = ChatColor.translateAlternateColorCodes('&',
+                    "&cVous avez été éjecté de Cantale.\n&7Raison: Comportement de déplacement/combat suspect.\n&7Detection: "
+                    + check.getType().getDisplayName());
+            player.kickPlayer(message);
+            Bukkit.broadcast(ChatColor.translateAlternateColorCodes('&',
+                    "&8[&cAC&8] &e" + player.getName() + " &7a été expulsé automatiquement pour violations répétées."),
+                    manager.getConfig().getAlertsPermission());
         });
     }
 
     private void executeBan(Player player, Check check) {
-        int duration = manager.getConfig().getBanDurationMinutes();
-        String playerName = player.getName();
+        UUID uuid = player.getUniqueId();
+        if (!banQueued.add(uuid)) return;
 
-        // Ban synchrone sur le thread principal
+        int duration = Math.max(1, manager.getConfig().getBanDurationMinutes());
+        String playerName = player.getName();
+        String reason = "AntiCheat Cantale — trust épuisé (" + check.getType().getDisplayName() + ")";
+
         Bukkit.getScheduler().runTask(plugin, () -> {
-            if (player.isOnline()) {
-                String command = String.format("tempban %s %dm Auto-Kick/Cheat détecté par l'AntiCheat (%s)",
-                        playerName, duration, check.getType().getDisplayName());
-                
-                // Exécuter via la console
-                Bukkit.dispatchCommand(Bukkit.getConsoleSender(), command);
-                
-                // Annoncer publiquement ou au staff
+            try {
+                Instant until = Instant.now().plus(Duration.ofMinutes(duration));
+                boolean banned = false;
+                if (player.isOnline()) {
+                    try {
+                        player.ban(reason, until, "Cantale-AC", true);
+                        banned = true;
+                    } catch (Exception ignored) {
+                        // fallback ci-dessous
+                    }
+                }
+                if (!banned) {
+                    Date expiry = Date.from(until);
+                    try {
+                        Bukkit.getBanList(BanList.Type.NAME).addBan(playerName, reason, expiry, "Cantale-AC");
+                    } catch (Exception ignored) {}
+                    try {
+                        Bukkit.getBanList(BanList.Type.PROFILE).addBan(playerName, reason, expiry, "Cantale-AC");
+                    } catch (Exception ignored) {}
+                    if (player.isOnline()) {
+                        player.kickPlayer(ChatColor.RED + reason);
+                    }
+                }
+
                 Bukkit.broadcast(ChatColor.translateAlternateColorCodes('&',
-                        "&8[&cAC&8] &e" + playerName + " &7a été banni automatiquement pour triche pendant &c" + duration + " &7minutes."),
+                        "&8[&cAC&8] &e" + playerName + " &7a été banni automatiquement (trust 0) pour &c"
+                                + duration + " &7minutes."),
                         manager.getConfig().getAlertsPermission());
+            } finally {
+                // Laisser re-ban possible après reconnexion / nouveau cycle de trust
+                Bukkit.getScheduler().runTaskLater(plugin, () -> banQueued.remove(uuid), 20L * 60);
             }
         });
     }

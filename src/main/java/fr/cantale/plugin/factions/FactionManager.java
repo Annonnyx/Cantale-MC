@@ -13,6 +13,15 @@ import fr.cantale.plugin.factions.permissions.FactionPermission;
 
 public class FactionManager {
 
+    /**
+     * Pouvoir de base à la création (starter), indépendant des membres.
+     * Une faction neuve avec son chef seul = {@code BASE_CREATION_POWER + POWER_PER_MEMBER} (65).
+     */
+    public static final int BASE_CREATION_POWER = 60;
+
+    /** Bonus flat par membre : +5 à l'arrivée, -5 au départ (plancher 0). */
+    public static final int POWER_PER_MEMBER = 5;
+
     private final CantalePlugin plugin;
     private final FactionDAO factionDAO;
     private final Map<Integer, Faction> loadedFactions;
@@ -35,18 +44,38 @@ public class FactionManager {
         }
 
         Faction faction = new Faction(name, tag, description, leader);
-        faction.setPower(calculateInitialPower());
+        // Base starter uniquement ; le +5 du chef est appliqué après (DAO ajoute déjà le leader
+        // en membre — on ne repasse PAS par addMember pour éviter un double INSERT / double +5).
+        faction.setPower(BASE_CREATION_POWER);
         int id = factionDAO.createFaction(faction);
         if (id > 0) {
             faction.setId(id);
+            applyMemberPowerDelta(faction, POWER_PER_MEMBER);
             cacheFaction(faction);
+            if (plugin.getDiscordBot() != null && plugin.getDiscordBot().isConnected()) {
+                plugin.getDiscordBot().ensureFactionDiscordRole(faction);
+            }
             return faction;
         }
         return null;
     }
 
-    private int calculateInitialPower() {
-        return 60; // 6 claims de départ (power/10), bonus minimal de 5 claims via getMaxClaims()
+    /**
+     * Ajuste le pouvoir lié aux membres (+5 join / -5 leave), persiste, et recalcule les claims
+     * en cas de perte. Plancher à 0 via {@link Faction#removePower(int)}.
+     */
+    private void applyMemberPowerDelta(Faction faction, int delta) {
+        if (delta >= 0) {
+            faction.addPower(delta);
+        } else {
+            faction.removePower(-delta);
+        }
+        if (faction.getId() > 0) {
+            factionDAO.updatePower(faction.getId(), faction.getPower());
+        }
+        if (delta < 0) {
+            checkAndAdjustClaims(faction.getId());
+        }
     }
 
     /**
@@ -130,11 +159,12 @@ public class FactionManager {
         Faction faction = getFaction(id);
         if (faction == null) return false;
 
-        // Les membres de la faction perdent le rôle Discord de faction.
+        // Retirer les rôles Discord (générique + dédié) puis supprimer le rôle dédié.
         if (plugin.getDiscordBot() != null && plugin.getDiscordBot().isConnected()) {
-            for (UUID member : faction.getMembers()) {
+            for (UUID member : new ArrayList<>(faction.getMembers())) {
                 plugin.getDiscordBot().syncFactionRoleForPlayer(member, false);
             }
+            plugin.getDiscordBot().deleteFactionDiscordRole(faction);
         }
 
         // Supprimer tous les claims de la faction
@@ -160,13 +190,25 @@ public class FactionManager {
         factionDAO.updateFaction(faction);
     }
 
+    /** Persiste l'ID du rôle Discord dédié (sans réécrire toute la faction). */
+    public void saveFactionDiscordRoleId(int factionId, long discordRoleId) {
+        Faction faction = loadedFactions.get(factionId);
+        if (faction != null) {
+            faction.setDiscordRoleId(discordRoleId);
+        }
+        factionDAO.updateDiscordRoleId(factionId, discordRoleId);
+    }
+
     public boolean addMember(int factionId, UUID playerUuid, FactionRank rank) {
         Faction faction = getFaction(factionId);
         if (faction == null) return false;
+        // Évite double INSERT et double +5 si déjà membre
+        if (faction.isMember(playerUuid)) return false;
 
         factionDAO.addMember(factionId, playerUuid, rank);
         faction.addMember(playerUuid, rank);
         playerFactionCache.put(playerUuid, factionId);
+        applyMemberPowerDelta(faction, POWER_PER_MEMBER);
         faction.checkPromotion();
         saveFaction(faction);
 
@@ -179,6 +221,7 @@ public class FactionManager {
     public boolean removeMember(int factionId, UUID playerUuid) {
         Faction faction = getFaction(factionId);
         if (faction == null) return false;
+        if (!faction.isMember(playerUuid)) return false;
 
         factionDAO.removeMember(factionId, playerUuid);
         faction.removeMember(playerUuid);
@@ -188,12 +231,13 @@ public class FactionManager {
             plugin.getDiscordBot().syncFactionRoleForPlayer(playerUuid, false);
         }
         
-        // Si c'était le dernier membre, détruire la faction
+        // Si c'était le dernier membre, détruire la faction (pas besoin de -5 / claims)
         if (faction.getMembers().isEmpty()) {
             deleteFaction(factionId);
             return true;
         }
-        
+
+        applyMemberPowerDelta(faction, -POWER_PER_MEMBER);
         saveFaction(faction);
         return true;
     }
@@ -384,13 +428,29 @@ public class FactionManager {
     }
 
     public void sendFactionMessage(org.bukkit.entity.Player sender, Faction faction, String message) {
-        String formatted = "§8[§6Faction §e" + faction.getName() + "§8] §e" + sender.getName() + " : §f" + message;
-        plugin.getActionLogger().logChatMessage("[Faction " + faction.getName() + "] " + sender.getName(), message);
+        sendFactionMessage(sender.getUniqueId(), sender.getName(), faction, message, true);
+    }
+
+    /**
+     * Diffuse un message de chat faction aux membres en ligne.
+     * {@code logToWeb=true} pour le chat MC ; false si le pont web a déjà / va logger.
+     */
+    public void sendFactionMessage(
+            UUID senderUuid, String senderName, Faction faction, String message, boolean logToWeb
+    ) {
+        if (faction == null || message == null) return;
+        String name = senderName == null || senderName.isBlank() ? "Joueur" : senderName;
+        String formatted = "§8[§6Faction §e" + faction.getName() + "§8] §e" + name + " : §f" + message;
+        plugin.getActionLogger().logChatMessage("[Faction " + faction.getName() + "] " + name, message);
         for (UUID memberUuid : faction.getMembers()) {
             org.bukkit.entity.Player member = org.bukkit.Bukkit.getPlayer(memberUuid);
             if (member != null && member.isOnline()) {
                 member.sendMessage(formatted);
             }
+        }
+        if (logToWeb) {
+            fr.cantale.plugin.web.WebChatLog.append(
+                    plugin, "faction", senderUuid, name, message, faction.getId());
         }
     }
 

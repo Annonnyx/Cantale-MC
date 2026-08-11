@@ -20,6 +20,10 @@ public class Faction {
     private Double spawnZ;
     private String spawnWorld;
     private long secretUntil;
+    /** ID du rôle Discord dédié à cette faction (0 = pas encore créé). */
+    private long discordRoleId;
+    /** Nombre de points de pouvoir déjà achetés via la banque (courbe de prix). */
+    private int powerPurchased;
 
     public Faction(int id, String name, String tag, String description, UUID leaderUuid, long createdAt, double balance, int power, String type) {
         this.id = id;
@@ -108,6 +112,18 @@ public class Faction {
 
     public void removePower(int amount) {
         this.power = Math.max(0, this.power - amount);
+    }
+
+    public int getPowerPurchased() {
+        return powerPurchased;
+    }
+
+    public void setPowerPurchased(int powerPurchased) {
+        this.powerPurchased = Math.max(0, powerPurchased);
+    }
+
+    public void addPowerPurchased(int amount) {
+        this.powerPurchased = Math.max(0, this.powerPurchased + amount);
     }
 
     // Claims max = pouvoir / 10, minimum 5 pour permettre quelques claims dès la création
@@ -256,5 +272,13 @@ public class Faction {
 
     public boolean isSecret() {
         return System.currentTimeMillis() / 1000 < secretUntil;
+    }
+
+    public long getDiscordRoleId() {
+        return discordRoleId;
+    }
+
+    public void setDiscordRoleId(long discordRoleId) {
+        this.discordRoleId = discordRoleId;
     }
 }

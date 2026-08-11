@@ -1,6 +1,11 @@
 package fr.cantale.plugin.commands;
 
 import fr.cantale.plugin.CantalePlugin;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.event.ClickEvent;
+import net.kyori.adventure.text.event.HoverEvent;
+import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.format.TextDecoration;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -49,12 +54,7 @@ public class LinkCommand implements CommandExecutor {
             cleanupExpiredCodes();
             String existing = getActiveCode(uuid);
             if (existing != null) {
-                Bukkit.getScheduler().runTask(plugin, () -> {
-                    player.sendMessage("§8[§6Cantale§8] §eTon code de liaison : §f" + existing);
-                    player.sendMessage("§7Rejoins notre Discord : §bhttps://discord.gg/eDTfYWtuYp");
-                    player.sendMessage("§7Et utilise le code avec §f/link " + existing + " <ton_pseudo> §7sur Discord.");
-                    player.sendMessage("§7Le code expire dans 10 minutes.");
-                });
+                Bukkit.getScheduler().runTask(plugin, () -> sendLinkCodeMessages(player, existing, false));
                 return;
             }
 
@@ -72,12 +72,7 @@ public class LinkCommand implements CommandExecutor {
                 stmt.setLong(5, expires);
                 stmt.executeUpdate();
 
-                Bukkit.getScheduler().runTask(plugin, () -> {
-                    player.sendMessage("§8[§6Cantale§8] §eTon code de liaison : §f§l" + code);
-                    player.sendMessage("§7Rejoins notre Discord : §bhttps://discord.gg/eDTfYWtuYp");
-                    player.sendMessage("§7Et utilise le code avec §f/link " + code + " <ton_pseudo> §7sur Discord pour lier ton compte.");
-                    player.sendMessage("§7Le code expire dans 10 minutes.");
-                });
+                Bukkit.getScheduler().runTask(plugin, () -> sendLinkCodeMessages(player, code, true));
             } catch (Exception e) {
                 plugin.getLogger().warning("[Link] Erreur création code: " + e.getMessage());
                 Bukkit.getScheduler().runTask(plugin, () -> player.sendMessage("§cErreur lors de la génération du code."));
@@ -85,6 +80,41 @@ public class LinkCommand implements CommandExecutor {
         });
 
         return true;
+    }
+
+    /**
+     * Envoie les messages de code de liaison. Le code est cliquable (copie presse-papiers).
+     */
+    private void sendLinkCodeMessages(Player player, String code, boolean newlyCreated) {
+        Component codeComponent = Component.text(code)
+                .color(NamedTextColor.WHITE)
+                .decorate(TextDecoration.BOLD)
+                .clickEvent(ClickEvent.copyToClipboard(code))
+                .hoverEvent(HoverEvent.showText(
+                        Component.text("Clique pour copier").color(NamedTextColor.GRAY)));
+
+        player.sendMessage(Component.text("[", NamedTextColor.DARK_GRAY)
+                .append(Component.text("Cantale", NamedTextColor.GOLD))
+                .append(Component.text("] ", NamedTextColor.DARK_GRAY))
+                .append(Component.text("Ton code de liaison : ", NamedTextColor.YELLOW))
+                .append(codeComponent));
+
+        player.sendMessage("§7Rejoins notre Discord : §bhttps://discord.gg/eDTfYWtuYp");
+
+        Component usage = Component.text("Et utilise le code avec ", NamedTextColor.GRAY)
+                .append(Component.text("/link ", NamedTextColor.WHITE))
+                .append(Component.text(code)
+                        .color(NamedTextColor.WHITE)
+                        .clickEvent(ClickEvent.copyToClipboard(code))
+                        .hoverEvent(HoverEvent.showText(
+                                Component.text("Clique pour copier").color(NamedTextColor.GRAY))))
+                .append(Component.text(" <ton_pseudo> ", NamedTextColor.WHITE))
+                .append(Component.text(newlyCreated
+                        ? "sur Discord pour lier ton compte."
+                        : "sur Discord.", NamedTextColor.GRAY));
+        player.sendMessage(usage);
+
+        player.sendMessage("§7Le code expire dans 10 minutes.");
     }
 
     private String generateCode() {

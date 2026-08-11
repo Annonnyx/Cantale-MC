@@ -11,6 +11,7 @@ import type {
   LeaderboardUnit,
 } from "@/server/repo/leaderboards";
 import type { LeaderboardPeriod } from "@/server/repo/snapshots";
+import { PlayerLink } from "@/components/player/player-link";
 
 const METRIC_TABS: { key: LeaderboardMetric; label: string; unit: LeaderboardUnit }[] = [
   { key: "cantox", label: "Cantox", unit: "cantox" },
@@ -241,9 +242,12 @@ export function ClassementsClient({ metric, period, result, viewerUuid }: Props)
                             loading="lazy"
                             className="h-8 w-8 shrink-0 border border-iron-line bg-ash-deep"
                           />
-                          <span className="truncate font-display text-base font-semibold text-bone">
+                          <PlayerLink
+                            uuid={entry.uuid}
+                            className="truncate font-display text-base font-semibold text-bone hover:text-ember-glow"
+                          >
                             {entry.username}
-                          </span>
+                          </PlayerLink>
                           {isViewer && (
                             <span className="border border-ember px-1.5 py-0.5 font-tech text-[9px] uppercase tracking-[0.2em] text-ember-glow">
                               Toi
@@ -327,9 +331,12 @@ function PodiumCard({
         loading="lazy"
         className={`${styles.avatar} border border-iron-line bg-ash-deep`}
       />
-      <span className="max-w-full truncate font-display text-lg font-semibold text-bone">
+      <PlayerLink
+        uuid={entry.uuid}
+        className="max-w-full truncate font-display text-lg font-semibold text-bone hover:text-ember-glow"
+      >
         {entry.username}
-      </span>
+      </PlayerLink>
       <span className="font-tech text-sm text-bone">{formatValue(entry.value, unit)}</span>
       <span className="font-tech text-xs">
         <Evolution value={entry.evolution} unit={unit} />

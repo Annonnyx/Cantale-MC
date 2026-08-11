@@ -157,9 +157,11 @@ public class LifeCommand implements CommandExecutor {
                 UUID uuid = offline.getUniqueId();
                 playerDAO.createOrUpdatePlayer(uuid, offline.getName() != null ? offline.getName() : args[0]);
                 lifeManager.addLife(uuid, amount);
+                pardonLifeBanOffline(uuid, offline.getName() != null ? offline.getName() : args[0]);
                 sender.sendMessage(format("&aAjouté &e" + amount + " &avies à &e"
                     + (offline.getName() != null ? offline.getName() : args[0])
                     + " &7(hors-ligne, total : &e" + lifeManager.getLives(uuid) + "&7)."));
+                sender.sendMessage(format("&7Ban NAME/PROFILE/IP levés si connus (sinon &e/unbanip <ip>&7)."));
             } catch (NumberFormatException e) {
                 sender.sendMessage(format("&cNombre invalide."));
             }
@@ -237,19 +239,11 @@ public class LifeCommand implements CommandExecutor {
     }
 
     private void pardonLifeBan(Player target) {
-        try {
-            Bukkit.getBanList(org.bukkit.BanList.Type.NAME).pardon(target.getName());
-        } catch (Exception ignored) {
-            // best effort
-        }
-        try {
-            // Paper : lever le ban profil UUID
-            target.getPlayerProfile(); // ensure loaded
-            Bukkit.getServer().getBanList(org.bukkit.BanList.Type.PROFILE)
-                .pardon(target.getName());
-        } catch (Exception ignored) {
-            // best effort — certaines versions n'acceptent que le profil typé
-        }
+        lifeManager.pardonLifeBan(target.getUniqueId(), target.getName());
+    }
+
+    private void pardonLifeBanOffline(UUID uuid, String name) {
+        lifeManager.pardonLifeBan(uuid, name);
     }
 
     private static boolean isConsole(CommandSender sender) {

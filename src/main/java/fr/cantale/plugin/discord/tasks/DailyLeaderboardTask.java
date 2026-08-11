@@ -3,6 +3,7 @@ package fr.cantale.plugin.discord.tasks;
 import fr.cantale.plugin.CantalePlugin;
 import fr.cantale.plugin.discord.DiscordBot;
 import fr.cantale.plugin.discord.DiscordConfig;
+import fr.cantale.plugin.util.PublicRankingExclusions;
 import net.dv8tion.jda.api.EmbedBuilder;
 import org.bukkit.scheduler.BukkitRunnable;
 
@@ -59,7 +60,9 @@ public class DailyLeaderboardTask extends BukkitRunnable {
 
     private void sendKillsLeaderboard(long channelId) {
         if (channelId == 0L) return;
-        List<Entry> top = queryTop("SELECT username, kills AS value FROM players ORDER BY kills DESC LIMIT 10");
+        List<Entry> top = queryTop("SELECT username, kills AS value FROM players"
+                + PublicRankingExclusions.whereExclude("username", "uuid")
+                + " ORDER BY kills DESC LIMIT 10");
         EmbedBuilder embed = new EmbedBuilder()
             .setColor(Color.RED)
             .setTitle("🏆 Leaderboard — Kills")
@@ -70,7 +73,9 @@ public class DailyLeaderboardTask extends BukkitRunnable {
 
     private void sendMoneyLeaderboard(long channelId) {
         if (channelId == 0L) return;
-        List<Entry> top = queryTop("SELECT username, balance AS value FROM players ORDER BY balance DESC LIMIT 10");
+        List<Entry> top = queryTop("SELECT username, balance AS value FROM players"
+                + PublicRankingExclusions.whereExclude("username", "uuid")
+                + " ORDER BY balance DESC LIMIT 10");
         EmbedBuilder embed = new EmbedBuilder()
             .setColor(Color.GREEN)
             .setTitle("🏆 Leaderboard — Cantox")
@@ -103,7 +108,9 @@ public class DailyLeaderboardTask extends BukkitRunnable {
 
     private void sendChatReactionsLeaderboard(long channelId) {
         if (channelId == 0L) return;
-        List<Entry> top = queryTop("SELECT username, chat_reactions AS value FROM players ORDER BY chat_reactions DESC LIMIT 10");
+        List<Entry> top = queryTop("SELECT username, chat_reactions AS value FROM players"
+                + PublicRankingExclusions.whereExclude("username", "uuid")
+                + " ORDER BY chat_reactions DESC LIMIT 10");
         EmbedBuilder embed = new EmbedBuilder()
             .setColor(Color.MAGENTA)
             .setTitle("🏆 Leaderboard — Réactions Chat")

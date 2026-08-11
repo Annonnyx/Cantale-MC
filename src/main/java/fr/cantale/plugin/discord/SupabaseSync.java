@@ -4,6 +4,7 @@ import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import fr.cantale.plugin.CantalePlugin;
+import fr.cantale.plugin.util.PublicRankingExclusions;
 import fr.cantale.plugin.database.DatabaseManager;
 import okhttp3.*;
 import org.bukkit.scheduler.BukkitRunnable;
@@ -143,7 +144,9 @@ public class SupabaseSync {
         try (Connection conn = db.getConnection();
              Statement stmt = conn.createStatement();
              ResultSet rs = stmt.executeQuery(
-                 "SELECT uuid, username, kills, deaths FROM players ORDER BY kills DESC LIMIT 50")) {
+                 "SELECT uuid, username, kills, deaths FROM players"
+                     + PublicRankingExclusions.whereExclude("username", "uuid")
+                     + " ORDER BY kills DESC LIMIT 50")) {
 
             JsonArray entries = new JsonArray();
             int rank = 1;
@@ -173,7 +176,9 @@ public class SupabaseSync {
         try (Connection conn = db.getConnection();
              Statement stmt = conn.createStatement();
              ResultSet rs = stmt.executeQuery(
-                 "SELECT uuid, username, balance FROM players ORDER BY balance DESC LIMIT 50")) {
+                 "SELECT uuid, username, balance FROM players"
+                     + PublicRankingExclusions.whereExclude("username", "uuid")
+                     + " ORDER BY balance DESC LIMIT 50")) {
 
             JsonArray entries = new JsonArray();
             int rank = 1;

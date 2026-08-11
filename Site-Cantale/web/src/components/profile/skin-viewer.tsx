@@ -1,14 +1,15 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { minecraftAvatarUrl, minecraftSkinUrl } from "@/lib/minecraft-skin";
 
 const VIEWER_WIDTH = 300;
 const VIEWER_HEIGHT = 420;
 
 /**
  * Rendu 3D du skin Minecraft (skinview3d, animation idle + rotation douce).
- * Le skin provient de Crafatar (CORS ouvert). Si WebGL est indisponible
- * ou si le chargement échoue, repli sur l'avatar 2D Crafatar.
+ * Texture via mc-heads (UUID privilégié). Si WebGL est indisponible
+ * ou si le chargement échoue, repli sur l'avatar 2D.
  */
 export function SkinViewer({ uuid, username }: { uuid: string; username: string }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -16,7 +17,10 @@ export function SkinViewer({ uuid, username }: { uuid: string; username: string 
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!canvas || !uuid) {
+      setFallback(true);
+      return;
+    }
 
     let cancelled = false;
     let viewer: import("skinview3d").SkinViewer | null = null;
@@ -36,9 +40,14 @@ export function SkinViewer({ uuid, username }: { uuid: string; username: string 
         viewer.autoRotate = true;
         viewer.autoRotateSpeed = 0.6;
         viewer.zoom = 0.9;
-        await viewer.loadSkin(`https://crafatar.com/skins/${uuid}?overlay`, {
-          model: "auto-detect",
-        });
+
+        // UUID d'abord (stable) ; repli pseudo si le CDN ne résout pas l'UUID.
+        try {
+          await viewer.loadSkin(minecraftSkinUrl(uuid), { model: "auto-detect" });
+        } catch {
+          if (!username || username === "Inconnu") throw new Error("skin_uuid_failed");
+          await viewer.loadSkin(minecraftSkinUrl(username), { model: "auto-detect" });
+        }
       } catch {
         if (!cancelled) setFallback(true);
       }
@@ -49,7 +58,9 @@ export function SkinViewer({ uuid, username }: { uuid: string; username: string 
       cancelled = true;
       viewer?.dispose();
     };
-  }, [uuid]);
+  }, [uuid, username]);
+
+  const avatarId = uuid || username;
 
   if (fallback) {
     return (
@@ -57,9 +68,9 @@ export function SkinViewer({ uuid, username }: { uuid: string; username: string 
         className="flex items-end justify-center border border-iron-line bg-ash-deep"
         style={{ width: VIEWER_WIDTH, height: VIEWER_HEIGHT }}
       >
-        {/* eslint-disable-next-line @next/next/no-img-element -- avatar externe Crafatar */}
+        {/* eslint-disable-next-line @next/next/no-img-element -- avatar externe mc-heads */}
         <img
-          src={`https://crafatar.com/avatars/${uuid}?overlay&size=160`}
+          src={minecraftAvatarUrl(avatarId, 160)}
           alt={`Avatar Minecraft de ${username}`}
           width={160}
           height={160}

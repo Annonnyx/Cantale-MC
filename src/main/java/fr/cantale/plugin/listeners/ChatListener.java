@@ -49,5 +49,9 @@ public class ChatListener implements Listener {
         if (plugin.getDiscordBot() != null && plugin.getDiscordBot().isConnected()) {
             plugin.getDiscordBot().sendMcMessage(player.getName(), event.getMessage());
         }
+
+        // Fil public du site (hors chat de faction, déjà return plus haut)
+        fr.cantale.plugin.web.WebChatLog.append(
+                plugin, "mc", player.getUniqueId(), player.getName(), event.getMessage());
     }
 }

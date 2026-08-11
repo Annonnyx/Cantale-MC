@@ -49,6 +49,17 @@ public class MovementListener implements Listener {
         // Récupérer ou créer les données du joueur
         PlayerData data = manager.getPlayerData(player.getUniqueId());
 
+        // Grâce post-TP / reset mouvement : ne pas checker, juste resync position
+        if (data.isMovementExempt()) {
+            data.addPosition(player.getLocation());
+            data.addRotation(player.getLocation().getYaw(), player.getLocation().getPitch());
+            data.setWasOnGround(player.isOnGround());
+            if (player.isOnGround()) {
+                data.setLastGroundY(player.getLocation().getY());
+            }
+            return;
+        }
+
         // Exécuter tous les checks de mouvement activés
         for (Check check : manager.getCheckRegistry().getEnabledByCategory(CheckType.Category.MOVEMENT)) {
             CheckResult result = check.check(player, data);

@@ -13,6 +13,7 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.player.AsyncPlayerPreLoginEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.event.player.PlayerRespawnEvent;
 import org.bukkit.Bukkit;
 import org.bukkit.event.player.PlayerQuitEvent;
 
@@ -63,6 +64,9 @@ public class PlayerListener implements Listener {
         UUID uuid = player.getUniqueId();
 
         playerDAO.createOrUpdatePlayer(uuid, player.getName());
+        if (player.getAddress() != null && player.getAddress().getAddress() != null) {
+            playerDAO.setLastIp(uuid, player.getAddress().getAddress().getHostAddress());
+        }
 
         int lives = lifeManager.getLives(uuid);
         if (lives <= 0 && plugin.getConfigManager().isBanOnZero()) {
@@ -168,6 +172,14 @@ public class PlayerListener implements Listener {
             player.sendMessage("§8[§6Cantale§8] §aRécompense mensuelle : §e" + livesGiven + " item(s) Vie §aoctroyé(s) !");
         }
 
+        // Sync playtime dès la connexion (sinon le site reste à 0 / périmé
+        // tant que le joueur ne se déconnecte pas).
+        UUID joinUuid = player.getUniqueId();
+        long joinPlaytime = fr.cantale.plugin.tasks.PlaytimeSyncTask.playtimeSeconds(player);
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+            playerDAO.updatePlaytime(joinUuid, joinPlaytime);
+        });
+
         // Wanted tier announcements
         handleWantedJoin(player);
     }
@@ -213,7 +225,7 @@ public class PlayerListener implements Listener {
 
         // Sauvegarder le temps de jeu en BDD de manière asynchrone
         UUID uuid = player.getUniqueId();
-        long playtimeSeconds = player.getStatistic(org.bukkit.Statistic.PLAY_ONE_MINUTE) / 20L;
+        long playtimeSeconds = fr.cantale.plugin.tasks.PlaytimeSyncTask.playtimeSeconds(player);
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
             playerDAO.updatePlaytime(uuid, playtimeSeconds);
         });
@@ -300,6 +312,21 @@ public class PlayerListener implements Listener {
                 );
             }
         }
+    }
+
+    /** Invulnérabilité post-respawn pour éviter le spawn-kill le temps de se TP. */
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onPlayerRespawn(PlayerRespawnEvent event) {
+        Player player = event.getPlayer();
+        // 10 secondes (200 ticks) — setNoDamageTicks est en ticks
+        player.setNoDamageTicks(20 * 10);
+        player.sendMessage("§8[§6Cantale§8] §7Invulnérabilité de §e10s §7après respawn.");
+        // Sécurité : re-appliquer au tick suivant (certains plugins reset noDamageTicks)
+        Bukkit.getScheduler().runTask(plugin, () -> {
+            if (player.isOnline()) {
+                player.setNoDamageTicks(Math.max(player.getNoDamageTicks(), 20 * 10));
+            }
+        });
     }
 
     private void checkPendingRewards(Player player) {

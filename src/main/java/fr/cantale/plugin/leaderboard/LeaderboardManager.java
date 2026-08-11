@@ -2,6 +2,7 @@ package fr.cantale.plugin.leaderboard;
 
 import fr.cantale.plugin.CantalePlugin;
 import fr.cantale.plugin.database.DatabaseManager;
+import fr.cantale.plugin.util.PublicRankingExclusions;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -22,7 +23,9 @@ public class LeaderboardManager {
 
     public List<LeaderboardEntry> getTopKills(int limit) {
         List<LeaderboardEntry> entries = new ArrayList<>();
-        String sql = "SELECT username, kills FROM players ORDER BY kills DESC LIMIT ?";
+        String sql = "SELECT username, kills FROM players"
+                + PublicRankingExclusions.whereExclude("username", "uuid")
+                + " ORDER BY kills DESC LIMIT ?";
         
         try (Connection conn = databaseManager.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
@@ -46,7 +49,9 @@ public class LeaderboardManager {
 
     public List<LeaderboardEntry> getTopDeaths(int limit) {
         List<LeaderboardEntry> entries = new ArrayList<>();
-        String sql = "SELECT username, deaths FROM players ORDER BY deaths DESC LIMIT ?";
+        String sql = "SELECT username, deaths FROM players"
+                + PublicRankingExclusions.whereExclude("username", "uuid")
+                + " ORDER BY deaths DESC LIMIT ?";
         
         try (Connection conn = databaseManager.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
@@ -70,7 +75,9 @@ public class LeaderboardManager {
 
     public List<LeaderboardEntry> getTopRichest(int limit) {
         List<LeaderboardEntry> entries = new ArrayList<>();
-        String sql = "SELECT username, balance FROM players ORDER BY balance DESC LIMIT ?";
+        String sql = "SELECT username, balance FROM players"
+                + PublicRankingExclusions.whereExclude("username", "uuid")
+                + " ORDER BY balance DESC LIMIT ?";
         
         try (Connection conn = databaseManager.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
@@ -156,7 +163,9 @@ public class LeaderboardManager {
 
     public List<LeaderboardEntry> getTopChatReactions(int limit) {
         List<LeaderboardEntry> entries = new ArrayList<>();
-        String sql = "SELECT username, chat_reactions FROM players ORDER BY chat_reactions DESC LIMIT ?";
+        String sql = "SELECT username, chat_reactions FROM players"
+                + PublicRankingExclusions.whereExclude("username", "uuid")
+                + " ORDER BY chat_reactions DESC LIMIT ?";
 
         try (Connection conn = databaseManager.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {

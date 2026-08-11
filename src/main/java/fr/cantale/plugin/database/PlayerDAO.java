@@ -122,6 +122,35 @@ public class PlayerDAO {
         }
     }
 
+    public void setLastIp(UUID uuid, String ip) {
+        if (uuid == null || ip == null || ip.isBlank()) return;
+        String sql = "UPDATE players SET last_ip = ? WHERE uuid = ?";
+        try (Connection conn = databaseManager.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, ip.trim());
+            stmt.setString(2, uuid.toString());
+            stmt.executeUpdate();
+        } catch (SQLException e) {
+            plugin.getLogger().severe("Erreur setLastIp : " + e.getMessage());
+        }
+    }
+
+    public String getLastIp(UUID uuid) {
+        String sql = "SELECT last_ip FROM players WHERE uuid = ?";
+        try (Connection conn = databaseManager.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, uuid.toString());
+            ResultSet rs = stmt.executeQuery();
+            if (rs.next()) {
+                String ip = rs.getString("last_ip");
+                return ip == null || ip.isBlank() ? null : ip;
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().severe("Erreur getLastIp : " + e.getMessage());
+        }
+        return null;
+    }
+
     public void addBalance(UUID uuid, double amount) {
         setBalance(uuid, getBalance(uuid) + amount);
     }
@@ -362,7 +391,8 @@ public class PlayerDAO {
         String sql = "UPDATE players SET playtime = ? WHERE uuid = ?";
         try (Connection conn = databaseManager.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setInt(1, (int) playtimeSeconds);
+            // Long (pas Int) : aligne BIGINT côté snapshots site + évite le troncage.
+            stmt.setLong(1, playtimeSeconds);
             stmt.setString(2, uuid.toString());
             stmt.executeUpdate();
         } catch (SQLException e) {

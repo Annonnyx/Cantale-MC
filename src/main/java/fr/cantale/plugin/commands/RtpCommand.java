@@ -2,6 +2,7 @@ package fr.cantale.plugin.commands;
 
 import fr.cantale.plugin.CantalePlugin;
 import fr.cantale.plugin.cooldown.CooldownManager;
+import fr.cantale.plugin.rank.PlayerRank;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.World;
@@ -17,7 +18,8 @@ public class RtpCommand implements CommandExecutor {
 
     private final CantalePlugin plugin;
     private final CooldownManager cooldownManager;
-    private static final long COOLDOWN_MS = 20000; // 20 secondes
+    /** Cooldown joueur / aventurier — VIP+ sans cooldown. */
+    private static final long COOLDOWN_MS = 120_000L; // 2 minutes
     private static final int MIN_DISTANCE = 500;
     private static final int MAX_DISTANCE = 5000;
     private static final int MAX_ATTEMPTS = 16;
@@ -34,9 +36,15 @@ public class RtpCommand implements CommandExecutor {
             return true;
         }
 
-        if (cooldownManager.hasCooldown(player, "rtp", COOLDOWN_MS)) {
+        PlayerRank rank = plugin.getRankManager().getRank(player.getUniqueId());
+        boolean bypassCooldown = rank.isAtLeastVIP()
+                || player.hasPermission("cantale.admin")
+                || player.hasPermission("cantale.cooldown.bypass");
+
+        if (!bypassCooldown && cooldownManager.hasCooldown(player, "rtp", COOLDOWN_MS)) {
             long remaining = cooldownManager.getRemainingCooldown(player, "rtp", COOLDOWN_MS);
-            player.sendMessage("§8[§6Cantale§8] §cCooldown ! Attendez encore " + (remaining / 1000) + " secondes.");
+            long seconds = Math.max(1, (remaining + 999) / 1000);
+            player.sendMessage("§8[§6Cantale§8] §cCooldown ! Attendez encore " + seconds + " seconde(s).");
             return true;
         }
 
@@ -59,10 +67,13 @@ public class RtpCommand implements CommandExecutor {
             return true;
         }
 
+        final boolean applyCooldown = !bypassCooldown;
         plugin.getTeleportDelayManager().delayTeleport(player, () -> {
             player.teleport(target);
             player.sendMessage("§8[§6Cantale§8] §aTéléportation aléatoire effectuée ! §7(" + (int) target.distance(origin) + " blocs)");
-            cooldownManager.setCooldown(player, "rtp");
+            if (applyCooldown) {
+                cooldownManager.setCooldown(player, "rtp");
+            }
         });
         return true;
     }
@@ -80,7 +91,6 @@ public class RtpCommand implements CommandExecutor {
                 continue;
             }
 
-            // getHighestBlockAt charge un chunk existant (ou en génère un) et lit le bloc le plus haut.
             int y = world.getHighestBlockYAt(x, z);
             if (y <= 0) continue;
 

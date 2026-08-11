@@ -127,12 +127,12 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
         int minMembers = plugin.getConfigManager().getMinMembersCreate();
         // TODO: Vérifier qu'il y a assez de joueurs autour
 
-        // Générer un tag unique
-        String baseTag = name.substring(0, Math.min(3, name.length())).toUpperCase();
+        // Générer un tag unique (4 caractères max)
+        String baseTag = name.substring(0, Math.min(4, name.length())).toUpperCase();
         String tag = baseTag;
         int suffix = 1;
         while (factionManager.getFactionByTag(tag) != null) {
-            tag = baseTag.substring(0, Math.min(2, baseTag.length())) + suffix;
+            tag = baseTag.substring(0, Math.min(3, baseTag.length())) + suffix;
             suffix++;
         }
 
@@ -857,7 +857,7 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
         player.sendMessage(ChatColor.GRAY + "/f warp [nom] | /f setwarp <nom> | /f delwarp <nom>");
         player.sendMessage(ChatColor.GRAY + "/f home [nom] | /f sethome <nom>");
         player.sendMessage(ChatColor.GRAY + "/f c [message] - Basculer ou envoyer un message dans le chat de faction");
-        player.sendMessage(ChatColor.GRAY + "/f bank - Banque de faction");
+        player.sendMessage(ChatColor.GRAY + "/f bank - Banque de faction (/f bank power [n] : acheter du pouvoir)");
         player.sendMessage(ChatColor.GRAY + "/f perms [grade] - Voir les permissions par grade");
         player.sendMessage(ChatColor.GRAY + "/f secret - Activer le mode secret (1h)");
     }

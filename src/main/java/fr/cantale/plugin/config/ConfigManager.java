@@ -92,6 +92,18 @@ public class ConfigManager {
         return config.getInt("factions.start-homes", 30);
     }
 
+    public double getPowerBuyBase() {
+        return config.getDouble("factions.power-buy.base", 5000.0);
+    }
+
+    public double getPowerBuyGrowth() {
+        return Math.max(1.01, config.getDouble("factions.power-buy.growth", 1.18));
+    }
+
+    public int getPowerBuyMaxPerPurchase() {
+        return Math.max(1, config.getInt("factions.power-buy.max-per-purchase", 50));
+    }
+
     public String getMessagePrefix() {
         return config.getString("messages.prefix", "&8[&6Cantale&8] &r");
     }

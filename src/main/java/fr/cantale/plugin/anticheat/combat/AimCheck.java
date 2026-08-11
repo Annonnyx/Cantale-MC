@@ -12,12 +12,13 @@ import java.util.Deque;
 /**
  * Détection d'Aim Assist / Aimbot.
  *
- * Analyse les variations de yaw/pitch du joueur pour détecter des rotations
- * trop parfaites ou trop régulières. Les aimbots produisent des rotations
- * avec un écart-type très faible (snap précis) ou des angles récurrents
- * (0°, 45°, 90°, 180°).
+ * Ne flag que des rotations anormalement robotiques (écart-type très bas
+ * sur une fenêtre large), avec buffer de confirmations pour limiter les FP.
  */
 public class AimCheck extends Check {
+
+    private static final int AIM_BUFFER_NEEDED = 4;
+    private static final int MIN_SAMPLES = 14;
 
     public AimCheck(AntiCheatConfig config) {
         super(CheckType.AIM, config);
@@ -26,82 +27,48 @@ public class AimCheck extends Check {
     @Override
     public CheckResult check(Player player, PlayerData data) {
         Deque<Float> yawHistory = data.getYawHistory();
-        Deque<Float> pitchHistory = data.getPitchHistory();
 
-        // Besoin d'un minimum d'historique
-        if (yawHistory.size() < 10) {
+        if (yawHistory.size() < MIN_SAMPLES) {
             return CheckResult.pass(type);
         }
 
-        // Calculer les deltas de rotation
         Float[] yaws = yawHistory.toArray(new Float[0]);
-        Float[] pitches = pitchHistory.toArray(new Float[0]);
-
         double[] yawDeltas = new double[yaws.length - 1];
-        double[] pitchDeltas = new double[pitches.length - 1];
-
         for (int i = 0; i < yawDeltas.length; i++) {
             yawDeltas[i] = Math.abs(normalizeAngle(yaws[i + 1] - yaws[i]));
         }
-        for (int i = 0; i < pitchDeltas.length; i++) {
-            pitchDeltas[i] = Math.abs(pitches[i + 1] - pitches[i]);
+
+        double avgYawDelta = average(yawDeltas);
+        // Pas de mouvement souris significatif → pas d'analyse aim
+        if (avgYawDelta < 1.5) {
+            data.resetAimBuffer();
+            return CheckResult.pass(type);
         }
 
-        // Calculer l'écart-type des deltas yaw
         double yawDeviation = calculateStdDev(yawDeltas);
-        double minDeviation = config.getMinRotationDeviation();
+        // Anciennes configs avaient 1.5 (beaucoup trop permissif côté FP) — on plafonne.
+        double minDeviation = Math.min(0.40, Math.max(0.08, config.getMinRotationDeviation()));
 
-        // Écart-type trop faible = rotations trop régulières = aimbot
-        if (yawDeviation < minDeviation && yawDeviation > 0) {
-            // Vérifier que le joueur bouge réellement la souris (pas immobile)
-            double avgYawDelta = average(yawDeltas);
-            if (avgYawDelta > 0.5) {
-                String details = String.format("yawDev=%.2f minDev=%.2f avgDelta=%.2f",
+        if (yawDeviation > 0 && yawDeviation < minDeviation && avgYawDelta > 2.0) {
+            data.incrementAimBuffer();
+            if (data.getAimBuffer() >= AIM_BUFFER_NEEDED) {
+                data.resetAimBuffer();
+                String details = String.format("yawDev=%.3f minDev=%.3f avgDelta=%.2f",
                         yawDeviation, minDeviation, avgYawDelta);
                 return CheckResult.violation(type, minDeviation - yawDeviation, details);
             }
+            return CheckResult.pass(type);
         }
 
-        // Vérifier les snap angles (multiples de 45° récurrents)
-        int snapCount = 0;
-        for (double delta : yawDeltas) {
-            if (isSnapAngle(delta)) {
-                snapCount++;
-            }
-        }
-
-        // Si plus de 60% des rotations sont des snap angles
-        double snapRatio = (double) snapCount / yawDeltas.length;
-        if (snapRatio > 0.6 && yawDeltas.length >= 5) {
-            String details = String.format("snapRatio=%.0f%% snapCount=%d/%d",
-                    snapRatio * 100, snapCount, yawDeltas.length);
-            return CheckResult.violation(type, snapRatio, details);
-        }
-
+        data.resetAimBuffer();
         return CheckResult.pass(type);
     }
 
-    /**
-     * Normalise un angle entre -180 et 180.
-     */
     private float normalizeAngle(float angle) {
         angle = angle % 360;
         if (angle > 180) angle -= 360;
         if (angle < -180) angle += 360;
         return angle;
-    }
-
-    /**
-     * Vérifie si un delta de rotation est un snap angle (multiple de 45° ±5°).
-     */
-    private boolean isSnapAngle(double delta) {
-        double threshold = config.getSnapAngleThreshold();
-        for (int angle = 45; angle <= 180; angle += 45) {
-            if (Math.abs(delta - angle) < threshold) {
-                return true;
-            }
-        }
-        return false;
     }
 
     private double calculateStdDev(double[] values) {

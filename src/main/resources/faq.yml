@@ -83,6 +83,7 @@ entries:
       Pour claim le chunk où tu te trouves : /f claim
       Pour unclaim : /f unclaim
       Le nombre de claims dépend du pouvoir de la faction.
+      Sources de pouvoir : 60 à la création + 5 par membre (y compris le chef), kills PvP, events, /f bank power.
 
   - id: faction_spawn
     triggers:

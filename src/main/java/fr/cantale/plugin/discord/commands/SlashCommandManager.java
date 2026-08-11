@@ -1,6 +1,7 @@
 package fr.cantale.plugin.discord.commands;
 
 import fr.cantale.plugin.CantalePlugin;
+import fr.cantale.plugin.util.PublicRankingExclusions;
 import fr.cantale.plugin.chatbot.faq.FaqCore;
 import fr.cantale.plugin.discord.DiscordConfig;
 import net.dv8tion.jda.api.EmbedBuilder;
@@ -152,6 +153,11 @@ public class SlashCommandManager extends ListenerAdapter {
                 .addOption(OptionType.STRING, "pseudo", "Ton pseudo Minecraft exact (avec les majuscules)", true)
                 .setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.USE_APPLICATION_COMMANDS)),
 
+            Commands.slash("linkforce", "[Admin] Forcer la liaison Discord ↔ Minecraft")
+                .addOption(OptionType.STRING, "pseudo", "Pseudo Minecraft", true)
+                .addOption(OptionType.STRING, "discord_id", "ID Discord (snowflake)", true)
+                .setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.ADMINISTRATOR)),
+
             Commands.slash("pay", "Payer un joueur Minecraft en Cantox")
                 .addOption(OptionType.STRING, "joueur", "Pseudo du joueur", true)
                 .addOption(OptionType.NUMBER, "montant", "Montant en Cantox", true)
@@ -249,6 +255,7 @@ public class SlashCommandManager extends ListenerAdapter {
             case "fleaderboard", "fclassement" -> handleFactionLeaderboard(event);
             case "giveaway" -> giveawayManager.handleGiveaway(event, member);
             case "link" -> handleLink(event, member);
+            case "linkforce" -> handleLinkForce(event, member);
             case "pay" -> handlePay(event, member);
             case "givevie" -> handleGiveVie(event, member);
             case "annonce" -> handleAnnonce(event, member);
@@ -773,7 +780,9 @@ public class SlashCommandManager extends ListenerAdapter {
                 default -> Color.GREEN;
             };
 
-            String sql = "SELECT username, " + column + " FROM players ORDER BY " + column + " DESC LIMIT 10";
+            String sql = "SELECT username, " + column + " FROM players"
+                    + PublicRankingExclusions.whereExclude("username", "uuid")
+                    + " ORDER BY " + column + " DESC LIMIT 10";
             java.util.List<String> lines = new java.util.ArrayList<>();
             String[] medals = {"🥇", "🥈", "🥉", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"};
 
@@ -857,6 +866,49 @@ public class SlashCommandManager extends ListenerAdapter {
                     .setFooter("Top 10 — Cantale", null)
                     .setTimestamp(Instant.now());
                 event.getHook().editOriginalEmbeds(embed.build()).queue();
+            });
+        });
+    }
+
+    private void handleLinkForce(SlashCommandInteractionEvent event, Member member) {
+        if (!member.hasPermission(Permission.ADMINISTRATOR) && !isOwner(member)) {
+            event.reply("❌ Cette commande est réservée aux administrateurs.").setEphemeral(true).queue();
+            return;
+        }
+
+        String pseudo = event.getOption("pseudo").getAsString();
+        String discordId = event.getOption("discord_id").getAsString().trim();
+
+        event.deferReply(true).queue();
+
+        org.bukkit.Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+            String discordUsername = null;
+            String discordDisplayName = null;
+            try {
+                User targetUser = event.getJDA().retrieveUserById(discordId).complete();
+                if (targetUser != null) {
+                    discordUsername = targetUser.getName();
+                    discordDisplayName = targetUser.getGlobalName() != null
+                        ? targetUser.getGlobalName()
+                        : targetUser.getName();
+                }
+            } catch (Exception ignored) {
+                // ID invalide ou utilisateur introuvable : le service validera le snowflake
+            }
+
+            fr.cantale.plugin.discord.DiscordLinkService linkService =
+                new fr.cantale.plugin.discord.DiscordLinkService(plugin);
+            fr.cantale.plugin.discord.DiscordLinkService.ForceLinkResult result =
+                linkService.forceLink(pseudo, discordId, discordUsername, discordDisplayName);
+
+            org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> {
+                if (result.success()) {
+                    plugin.getLogger().info("[LinkForce] Discord " + member.getUser().getName()
+                        + " a lié " + result.player().username() + " ↔ " + result.discordId());
+                    event.getHook().editOriginal("✅ " + result.message()).queue();
+                } else {
+                    event.getHook().editOriginal("❌ " + result.message()).queue();
+                }
             });
         });
     }
