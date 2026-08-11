@@ -213,7 +213,7 @@ export function MapExplorer({
             className="h-[62vh] min-h-[420px] w-full border border-iron-line bg-ash-deep"
           />
           <p className="text-xs leading-relaxed text-steel">
-            La carte détaillée est servie par un outil externe.{" "}
+            Carte live Squaremap / BlueMap (tuiles du serveur).{" "}
             <a
               href={providerUrl}
               target="_blank"
@@ -422,7 +422,7 @@ export function MapExplorer({
               <div className="mt-auto flex flex-col gap-2 border-t border-iron-line/60 pt-4">
                 <p className="text-xs leading-relaxed text-steel">
                   Glisser pour déplacer, molette pour zoomer. Clavier : flèches pour
-                  déplacer, + et − pour zoomer, 0 pour recentrer sur l&apos;origine.
+                  déplacer, + et − pour zoomer, 0 pour recentrer sur le spawn.
                 </p>
                 <p className="font-tech text-[10px] uppercase tracking-[0.18em] text-steel">
                   {worldClaims.length} claim{worldClaims.length > 1 ? "s" : ""} — {pasdicTotal}{" "}

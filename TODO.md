@@ -34,7 +34,7 @@
 - [x] Pages livrées : Règlement (28 règles, sommaire sticky, tampons sévérité), Partenariats (formulaire contact + ticket Discord REST `partenariat-*`, même pipeline que recrutement), Recrutement (formulaire 4 étapes + ticket Discord REST compatible `/ticket close`), Wiki (25 articles / 7 catégories, recherche ⌘K), Items (13 entrées depuis `CustomItemType` — Rune de Fortification conservée car toujours active, Statio-Lytras exclus), La Liste (mémorial), Vote (3 sites, minuteurs live), Classements (métrique × période, snapshots `web_snapshots_daily` + cron `CRON_SECRET`, podium, « ta position »), Stats (compteurs live + charts CSS), Factions (annuaire, détail ★◆●○, candidatures `web_faction_applications`, panneau leader → file `web_faction_actions`), Boutique (catalogue complet, flag `SHOP_ENABLED` bloquant côté serveur, checkout 501 en attendant la décision cantale.store)
 - [x] Wiki Items (slice pratique) : `items-forges`, `cantalame`, `item-vie`, `rune-de-fortification`, `armure-du-garde`, `caisses-cles` — tableaux obtention/durabilité/effets/CMD depuis plugin only (zéro lore inventée)
 - [x] Build de production vert + ESLint 0 erreur sur tout `src`
-- [x] Page `/carte` : canvas interactif (claims + warps + zones PASDIC protégées), API `/api/map/claims` + `/api/map/markers`, factions secrètes exclues en SQL, rafraîchissement 30s, onglet Squaremap/BlueMap uniquement si `MAP_PROVIDER_URL` est défini
+- [x] Page `/carte` : canvas interactif (claims + warps + zones PASDIC protégées), API `/api/map/claims` + `/api/map/markers`, factions secrètes exclues en SQL, rafraîchissement 30s, onglet Squaremap/BlueMap si `MAP_PROVIDER_URL` ; proxy `/map-provider/*` si provider HTTP (mixed content)
 - [x] Polish : SEO (`sitemap.ts`, `robots.ts`, OG image Zina, `icon.svg`), perf (AuthEntry client → rendu statique restauré sur les vitrines), a11y (`steel-light` contraste AA), galerie accueil (lightbox, `null` si `public/screenshots/` vide)
 - [x] Nav : liens Recrutement + Partenariats (hamburger sous 1280px)
 - [x] Motion UI : système CSS centralisé (pressable / card-lift / card-soft / nav-link / chip / stamp-ink), reveal-on-scroll + stagger + fallback IntersectionObserver, transitions de page via `template.tsx`, `prefers-reduced-motion` étendu
@@ -55,14 +55,14 @@
 | **Ops — urgent** | Login Discord prod cassé (`echange_impossible`) : **ajouter `DISCORD_CLIENT_SECRET` sur Vercel Production** (absent au 2026-08-11) ; aligner `AUTH_URL=https://www.cantale.world` + Redirect URI Discord identique ; redeploy. Secret aussi stocké côté plugin : `discord.client-secret` dans `src/main/resources/config.yml` (OAuth app, ≠ token bot) |
 | **Ops — urgent** | **Redeploy site** : skins profil cassés (prod sert encore Crafatar 521) ; code HEAD a le proxy `/api/minecraft/*` + `/joueur/[uuid]` — sans redeploy Anox26 et tous les profils restent en image brisée |
 | **Ops** | Site prod : fix MySQL (`DB_*` fallback + env runtime) + menu desktop « Plus » ✓ 2026-08-11 (`Annonnyx/Cantale` `48396d8`) — stats/classements OK |
-| **Ops** | Installer Squaremap/BlueMap sur le serveur et renseigner `MAP_PROVIDER_URL` (onglet « Carte du monde détaillée ») |
+| **Ops** | Squaremap : `MAP_PROVIDER_URL=http://82.66.173.236:25577` + proxy same-origin `/map-provider/*` (mixed content HTTPS→HTTP) — onglet « Carte du monde détaillée » sur `/carte`. Idéal long terme : HTTPS dédié (`map.cantale.world`) |
 | **Ops** | Déploiement + DNS `cantale.world` / `cantale.fun` — fix Vercel 404 (Framework Preset → Next.js, redeploy prod) ✓ 2026-08-10 |
 | **Décision humaine** | Valider les prix boutique (1,99/3,49/5,99/9,99 €) + paiement (cantale.store) **avant** d'activer `SHOP_ENABLED` |
 
 - Référence : plan détaillé validé (découpage T0.1 → T10.4) — ne jamais dupliquer une donnée du plugin, lecture seule sur les tables existantes
 
 ## Fait
-- [x] Carte `/carte` : vue initiale + bouton/touche `0` recentrent toujours sur l’origine monde (chunk 0,0 / spawn schématique) à zoom 12 px/chunk — plus de fit-to-bounds qui plaçait la caméra dans le vide entre claims éloignés.
+- [x] Carte `/carte` : vue initiale + bouton/touche `0` recentrent sur le spawn serveur (`/spawn` = world spawn Bukkit) blocs **-67 · -144** (Squaremap prod), zoom 12 px/chunk — plus l’origine 0,0 ni le fit-to-bounds.
 - [x] Fix « Depuis le — » sur la liste membres faction (site) : `FactionDAO.addMember` n’écrivait jamais `joined_at` (défaut 0 → tiret). Insert avec timestamp Unix sec ; backfill leaders via `factions.created_at` au démarrage plugin ; autres grades historiques restent « — » (pas de date stockée). Affichage FR déjà via `Intl` (`12 août 2026`).
 - [x] Fix skin 3D `/connexion` : Crafatar (HTTP 521) → mc-heads.net puis **proxy same-origin** `/api/minecraft/skin|avatar` (Mojang → textures.minecraft.net, repli crafthead/mc-heads) — viewer + classements/la-liste/factions. **Ops : redeploy Vercel** (prod servait encore le bundle crafatar au 2026-08-11 ; `/joueur/[uuid]` 404 tant que non déployé)
 - [x] `/link` (Minecraft) : clic sur le code → copie presse-papiers (`ClickEvent.copyToClipboard` + hover « Clique pour copier »)
@@ -240,7 +240,8 @@
 - [x] **Ops 2026-08-11** : liste admin « vide » en prod — Vercel `site-cantale` build **`Annonnyx/Cantale`** (standalone web, Root `.`), pas `Cantale-MC`. Prod bloquée sur ancien admin « En ligne only » (`34be1fe`). Fix poussé `Annonnyx/Cantale` `a3b0af2` (route `/api/admin/players` live → 401 sans cookie). UI affiche l’erreur si 404. `ADMIN_DISCORD_ID` déjà présent en Production.
 - [x] Profil public `/joueur/[uuid]` (stats, vies, faction, online) ; si admin (`ADMIN_DISCORD_ID`) : panneau Direction (inspect/edit via le même pont admin). Liens joueur sur classements, stats, la-liste, factions, admin
 - [ ] Déployer JAR (inspect + édition inventaires + bridges + ServerStatusTask online_json) ; hard-refresh `/admin` après login Discord admin
-- [ ] Carte : MySQL site (`DATABASE_URL` ou `DB_*`) pour le canvas claims ; optionnel Squaremap/BlueMap + `MAP_PROVIDER_URL` pour l’onglet monde détaillé
+- [x] Carte : MySQL site (`DATABASE_URL` ou `DB_*`) pour le canvas claims ; Squaremap via `MAP_PROVIDER_URL` + proxy `/map-provider/*` (fix mixed content) — onglet monde détaillé
+- [ ] Ops carte (optionnel) : HTTPS dédié Squaremap (`map.cantale.world` / Cloudflare) pour remplacer le proxy Vercel si latence tuiles ou limites edge
 
 ## Wiki — réécriture pratique (août 2026)
 - [x] **Slice Combat & Vies** (`wiki-content.ts`) : `trois-vies` + `primes-wanted` + section PvP claims — chiffres depuis `LifeManager` / `config.yml` / `WantedManager` / `ClaimListener` / ranks / caisses (pas d'invention ; buy-price Cantox non branché documenté comme tel).
