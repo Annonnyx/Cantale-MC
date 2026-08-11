@@ -527,7 +527,7 @@ export const WIKI_CATEGORIES: WikiCategory[] = [
             id: "chevre-par-le-jeu",
             title: "Chèvre par les caisses",
             paragraphs: [
-              "Le grade Chèvre peut aussi être attribué automatiquement en atteignant la caisse Légendaire (chaîne de caisses). Voir Caisses & clés.",
+              "Le code prévoit l'attribution du grade Chèvre si un Cadeau du Roi aboutit en Légendaire. Ouverture normale d'un Ticket Légendaire → ticket Discord. Voir Caisses & clés (ascension).",
             ],
           },
           {
@@ -1051,7 +1051,7 @@ export const WIKI_CATEGORIES: WikiCategory[] = [
     name: "Économie",
     tagline: "La Cantox ne dort jamais",
     description:
-      "Monnaie, hôtel des ventes, échanges entre joueurs, boutique admin et récompenses de vote.",
+      "Cantox, /shop (caps & sinks), /ah, /daily, votes et caisses — règles tirées du plugin.",
     articles: [
       {
         slug: "cantox",
@@ -1763,19 +1763,32 @@ export const WIKI_CATEGORIES: WikiCategory[] = [
         slug: "recompenses-regulieres",
         title: "Récompenses régulières",
         summary:
-          "Daily Cantox et drop de clé hebdomadaire Rare / Épique / Mythique (events.yml).",
-        related: ["vote", "caisses-cles", "grades-permissions", "reactions-chat"],
+          "/daily par grade et drop de clé hebdomadaire Rare / Épique / Mythique.",
+        related: ["vote", "caisses-cles", "grades-permissions", "cantox", "reactions-chat"],
         sections: [
           {
             id: "daily",
-            title: "Récompense quotidienne",
+            title: "Récompense quotidienne (/daily)",
             paragraphs: [
-              "Chaque jour, /daily verse 1 000 Cantox de base, plus un bonus selon ton grade. Synchronisé Minecraft / Discord.",
+              "Une fois par jour civil (LocalDate). Base 1 000 + bonus PlayerRank. Staff (Modo/Admin/Owner) : base seule. Même montant via Discord (compte lié).",
+            ],
+            tables: [
+              {
+                caption: "Montants /daily (DailyCommand + PlayerRank)",
+                headers: ["Grade", "Base", "Bonus", "Total"],
+                rows: [
+                  ["Joueur", "1 000", "0", "1 000"],
+                  ["Aventurier", "1 000", "2 500", "3 500"],
+                  ["VIP", "1 000", "10 000", "11 000"],
+                  ["Chèvre", "1 000", "100 000", "101 000"],
+                  ["Modo / Admin / Owner", "1 000", "0", "1 000"],
+                ],
+              },
             ],
             commands: [
               {
                 syntax: "/daily",
-                description: "Réclame la récompense quotidienne.",
+                description: "Réclame la récompense du jour.",
                 note: "Alias : /journalier",
               },
             ],
@@ -2337,26 +2350,72 @@ export const WIKI_CATEGORIES: WikiCategory[] = [
         slug: "caisses-cles",
         title: "Caisses & clés",
         summary:
-          "Cinq caisses, rituels d'ouverture, tables de butin items custom (poids).",
+          "Cinq types, interactions, sources de clés, ascension et butin custom.",
         featured: true,
-        related: ["vote", "items-forges", "cantalame", "item-vie", "coffres-inventaires"],
+        related: [
+          "vote",
+          "items-forges",
+          "cantalame",
+          "item-vie",
+          "coffres-inventaires",
+          "recompenses-regulieres",
+        ],
         sections: [
           {
             id: "types",
-            title: "Les cinq caisses",
+            title: "Types & interactions",
+            paragraphs: [
+              "Tenir l'item + action au bon endroit (emplacements crate.yml).",
+            ],
+            tables: [
+              {
+                headers: ["Type", "Item", "Interaction"],
+                rows: [
+                  [
+                    "Vote",
+                    "Cadeau du Roi",
+                    "Clic droit sur boîte aux lettres (BARREL / LOOM)",
+                  ],
+                  [
+                    "Rare",
+                    "Trésor Public (clef)",
+                    "Clic droit sur le coffre spawn configuré",
+                  ],
+                  [
+                    "Épique",
+                    "Médaille du Tournoi",
+                    "Clic droit sur balise ou table d'enchantement",
+                  ],
+                  [
+                    "Mythique",
+                    "Pièce Mythique",
+                    "Jeter (Q) dans l'eau / zone fontaine",
+                  ],
+                  [
+                    "Légendaire",
+                    "Ticket Légendaire",
+                    "Clic droit → ticket Discord numéroté (choix staff)",
+                  ],
+                ],
+              },
+            ],
+          },
+          {
+            id: "sources",
+            title: "Sources de clés",
             list: [
-              "Vote — Cadeau du Roi : boîte aux lettres spawn (BARREL / LOOM).",
-              "Rare — Trésor Public : coffre configuré (crate.yml).",
-              "Épique — Médaille du Tournoi : autel (beacon / table d'enchantement).",
-              "Mythique — Pièce Mythique : jeter (Q) dans l'eau / zone fontaine.",
-              "Légendaire — Ticket Légendaire : ticket Discord numéroté (item au choix).",
+              "Vote : 1–2 Cadeaux du Roi selon le site ; Vote Party (50 votes/jour) → 1 Cadeau à un online.",
+              "Paliers votes : 10 → 2× Vote ; 50 → 1× Rare ; 100 → 1× Épique.",
+              "Top mensuel votes : 1er Légendaire, 2e Mythique, 3e Épique.",
+              "Drop hebdo : 1 online → Rare / Épique / Mythique (1/3).",
+              "Staff : /crate give …",
             ],
           },
           {
             id: "butin-custom",
             title: "Butin items custom (poids)",
             paragraphs: [
-              "Poids relatifs dans CrateRewardTable. Ascensions : Vote→Rare 4 % ; Rare→Épique 5 % ; Épique→Mythique 5 % ; Mythique→Légendaire 4 %.",
+              "Poids relatifs dans CrateRewardTable. Ascension d'un cran à l'ouverture : Vote→Rare 4 % ; Rare→Épique 5 % ; Épique→Mythique 5 % ; Mythique→Légendaire 4 % (nouvel item à rouvrir avec le rituel correspondant).",
             ],
             tables: [
               {
@@ -2408,7 +2467,7 @@ export const WIKI_CATEGORIES: WikiCategory[] = [
               },
             ],
             list: [
-              "* Cantalame caisses : createCustomItem (voir article Cantalame pour le chemin évolutif).",
+              "* Cantalame caisses : createCustomItem (voir article Cantalame).",
               "Armure du Garde et Rune : absentes de ces tables.",
             ],
           },
@@ -2416,9 +2475,9 @@ export const WIKI_CATEGORIES: WikiCategory[] = [
             id: "regles",
             title: "Règles",
             list: [
-              "Inventaire plein → surplus vers coffre privé (/pc).",
-              "Annonce publique : ouvertures Mythique et Légendaire seulement.",
-              "Sources de caisses : vote, drop clé hebdo (Rare/Épique/Mythique), events, /crate give (admin).",
+              "Inventaire plein → surplus vers /pc.",
+              "Annonce publique : Mythique et Légendaire seulement.",
+              "Ticket Légendaire (ouverture normale) → ticket Discord. Le code prévoit aussi le grade Chèvre si un Cadeau du Roi aboutit en Légendaire.",
             ],
           },
           {
@@ -2426,7 +2485,8 @@ export const WIKI_CATEGORIES: WikiCategory[] = [
             title: "Côté staff",
             commands: [
               {
-                syntax: "/crate give <joueur> <vote|rare|epic|mythic|legendary> [quantité]",
+                syntax:
+                  "/crate give <joueur> <vote|rare|epic|mythic|legendary> [quantité]",
                 description: "Donne une caisse à un joueur.",
                 note: "Permission : cantale.admin",
               },
