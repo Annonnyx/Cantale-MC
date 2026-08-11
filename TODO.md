@@ -1,5 +1,14 @@
 # TODO Cantale
 
+## Wiki — Économie / shop / AH / daily / votes / caisses (août 2026)
+- [x] Refonte articles wiki `economie/*` + `recompenses-regulieres` + `caisses-cles` :
+  Cantox (start-balance 10k), `/shop` (clics, caps minuit, sinks endgame prix shop.yml),
+  `/ah` (7 j, limites par grade, sous-commandes), `/daily` (montants par grade),
+  votes (3 sites, crates, party 50, paliers, top mensuel), caisses (interactions + sources).
+  Sources : `shop.yml`, `ShopConfig`/`ShopCategoryUI`, `Vote*`, `Crate*`, `DailyCommand`,
+  `PlayerRank`, `config.yml` vote.*, `AuctionManager`.
+- [x] Redeploy site pour publier le wiki économie (`Annonnyx/Cantale` `1328221` → Vercel prod Ready; Cantale-MC `4bdca15`).
+
 ## Wiki — Factions / claims / pouvoir / banque (août 2026)
 - [x] Refonte articles wiki `factions/*` + récompenses events : tables depuis le code
   (`FactionManager`, `Faction`, `FactionPowerShop`, `FactionBankCommand`, `ClaimListener`,
@@ -226,8 +235,9 @@
 - [x] Admin inspect : inventaire / armure / offhand / PC1–3 / EC / effets (+ contenu shulker/bundle) → `inspect_player` + `web_admin_snapshots`
 - [x] Admin édition : clear conteneurs, remove slot (y compris dans shulker), vider shulker, give/clear effets (`clear_container` / `remove_slot` / `clear_shulker` / `give_effect` / `clear_effect`)
 - [x] Admin liste **tous** les joueurs (table `players`, online + offline) : `GET /api/admin/players` (recherche + pagination), badges online via `server_status.online_json`, clic → profil
+- [x] **Ops 2026-08-11** : liste admin « vide » en prod — Vercel `site-cantale` build **`Annonnyx/Cantale`** (standalone web, Root `.`), pas `Cantale-MC`. Prod bloquée sur ancien admin « En ligne only » (`34be1fe`). Fix poussé `Annonnyx/Cantale` `a3b0af2` (route `/api/admin/players` live → 401 sans cookie). UI affiche l’erreur si 404. `ADMIN_DISCORD_ID` déjà présent en Production.
 - [x] Profil public `/joueur/[uuid]` (stats, vies, faction, online) ; si admin (`ADMIN_DISCORD_ID`) : panneau Direction (inspect/edit via le même pont admin). Liens joueur sur classements, stats, la-liste, factions, admin
-- [ ] Déployer JAR (inspect + édition inventaires + bridges + ServerStatusTask online_json) + Vercel `ADMIN_DISCORD_ID` + redeploy site
+- [ ] Déployer JAR (inspect + édition inventaires + bridges + ServerStatusTask online_json) ; hard-refresh `/admin` après login Discord admin
 - [ ] Carte : MySQL site (`DATABASE_URL` ou `DB_*`) pour le canvas claims ; optionnel Squaremap/BlueMap + `MAP_PROVIDER_URL` pour l’onglet monde détaillé
 
 ## Wiki — réécriture pratique (août 2026)
@@ -238,7 +248,13 @@
   - `afk-clearlag` (nouvel article) : AFK 10/30/60/∞ par grade (`AfkListener`) ; clear-lag 180 s + warnings 30/10/5/3/2/1 (`ClearLagTask`)
   - `claims-territoire` + `discord-site` : page `/carte` (claims, PASDIC, warps, secret exclu, refresh 30 s)
   - Compteur wiki : **25 articles** / 7 catégories
-- [ ] Redeploy site pour publier le wiki mis à jour
+- [x] **Slice Commandes / grades / liaison** (`wiki-content.ts`) depuis code only :
+  - `commandes-joueur` : essentiels hors `/f` (éco, coffres, TP aperçu, vies, classements, link) + renvoi Factions
+  - `teleportation` : spawn/home cooldown 20 s, TPA 60 s, homes par grade, précision Chèvre ≠ bypass cooldown 20 s
+  - `grades-permissions` : tableaux PlayerRank / RankManager / PrivateChestService / Feed / RTP / vol claim
+  - `discord-site` : flux `/link` MC (copie clic, 10 min) → Discord `/link` ; `/linkforce` admin ; compte site OAuth `/connexion` ; `/web link` distinct
+  - `coffres-inventaires` : 1/2/3 coffres, 27→54 slots
+- [x] Redeploy site pour publier le wiki mis à jour (`Annonnyx/Cantale` `1328221` / Vercel `site-cantale` prod Ready)
 
 ## Combat — Bugs
 - [x] **Fix déco combat : message affiché mais vie non retirée** : `CombatTagManager#handleCombatLog`
