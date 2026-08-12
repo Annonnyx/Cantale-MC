@@ -1,5 +1,13 @@
 # TODO Cantale
 
+## Fix scroll jump clics (août 2026)
+- [x] Cause : `html { scroll-behavior: smooth }` + focus Leaflet (`focus()` puis
+  `window.scrollTo`) / `href="#"` (zoom) / `scrollIntoView` chat → sauts vers le bas.
+- [x] Fix durable : `scroll-behavior: auto`, `ScrollStability` (bloque `#`, smooth
+  ancres in-page), `preventScroll` carte Leaflet + canvas, chat scroll interne.
+- [x] Deploy `Annonnyx/Cantale` `9ec2097` → Vercel `site-cantale` prod Ready
+  (`site-cantale-9xqif40li…`, aliases www.cantale.world). Monorepo `dfc4144`.
+
 ## Conformité légale site (août 2026)
 - [x] Pages FR pratiques : `/mentions-legales` (mentions LCEN + CGU, éditeur **Barneron Noé**),
   `/confidentialite` (RGPD : Discord OAuth identify, liaison MC, formulaires, Turnstile optionnel,
@@ -39,8 +47,10 @@
 - [x] `/f map` UX : grille chat 11×11 lisible (`+ # @ X = P -`), highlight ta fac, diplomatie
   allié/ennemi, PASDIC, secret masqué aux non-membres, légende dynamique, « Ici » + tags autour,
   moins de spam préfixe ; wiki + `docs/UI_GUIDE.md`.
-- [x] Vol en claim : uniquement `PlayerRank.CHEVRE` (`hasUnlimitedFlight`) — plus modos/admin/owner ;
-  wiki grades + `CustomItemListener`.
+- [x] Vol en claim : uniquement `PlayerRank.CHEVRE` — (1) vol créatif `hasUnlimitedFlight` dans
+  ses claims ; (2) fouille conteneurs étrangers `canStealInClaims` (alliés/ennemis) via
+  `ClaimListener` — plus d'ouverture libre des coffres alliés ; pas modos/admin/owner ;
+  wiki grades + claims + faq + `CustomItemListener`.
 - [ ] Redeploy site + redeploy `faq.yml` / JAR serveur si besoin.
 
 ## Refonte site web (août 2026) — `Site-Cantale/web/` (Next.js 16 full-stack, TS, Tailwind v4)
@@ -81,6 +91,7 @@
 | **Ops** | Site prod : fix MySQL (`DB_*` fallback + env runtime) + menu desktop « Plus » ✓ 2026-08-11 (`Annonnyx/Cantale` `48396d8`) — stats/classements OK |
 | **Ops** | Carte unifiée `/carte` ✓ 2026-08-12 (`Annonnyx/Cantale` `4a7e92c` → Vercel ; Cantale-MC `ad08cf7`) : Leaflet + tuiles Squaremap (proxy) + overlays, fullscreen, X/Z, focus faction, spawn −67/−144. Optionnel : HTTPS dédié `map.cantale.world` |
 | **Ops** | Carte `/carte` warps search + hide players ✓ 2026-08-12 (`Annonnyx/Cantale` `e3f824a` → Vercel Ready ; Cantale-MC `aa475f8`) : recherche faction/tag/warp ; stub proxy `tiles/players.json` ; ops Squaremap `player-tracker.enabled: false` recommandé |
+| **Ops** | Carte Spawn = warp ✓ 2026-08-12 : marqueur « Spawn » (−67 · −144) injecté dans `/api/map/markers` + recherche warps (`/spawn`) ; Chèvre creative / coffres alliés inchangés |
 | **Ops** | Déploiement + DNS `cantale.world` / `cantale.fun` — fix Vercel 404 (Framework Preset → Next.js, redeploy prod) ✓ 2026-08-10 |
 | **Décision humaine** | Valider les prix boutique (1,99/3,49/5,99/9,99 €) + paiement (cantale.store) **avant** d'activer `SHOP_ENABLED` |
 
