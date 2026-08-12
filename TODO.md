@@ -1,5 +1,14 @@
 # TODO Cantale
 
+## Fix tickets recrutement Discord (août 2026)
+- [x] Cause : `/api/recrutement` (et partenariats) lisaient la session via
+  `getSessionUser().catch(() => null)` — échec MySQL/rôles → identité Discord
+  perdue → embed « Compte Discord non connecté » alors que la page montrait
+  l’utilisateur connecté ; nom de salon sans handle Discord.
+- [x] Fix : `getSessionDiscordUser(request)` (cookie seul + fallback header),
+  `credentials: "include"`, libellé FR, salon `open-recrutement-<poste>-<username>`.
+- [ ] Deploy `Annonnyx/Cantale` → Vercel `site-cantale` (en cours).
+
 ## Fix scroll jump clics (août 2026)
 - [x] Cause : `html { scroll-behavior: smooth }` + focus Leaflet (`focus()` puis
   `window.scrollTo`) / `href="#"` (zoom) / `scrollIntoView` chat → sauts vers le bas.
