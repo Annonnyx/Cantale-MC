@@ -6,7 +6,7 @@
 - [x] Fix durable : `scroll-behavior: auto`, `ScrollStability` (bloque `#`, smooth
   ancres in-page), `preventScroll` carte Leaflet + canvas, chat scroll interne.
 - [x] Deploy `Annonnyx/Cantale` `9ec2097` → Vercel `site-cantale` prod Ready
-  (`site-cantale-9xqif40li…`, aliases www.cantale.world). Monorepo `dfc4144`.
+  (`site-cantale-9xqif40li…`, aliases www.cantale.world). Monorepo `4cf10fe`.
 
 ## Conformité légale site (août 2026)
 - [x] Pages FR pratiques : `/mentions-legales` (mentions LCEN + CGU, éditeur **Barneron Noé**),
