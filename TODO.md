@@ -25,6 +25,9 @@
 - [x] Alignement `faq.yml` (création, claim/pouvoir, warps, homes, banque) sur les mêmes formules.
 - [x] Claims contigus : nouveau claim doit toucher N/S/E/O un claim existant (sauf 1er du monde) —
   `FactionManager#isAdjacentToOwnClaimOrFirst` + message FR `/f claim` ; wiki + faq.
+- [x] `/f map` UX : grille chat 11×11 lisible (`+ # @ X = P -`), highlight ta fac, diplomatie
+  allié/ennemi, PASDIC, secret masqué aux non-membres, légende dynamique, « Ici » + tags autour,
+  moins de spam préfixe ; wiki + `docs/UI_GUIDE.md`.
 - [x] Vol en claim : uniquement `PlayerRank.CHEVRE` (`hasUnlimitedFlight`) — plus modos/admin/owner ;
   wiki grades + `CustomItemListener`.
 - [ ] Redeploy site + redeploy `faq.yml` / JAR serveur si besoin.
@@ -44,7 +47,7 @@
 - [x] Pages livrées : Règlement (28 règles, sommaire sticky, tampons sévérité), Partenariats (formulaire contact + ticket Discord REST `partenariat-*`, même pipeline que recrutement), Recrutement (formulaire 4 étapes + ticket Discord REST compatible `/ticket close`), Wiki (25 articles / 7 catégories, recherche ⌘K), Items (13 entrées depuis `CustomItemType` — Rune de Fortification conservée car toujours active, Statio-Lytras exclus), La Liste (mémorial), Vote (3 sites, minuteurs live), Classements (métrique × période, snapshots `web_snapshots_daily` + cron `CRON_SECRET`, podium, « ta position »), Stats (compteurs live + charts CSS), Factions (annuaire, détail ★◆●○, candidatures `web_faction_applications`, panneau leader → file `web_faction_actions`), Boutique (catalogue complet, flag `SHOP_ENABLED` bloquant côté serveur, checkout 501 en attendant la décision cantale.store)
 - [x] Wiki Items (slice pratique) : `items-forges`, `cantalame`, `item-vie`, `rune-de-fortification`, `armure-du-garde`, `caisses-cles` — tableaux obtention/durabilité/effets/CMD depuis plugin only (zéro lore inventée)
 - [x] Build de production vert + ESLint 0 erreur sur tout `src`
-- [x] Page `/carte` : carte unifiée Leaflet (tuiles Squaremap via `/map-provider` + overlays claims/PASDIC/warps), APIs `/api/map/claims` + `/api/map/markers`, factions secrètes exclues en SQL, rafraîchissement 30s, plein écran, lien externe Squaremap, recherche faction + champs X/Z, centre spawn (−67 · −144) ; repli canvas si pas de `MAP_PROVIDER_URL`
+- [x] Page `/carte` : carte unifiée Leaflet (tuiles Squaremap via `/map-provider` + overlays claims/PASDIC/warps), APIs `/api/map/claims` + `/api/map/markers`, factions secrètes exclues en SQL, rafraîchissement 30s, plein écran, lien externe Squaremap, recherche faction/tag/warp + champs X/Z, centre spawn (−67 · −144) ; pas de joueurs live (Leaflet + stub `players.json` proxy) ; repli canvas si pas de `MAP_PROVIDER_URL`
 - [x] Polish : SEO (`sitemap.ts`, `robots.ts`, OG image Zina, `icon.svg`), perf (AuthEntry client → rendu statique restauré sur les vitrines), a11y (`steel-light` contraste AA), galerie accueil (lightbox, `null` si `public/screenshots/` vide)
 - [x] Nav : liens Recrutement + Partenariats (hamburger sous 1280px)
 - [x] Motion UI : système CSS centralisé (pressable / card-lift / card-soft / nav-link / chip / stamp-ink), reveal-on-scroll + stagger + fallback IntersectionObserver, transitions de page via `template.tsx`, `prefers-reduced-motion` étendu
@@ -66,13 +69,14 @@
 | **Ops — urgent** | **Redeploy site** : skins profil cassés (prod sert encore Crafatar 521) ; code HEAD a le proxy `/api/minecraft/*` + `/joueur/[uuid]` — sans redeploy Anox26 et tous les profils restent en image brisée |
 | **Ops** | Site prod : fix MySQL (`DB_*` fallback + env runtime) + menu desktop « Plus » ✓ 2026-08-11 (`Annonnyx/Cantale` `48396d8`) — stats/classements OK |
 | **Ops** | Carte unifiée `/carte` ✓ 2026-08-12 (`Annonnyx/Cantale` `4a7e92c` → Vercel ; Cantale-MC `ad08cf7`) : Leaflet + tuiles Squaremap (proxy) + overlays, fullscreen, X/Z, focus faction, spawn −67/−144. Optionnel : HTTPS dédié `map.cantale.world` |
+| **Ops** | Carte `/carte` warps search + hide players ✓ 2026-08-12 : recherche faction/tag/warp ; stub proxy `tiles/players.json` ; ops Squaremap `player-tracker.enabled: false` recommandé |
 | **Ops** | Déploiement + DNS `cantale.world` / `cantale.fun` — fix Vercel 404 (Framework Preset → Next.js, redeploy prod) ✓ 2026-08-10 |
 | **Décision humaine** | Valider les prix boutique (1,99/3,49/5,99/9,99 €) + paiement (cantale.store) **avant** d'activer `SHOP_ENABLED` |
 
 - Référence : plan détaillé validé (découpage T0.1 → T10.4) — ne jamais dupliquer une donnée du plugin, lecture seule sur les tables existantes
 
 ## Fait
-- [x] Carte `/carte` : vue unifiée Squaremap+overlays ; centre /spawn blocs **-67 · -144** (jamais 0,0) ; plein écran ; lien Squaremap ; recherche faction + champs X/Z + Aller ; canvas en repli sans provider.
+- [x] Carte `/carte` : vue unifiée Squaremap+overlays ; centre /spawn blocs **-67 · -144** (jamais 0,0) ; plein écran ; lien Squaremap ; recherche faction/tag/warp + champs X/Z + Aller ; **pas de joueurs live** (Leaflet + `/map-provider/tiles/players.json` → stub vide) ; canvas en repli sans provider.
 - [x] Carte `/carte` (antérieur) : canvas recentre spawn + touche `0` — conservé comme fallback.
 - [x] Fix « Depuis le — » sur la liste membres faction (site) : `FactionDAO.addMember` n’écrivait jamais `joined_at` (défaut 0 → tiret). Insert avec timestamp Unix sec ; backfill leaders via `factions.created_at` au démarrage plugin ; autres grades historiques restent « — » (pas de date stockée). Affichage FR déjà via `Intl` (`12 août 2026`).
 - [x] Fix skin 3D `/connexion` : Crafatar (HTTP 521) → mc-heads.net puis **proxy same-origin** `/api/minecraft/skin|avatar` (Mojang → textures.minecraft.net, repli crafthead/mc-heads) — viewer + classements/la-liste/factions. **Ops : redeploy Vercel** (prod servait encore le bundle crafatar au 2026-08-11 ; `/joueur/[uuid]` 404 tant que non déployé)
@@ -297,6 +301,16 @@
   (amis OP), le broadcast « perd 1 vie » partait mais la vie n'était pas décrémentée. Corrigé via
   `LifeManager#handleCombatDisconnect` (pénalité toujours appliquée) + ban IP safe si adresse null au quit
   + mise à 0 des vies avant ban dernière vie. À tester en jeu.
+
+## Combat — Zones no-PvP + tag (août 2026)
+- [x] **Design** : pendant le tag combat (15 s), **interdiction d'entrer** en zone no-PvP
+  (PASDIC / claim de sa propre fac) — mouvement, ender pearl, portails Nether/End.
+  Impossible d'**initier** du PvP en PASDIC / claim de la victime (`ClaimListener`, inchangé + message PASDIC).
+- [x] **Cas limite documenté** : déjà dans une zone no-PvP pendant un tag → tag continue,
+  coups toujours annulés, sortie libre, ré-entrée bloquée (`CombatTagManager#isNoPvpZone` + wiki).
+- [x] Wiki : `trois-vies` (tag), `claims-territoire` (PvP + PASDIC).
+- [ ] Tester en jeu : fuite vers spawn/PASDIC / claim perso pendant tag ; pearl vers PASDIC ;
+  initiation PvP en PASDIC ; sortie puis ré-entrée.
 
 ## Commandes VIP (août 2026)
 - [x] `/feed` : restaure faim + saturation. Accès VIP+ via `PlayerRank#isAtLeastVIP()` (ou `cantale.feed` / `cantale.admin`). Cooldown VIP 3 min, Chèvre+ 1 min, `cantale.admin` sans cooldown.
