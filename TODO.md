@@ -26,6 +26,8 @@
   (localStorage `cantale_cookie_notice`) — cookies strictement nécessaires → pas de mur de
   consentement marketing. Sitemap mis à jour.
 - [x] Redeploy `Annonnyx/Cantale` `83e371c` → Vercel prod Ready (pages 200 sur cantale.world).
+- [x] Vouvoiement pages légales + e-mail **contact@cantale.fun** (mailto) mentions / RGPD /
+  cookies / footer. Deploy Annonnyx/Cantale en cours.
 
 ## Exemples « noe » → « onyx » (août 2026)
 - [x] Remplacement des pseudos d’exemple `noe` / `Noé` → `onyx` / `Onyx` dans les placeholders
