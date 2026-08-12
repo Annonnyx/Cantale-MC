@@ -7,7 +7,8 @@
 - [x] `/partenariats#allies` : Partenaires actifs + Creators (rôles Discord), hors Équipe.
 - [x] UI : grilles par grade (avatar MC ou Discord, lien profil, handle Discord).
 - [ ] Ops : vérifier Server Members Intent sur l’appli bot si des rôles Discord manquent.
-- [ ] Deploy Annonnyx/Cantale + sync monorepo (staff Équipe + alliances partenariats).
+- [x] Deploy `Annonnyx/Cantale` `3a56c85` → Vercel `site-cantale` prod Ready
+  (`site-cantale-b99as7cw4…`, `dpl_vgPQUzuR…`, aliases www.cantale.world). Monorepo `608d509`.
 
 ## Boutique fermée — hébergeur / S1 (août 2026)
 - [x] Copy `/boutique` (SHOP_ENABLED off) : fermée à cause des conditions de l’hébergeur
