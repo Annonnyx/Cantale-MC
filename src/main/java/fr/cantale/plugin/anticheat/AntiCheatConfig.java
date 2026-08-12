@@ -64,6 +64,8 @@ public class AntiCheatConfig {
 
     private boolean autoClickerEnabled;
     private int maxCPS;
+    private int cpsWindowMs;
+    private int autoClickerBuffer;
     private int autoClickerTrustPenalty;
 
     private boolean aimEnabled;
@@ -86,6 +88,13 @@ public class AntiCheatConfig {
 
     private boolean fastUseEnabled;
     private int fastUseTrustPenalty;
+
+    // ── World / FastBreak ──
+    private boolean fastBreakEnabled;
+    private int maxSolidBreaks;
+    private int fastBreakWindowMs;
+    private int fastBreakBuffer;
+    private int fastBreakTrustPenalty;
 
     // ── Packets ──
     private boolean packetsEnabled;
@@ -157,9 +166,12 @@ public class AntiCheatConfig {
         this.killAuraTrustPenalty = config.getInt("anticheat.combat.killaura.trust-penalty", 5);
 
         // Combat — AutoClicker
+        // max-cps mesuré sur cps-window-ms (défaut 2s) ; clics dig soft exclus en code
         this.autoClickerEnabled = config.getBoolean("anticheat.combat.autoclicker.enabled", true);
-        this.maxCPS = config.getInt("anticheat.combat.autoclicker.max-cps", 20);
-        this.autoClickerTrustPenalty = config.getInt("anticheat.combat.autoclicker.trust-penalty", 3);
+        this.maxCPS = config.getInt("anticheat.combat.autoclicker.max-cps", 24);
+        this.cpsWindowMs = config.getInt("anticheat.combat.autoclicker.cps-window-ms", 2000);
+        this.autoClickerBuffer = config.getInt("anticheat.combat.autoclicker.buffer", 6);
+        this.autoClickerTrustPenalty = config.getInt("anticheat.combat.autoclicker.trust-penalty", 2);
 
         // Combat — Aim
         this.aimEnabled = config.getBoolean("anticheat.combat.aim.enabled", true);
@@ -184,6 +196,13 @@ public class AntiCheatConfig {
         // Inventory — FastUse
         this.fastUseEnabled = config.getBoolean("anticheat.inventory.fastuse.enabled", false);
         this.fastUseTrustPenalty = config.getInt("anticheat.inventory.fastuse.trust-penalty", 2);
+
+        // World — FastBreak / Nuker (blocs solides uniquement ; soft/instant exclus)
+        this.fastBreakEnabled = config.getBoolean("anticheat.world.fastbreak.enabled", true);
+        this.maxSolidBreaks = config.getInt("anticheat.world.fastbreak.max-solid-breaks", 14);
+        this.fastBreakWindowMs = config.getInt("anticheat.world.fastbreak.window-ms", 2000);
+        this.fastBreakBuffer = config.getInt("anticheat.world.fastbreak.buffer", 4);
+        this.fastBreakTrustPenalty = config.getInt("anticheat.world.fastbreak.trust-penalty", 2);
 
         // Packets
         this.packetsEnabled = config.getBoolean("anticheat.packets.enabled", false);
@@ -212,6 +231,7 @@ public class AntiCheatConfig {
             case AUTO_ARMOR -> autoArmorEnabled;
             case CHEST_STEALER -> chestStealerEnabled;
             case FAST_USE -> fastUseEnabled;
+            case FAST_BREAK -> fastBreakEnabled;
             case BLINK, BAD_PACKETS -> packetsEnabled;
         };
     }
@@ -234,6 +254,7 @@ public class AntiCheatConfig {
             case AUTO_ARMOR -> autoArmorTrustPenalty;
             case CHEST_STEALER -> chestStealerTrustPenalty;
             case FAST_USE -> fastUseTrustPenalty;
+            case FAST_BREAK -> fastBreakTrustPenalty;
             case BLINK, BAD_PACKETS -> 3;
         };
     }
@@ -270,10 +291,16 @@ public class AntiCheatConfig {
     public double getMaxReach() { return maxReach; }
     public int getMinTargetSwitchTicks() { return minTargetSwitchTicks; }
     public int getMaxCPS() { return maxCPS; }
+    public int getCpsWindowMs() { return cpsWindowMs; }
+    public int getAutoClickerBuffer() { return autoClickerBuffer; }
     public double getMinRotationDeviation() { return minRotationDeviation; }
 
     public double getSnapAngleThreshold() { return snapAngleThreshold; }
 
     public int getMinEquipTicks() { return minEquipTicks; }
     public int getMinClickTicks() { return minClickTicks; }
+
+    public int getMaxSolidBreaks() { return maxSolidBreaks; }
+    public int getFastBreakWindowMs() { return fastBreakWindowMs; }
+    public int getFastBreakBuffer() { return fastBreakBuffer; }
 }

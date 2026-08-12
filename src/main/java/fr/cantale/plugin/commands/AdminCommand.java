@@ -1,6 +1,7 @@
 package fr.cantale.plugin.commands;
 
 import fr.cantale.plugin.CantalePlugin;
+import fr.cantale.plugin.economy.BankManager;
 import fr.cantale.plugin.factions.Faction;
 import fr.cantale.plugin.factions.FactionManager;
 import org.bukkit.Bukkit;
@@ -65,6 +66,9 @@ public class AdminCommand implements CommandExecutor, TabCompleter {
                 break;
             case "kickmember":
                 handleKickMember(sender, args);
+                break;
+            case "f":
+                handleFactionAdmin(sender, args);
                 break;
             default:
                 sender.sendMessage(ChatColor.translateAlternateColorCodes('&', 
@@ -186,6 +190,10 @@ public class AdminCommand implements CommandExecutor, TabCompleter {
             double amount = Double.parseDouble(args[2]);
             faction.setBalance(faction.getBalance() + amount);
             plugin.getFactionManager().saveFaction(faction);
+            UUID actor = sender instanceof Player p ? p.getUniqueId() : null;
+            new BankManager(plugin).logTransaction(
+                    faction.getId(), actor, BankManager.ACTION_ADMIN_ADD, amount,
+                    faction.getBalance(), "Admin addbank par " + sender.getName());
             sender.sendMessage(ChatColor.translateAlternateColorCodes('&', 
                 "&a" + amount + " Cantox ajoutés à la banque de " + args[1]));
         } catch (NumberFormatException e) {
@@ -210,6 +218,10 @@ public class AdminCommand implements CommandExecutor, TabCompleter {
             double amount = Double.parseDouble(args[2]);
             faction.setBalance(faction.getBalance() - amount);
             plugin.getFactionManager().saveFaction(faction);
+            UUID actor = sender instanceof Player p ? p.getUniqueId() : null;
+            new BankManager(plugin).logTransaction(
+                    faction.getId(), actor, BankManager.ACTION_ADMIN_REMOVE, amount,
+                    faction.getBalance(), "Admin removebank par " + sender.getName());
             sender.sendMessage(ChatColor.translateAlternateColorCodes('&', 
                 "&a" + amount + " Cantox retirés de la banque de " + args[1]));
         } catch (NumberFormatException e) {
@@ -266,6 +278,54 @@ public class AdminCommand implements CommandExecutor, TabCompleter {
         } else {
             sender.sendMessage(ChatColor.translateAlternateColorCodes('&', 
                 "&cCe joueur n'est pas dans cette faction."));
+        }
+    }
+
+    private void handleFactionAdmin(CommandSender sender, String[] args) {
+        if (args.length < 2) {
+            sender.sendMessage(ChatColor.translateAlternateColorCodes('&',
+                "&cUsage: /admin f rename <faction> <nouveau_nom>"));
+            return;
+        }
+        switch (args[1].toLowerCase()) {
+            case "rename", "renommer" -> handleRenameFaction(sender, args);
+            default -> sender.sendMessage(ChatColor.translateAlternateColorCodes('&',
+                "&cSous-commande inconnue. Usage: /admin f rename <faction> <nouveau_nom>"));
+        }
+    }
+
+    private void handleRenameFaction(CommandSender sender, String[] args) {
+        if (args.length < 4) {
+            sender.sendMessage(ChatColor.translateAlternateColorCodes('&',
+                "&cUsage: /admin f rename <faction> <nouveau_nom>"));
+            return;
+        }
+
+        FactionManager factionManager = plugin.getFactionManager();
+        Faction faction = factionManager.getFaction(args[2]);
+        if (faction == null) {
+            sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&cFaction introuvable."));
+            return;
+        }
+
+        String newName = args[3];
+        String oldName = faction.getName();
+        String error = factionManager.renameFaction(faction, newName);
+        if (error != null) {
+            sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&c" + error));
+            return;
+        }
+
+        sender.sendMessage(ChatColor.translateAlternateColorCodes('&',
+            "&aFaction renommée : &e" + oldName + " &a→ &e" + faction.getName()
+                + " &7(tag &e[" + faction.getTag() + "]&7)"));
+        for (UUID memberUuid : faction.getMembers()) {
+            Player member = Bukkit.getPlayer(memberUuid);
+            if (member != null && member.isOnline()) {
+                member.sendMessage(ChatColor.translateAlternateColorCodes('&',
+                    "&6[Faction] &eUn admin a renommé la faction en &e"
+                        + faction.getName() + " &7[" + faction.getTag() + "]"));
+            }
         }
     }
 
@@ -343,6 +403,8 @@ public class AdminCommand implements CommandExecutor, TabCompleter {
             "  &a/admin deletehome <joueur> <nom> &7- Détruire un home privé"));
         sender.sendMessage(ChatColor.translateAlternateColorCodes('&', 
             "  &a/admin kickmember <faction> <joueur> &7- Virer un membre d'une faction"));
+        sender.sendMessage(ChatColor.translateAlternateColorCodes('&',
+            "  &a/admin f rename <faction> <nouveau_nom> &7- Renommer une faction (+ tag)"));
         sender.sendMessage("");
         
         sender.sendMessage(ChatColor.translateAlternateColorCodes('&', 
@@ -365,8 +427,36 @@ public class AdminCommand implements CommandExecutor, TabCompleter {
             subcommands.add("removebank");
             subcommands.add("deletehome");
             subcommands.add("kickmember");
+            subcommands.add("f");
             return subcommands.stream()
                 .filter(s -> s.toLowerCase().startsWith(args[0].toLowerCase()))
+                .collect(Collectors.toList());
+        }
+
+        if (args.length == 2 && args[0].equalsIgnoreCase("f")) {
+            return List.of("rename", "renommer").stream()
+                .filter(s -> s.startsWith(args[1].toLowerCase()))
+                .collect(Collectors.toList());
+        }
+
+        if (args.length == 3 && args[0].equalsIgnoreCase("f")
+                && (args[1].equalsIgnoreCase("rename") || args[1].equalsIgnoreCase("renommer"))) {
+            String prefix = args[2].toLowerCase();
+            return plugin.getFactionManager().getAllFactions().stream()
+                .map(Faction::getName)
+                .filter(n -> n.toLowerCase().startsWith(prefix))
+                .collect(Collectors.toList());
+        }
+
+        if (args.length == 2 && (args[0].equalsIgnoreCase("deletefaction")
+                || args[0].equalsIgnoreCase("addpower")
+                || args[0].equalsIgnoreCase("addbank")
+                || args[0].equalsIgnoreCase("removebank")
+                || args[0].equalsIgnoreCase("kickmember"))) {
+            String prefix = args[1].toLowerCase();
+            return plugin.getFactionManager().getAllFactions().stream()
+                .map(Faction::getName)
+                .filter(n -> n.toLowerCase().startsWith(prefix))
                 .collect(Collectors.toList());
         }
 

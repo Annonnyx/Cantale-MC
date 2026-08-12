@@ -31,6 +31,12 @@ public class ModHelpCommand implements CommandExecutor {
         sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&7/moderation tphere <joueur> &8- &7Téléporter un joueur à soi"));
         sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&7/moderation vanish &8- &7Activer/Désactiver le vanish"));
         sender.sendMessage("");
+        sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&e&lInspection inventaires / homes :"));
+        sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&7/adminhome check <joueur> &8- &7Lister les homes"));
+        sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&7/adminhome <joueur> <nom> &8- &7TP vers ce home"));
+        sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&7/adminec <joueur> &8- &7Voir/éditer l'ender chest"));
+        sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&7/adminpc <joueur> [1|2|3] &8- &7Voir/éditer les coffres privés"));
+        sender.sendMessage("");
         sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&cNote: Vous devez activer le mode trace avec /moderation avant d'utiliser les commandes de modération."));
 
         return true;

@@ -16,6 +16,8 @@ import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerRespawnEvent;
 import org.bukkit.Bukkit;
 import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.potion.PotionEffect;
+import org.bukkit.potion.PotionEffectType;
 
 import java.util.UUID;
 import java.util.List;
@@ -314,19 +316,34 @@ public class PlayerListener implements Listener {
         }
     }
 
-    /** Invulnérabilité post-respawn pour éviter le spawn-kill le temps de se TP. */
+    /**
+     * Post-respawn : invuln 10s (anti spawn-kill) + Saturation (amp 0) pendant
+     * {@code lives.respawn-saturation-seconds} (défaut 150). Amp 0 = aide faim
+     * sans abus ; durée rafraîchie à chaque respawn (pas de stack infini).
+     */
     @EventHandler(priority = EventPriority.MONITOR)
     public void onPlayerRespawn(PlayerRespawnEvent event) {
         Player player = event.getPlayer();
+        int saturationSeconds = plugin.getConfigManager().getRespawnSaturationSeconds();
         // 10 secondes (200 ticks) — setNoDamageTicks est en ticks
         player.setNoDamageTicks(20 * 10);
-        player.sendMessage("§8[§6Cantale§8] §7Invulnérabilité de §e10s §7après respawn.");
-        // Sécurité : re-appliquer au tick suivant (certains plugins reset noDamageTicks)
+        applyRespawnSaturation(player, saturationSeconds);
+        player.sendMessage("§8[§6Cantale§8] §7Invulnérabilité §e10s§7 + Saturation §e"
+                + saturationSeconds + "s§7 après respawn.");
+        // Sécurité : re-appliquer au tick suivant (certains plugins reset noDamageTicks / effets)
         Bukkit.getScheduler().runTask(plugin, () -> {
             if (player.isOnline()) {
                 player.setNoDamageTicks(Math.max(player.getNoDamageTicks(), 20 * 10));
+                applyRespawnSaturation(player, saturationSeconds);
             }
         });
+    }
+
+    /** Saturation amp 0 ; remove + add pour forcer le refresh de durée à chaque respawn. */
+    private void applyRespawnSaturation(Player player, int seconds) {
+        int ticks = Math.max(1, seconds) * 20;
+        player.removePotionEffect(PotionEffectType.SATURATION);
+        player.addPotionEffect(new PotionEffect(PotionEffectType.SATURATION, ticks, 0, false, true, true));
     }
 
     private void checkPendingRewards(Player player) {

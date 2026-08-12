@@ -114,6 +114,7 @@ public class CantalePlugin extends JavaPlugin {
     private fr.cantale.plugin.crate.LegendaryTicketManager legendaryTicketManager;
     private CustomItemManager customItemManager;
     private ServerOptimizer serverOptimizer;
+    private fr.cantale.plugin.optimization.MobStackManager mobStackManager;
     private fr.cantale.plugin.database.FortifiedChunkDAO fortifiedChunkDAO;
     private fr.cantale.plugin.vote.VoteDAO voteDAO;
     private fr.cantale.plugin.vote.VoteRewardManager voteRewardManager;
@@ -354,6 +355,8 @@ public class CantalePlugin extends JavaPlugin {
         this.voteListener = new fr.cantale.plugin.vote.VoteListener(this);
         this.serverOptimizer = new ServerOptimizer(this);
         this.serverOptimizer.startTasks();
+        this.mobStackManager = new fr.cantale.plugin.optimization.MobStackManager(this);
+        this.mobStackManager.start();
         this.antiCheatManager = new fr.cantale.plugin.anticheat.AntiCheatManager(this);
         this.combatTagManager = new fr.cantale.plugin.combat.CombatTagManager(this);
 
@@ -419,6 +422,9 @@ public class CantalePlugin extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        if (mobStackManager != null) {
+            mobStackManager.stop();
+        }
         if (webAdminBridge != null) {
             webAdminBridge.stop();
         }
@@ -477,6 +483,15 @@ public class CantalePlugin extends JavaPlugin {
         getCommand("trade").setExecutor(new TradeCommand(this));
         getCommand("customitem").setExecutor(new CustomItemCommand(this, customItemManager));
         getCommand("home").setExecutor(new HomeCommand(this));
+        fr.cantale.plugin.commands.AdminHomeCommand adminHomeCommand = new fr.cantale.plugin.commands.AdminHomeCommand(this);
+        getCommand("adminhome").setExecutor(adminHomeCommand);
+        getCommand("adminhome").setTabCompleter(adminHomeCommand);
+        fr.cantale.plugin.commands.AdminEcCommand adminEcCommand = new fr.cantale.plugin.commands.AdminEcCommand(this);
+        getCommand("adminec").setExecutor(adminEcCommand);
+        getCommand("adminec").setTabCompleter(adminEcCommand);
+        fr.cantale.plugin.commands.AdminPcCommand adminPcCommand = new fr.cantale.plugin.commands.AdminPcCommand(this);
+        getCommand("adminpc").setExecutor(adminPcCommand);
+        getCommand("adminpc").setTabCompleter(adminPcCommand);
         getCommand("warp").setExecutor(new WarpCommand(this));
         getCommand("spawn").setExecutor(spawnCommand);
         getCommand("rtp").setExecutor(rtpCommand);
@@ -546,9 +561,12 @@ public class CantalePlugin extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new fr.cantale.plugin.moderation.ModerationListener(moderationCommand.getMuteManager(), moderationCommand.getVanishManager()), this);
         getServer().getPluginManager().registerEvents(new fr.cantale.plugin.listeners.LifeItemListener(this), this);
         getServer().getPluginManager().registerEvents(new fr.cantale.plugin.listeners.TotemBlockListener(this), this);
+        getServer().getPluginManager().registerEvents(new fr.cantale.plugin.listeners.HopperLimitListener(this), this);
         getServer().getPluginManager().registerEvents(new fr.cantale.plugin.custom.RuneFortificationListener(this), this);
         getServer().getPluginManager().registerEvents(new MapIntegrationListener(this), this);
         getServer().getPluginManager().registerEvents(new fr.cantale.plugin.optimization.VillagerSpawnBlocker(this), this);
+        getServer().getPluginManager().registerEvents(
+                new fr.cantale.plugin.optimization.MobStackListener(this, mobStackManager), this);
         // Vote system : enregistre PlayerJoinEvent + tente de cabler VotifierEvent par réflexion
         getServer().getPluginManager().registerEvents(voteListener, this);
         boolean votifierOk = voteListener.tryRegisterVotifier();
@@ -651,6 +669,10 @@ public class CantalePlugin extends JavaPlugin {
 
     public ServerOptimizer getServerOptimizer() {
         return serverOptimizer;
+    }
+
+    public fr.cantale.plugin.optimization.MobStackManager getMobStackManager() {
+        return mobStackManager;
     }
 
     public PermissionManager getPermissionManager() {

@@ -6,6 +6,10 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.regex.Pattern;
+
+import org.bukkit.Bukkit;
+import org.bukkit.entity.Player;
 
 import fr.cantale.plugin.CantalePlugin;
 import fr.cantale.plugin.database.FactionDAO;
@@ -21,6 +25,13 @@ public class FactionManager {
 
     /** Bonus flat par membre : +5 à l'arrivée, -5 au départ (plancher 0). */
     public static final int POWER_PER_MEMBER = 5;
+
+    /** Longueur min/max du nom de faction (création + renommage). */
+    public static final int NAME_MIN_LENGTH = 3;
+    public static final int NAME_MAX_LENGTH = 16;
+
+    /** Lettres (unicode), chiffres, underscore, tiret — mêmes règles create/rename. */
+    private static final Pattern NAME_PATTERN = Pattern.compile("^[\\p{L}0-9_\\-]{" + NAME_MIN_LENGTH + "," + NAME_MAX_LENGTH + "}$");
 
     private final CantalePlugin plugin;
     private final FactionDAO factionDAO;
@@ -38,7 +49,45 @@ public class FactionManager {
         this.autoClaimEnabled = new ConcurrentHashMap<>();
     }
 
+    /**
+     * Valide un nom de faction (création / renommage).
+     * @return message d'erreur FR, ou {@code null} si OK
+     */
+    public String validateFactionName(String name) {
+        if (name == null || name.isBlank()) {
+            return "Le nom de faction est vide.";
+        }
+        if (name.length() < NAME_MIN_LENGTH || name.length() > NAME_MAX_LENGTH) {
+            return "Le nom doit faire entre " + NAME_MIN_LENGTH + " et " + NAME_MAX_LENGTH + " caractères.";
+        }
+        if (!NAME_PATTERN.matcher(name).matches()) {
+            return "Nom invalide : lettres, chiffres, _ et - uniquement (pas d'espaces).";
+        }
+        return null;
+    }
+
+    /**
+     * Génère un tag unique (4 car. max) à partir du nom — même algo que /f create.
+     * {@code excludeFactionId} ignore la faction elle-même (renommage).
+     */
+    public String generateUniqueTag(String name, int excludeFactionId) {
+        String baseTag = name.substring(0, Math.min(4, name.length())).toUpperCase();
+        String tag = baseTag;
+        int suffix = 1;
+        while (true) {
+            Faction byTag = getFactionByTag(tag);
+            if (byTag == null || byTag.getId() == excludeFactionId) {
+                return tag;
+            }
+            tag = baseTag.substring(0, Math.min(3, baseTag.length())) + suffix;
+            suffix++;
+        }
+    }
+
     public Faction createFaction(String name, String tag, String description, UUID leader) {
+        if (validateFactionName(name) != null) {
+            return null;
+        }
         if (factionDAO.getFactionByName(name) != null) {
             return null;
         }
@@ -58,6 +107,49 @@ public class FactionManager {
             return faction;
         }
         return null;
+    }
+
+    /**
+     * Renomme une faction : met à jour nom + tag (régénéré), DB, nametags en ligne, rôle Discord.
+     * @return message d'erreur FR, ou {@code null} si succès
+     */
+    public String renameFaction(Faction faction, String newName) {
+        if (faction == null) {
+            return "Faction introuvable.";
+        }
+        String validationError = validateFactionName(newName);
+        if (validationError != null) {
+            return validationError;
+        }
+        if (faction.getName().equals(newName)) {
+            return "La faction porte déjà ce nom.";
+        }
+        Faction existing = getFaction(newName);
+        if (existing != null && existing.getId() != faction.getId()) {
+            return "Ce nom de faction existe déjà.";
+        }
+
+        String newTag = generateUniqueTag(newName, faction.getId());
+        faction.setName(newName);
+        faction.setTag(newTag);
+        saveFaction(faction);
+        refreshOnlineMemberTags(faction);
+
+        if (plugin.getDiscordBot() != null && plugin.getDiscordBot().isConnected()) {
+            plugin.getDiscordBot().renameFactionDiscordRole(faction);
+        }
+        return null;
+    }
+
+    /** Rafraîchit préfixe chat / nametag / TAB pour tous les membres en ligne. */
+    public void refreshOnlineMemberTags(Faction faction) {
+        if (faction == null || plugin.getTagManager() == null) return;
+        for (UUID memberUuid : faction.getMembers()) {
+            Player member = Bukkit.getPlayer(memberUuid);
+            if (member != null && member.isOnline()) {
+                plugin.getTagManager().updatePlayerNametag(member);
+            }
+        }
     }
 
     /**
@@ -271,6 +363,29 @@ public class FactionManager {
         return false;
     }
 
+    /**
+     * True si la faction n'a encore aucun claim dans ce monde (premier claim du monde autorisé
+     * n'importe où), ou si le chunk touche orthogonalement (N/S/E/O) un claim existant.
+     * Empêche les territoires séparés / îlots déconnectés.
+     */
+    public boolean isAdjacentToOwnClaimOrFirst(String world, int chunkX, int chunkZ, int factionId) {
+        Faction faction = getFaction(factionId);
+        if (faction == null) return false;
+
+        boolean hasClaimInWorld = false;
+        for (Claim claim : faction.getClaims()) {
+            if (!world.equals(claim.getWorld())) continue;
+            hasClaimInWorld = true;
+            int dx = Math.abs(claim.getChunkX() - chunkX);
+            int dz = Math.abs(claim.getChunkZ() - chunkZ);
+            // Adjacent orthogonal : partage un côté (pas seulement un coin)
+            if ((dx == 1 && dz == 0) || (dx == 0 && dz == 1)) {
+                return true;
+            }
+        }
+        return !hasClaimInWorld;
+    }
+
     public boolean addClaim(int factionId, String world, int chunkX, int chunkZ) {
         Claim existing = getClaimAt(world, chunkX, chunkZ);
         if (existing != null) {
@@ -279,6 +394,9 @@ public class FactionManager {
 
         // Filet de sécurité central : vaut pour /f claim, l'auto-claim et tout autre appel
         if (isTooCloseToOtherFaction(world, chunkX, chunkZ, factionId)) {
+            return false;
+        }
+        if (!isAdjacentToOwnClaimOrFirst(world, chunkX, chunkZ, factionId)) {
             return false;
         }
 
@@ -352,7 +470,7 @@ public class FactionManager {
             }
         }
 
-        // La distance minimale avec les autres factions est vérifiée dans addClaim
+        // La distance minimale avec les autres factions + contiguïté sont vérifiées dans addClaim
         return addClaim(faction.getId(), world, chunkX, chunkZ);
     }
 

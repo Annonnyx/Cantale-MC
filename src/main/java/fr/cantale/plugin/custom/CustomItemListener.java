@@ -404,7 +404,7 @@ public class CustomItemListener implements Listener {
     public void onPlayerMove(PlayerMoveEvent event) {
         Player player = event.getPlayer();
 
-        // Vol réservé au grade Chèvre (ou staff) dans ses claims
+        // Vol créatif réservé au grade Chèvre uniquement (pas modos/admin/owner) dans ses claims
         fr.cantale.plugin.rank.PlayerRank rank = plugin.getRankManager().getRank(player);
         boolean hasChevreFlight = rank.hasUnlimitedFlight();
 

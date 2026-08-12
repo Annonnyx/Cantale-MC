@@ -113,6 +113,11 @@ public class DiscordBot {
                 this.faqDiscordListener = new FaqDiscordListener(plugin, faqCore, config);
                 jda.addEventListener(faqDiscordListener);
 
+                // Salon compteur
+                CountingListener countingListener = new CountingListener(plugin, config);
+                jda.addEventListener(countingListener);
+                countingListener.hydrateFromHistory(jda);
+
                 // Supabase sync
                 this.supabaseSync = new SupabaseSync(plugin, config);
                 supabaseSync.start();
@@ -286,6 +291,37 @@ public class DiscordBot {
                     "[Discord] Impossible de supprimer le rôle " + roleId + ": " + error.getMessage()
                 )
             );
+        });
+    }
+
+    /** Renomme le rôle Discord dédié après un rename de faction (ou le recrée s'il a disparu). */
+    public void renameFactionDiscordRole(fr.cantale.plugin.factions.Faction faction) {
+        if (faction == null || !isConnected()) return;
+
+        long roleId = faction.getDiscordRoleId();
+        if (roleId <= 0) {
+            ensureFactionDiscordRole(faction);
+            return;
+        }
+
+        String roleName = truncateDiscordRoleName(faction.getName());
+        org.bukkit.Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+            Guild guild = jda.getGuildById(config.getGuildId());
+            if (guild == null) return;
+            Role role = guild.getRoleById(roleId);
+            if (role == null) {
+                faction.setDiscordRoleId(0L);
+                ensureFactionDiscordRole(faction);
+                return;
+            }
+            role.getManager().setName(roleName)
+                .reason("Faction Minecraft renommée : " + faction.getName())
+                .queue(
+                    success -> plugin.getLogger().info(
+                        "[Discord] Rôle faction renommé : " + roleName + " (" + roleId + ")"),
+                    error -> plugin.getLogger().warning(
+                        "[Discord] Impossible de renommer le rôle " + roleId + ": " + error.getMessage())
+                );
         });
     }
 

@@ -27,6 +27,8 @@ import fr.cantale.plugin.anticheat.movement.StepCheck;
 import fr.cantale.plugin.anticheat.movement.TimerCheck;
 import fr.cantale.plugin.anticheat.rotation.RotationCheck;
 import fr.cantale.plugin.anticheat.rotation.RotationListener;
+import fr.cantale.plugin.anticheat.world.BlockBreakListener;
+import fr.cantale.plugin.anticheat.world.FastBreakCheck;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitRunnable;
@@ -84,11 +86,14 @@ public class AntiCheatManager {
         checkRegistry.register(new ChestStealerCheck(config));
         checkRegistry.register(new FastUseCheck(config));
 
+        checkRegistry.register(new FastBreakCheck(config, plugin.getCustomItemManager()));
+
         // Enregistrer les listeners de détection
         Bukkit.getPluginManager().registerEvents(new MovementListener(this), plugin);
         Bukkit.getPluginManager().registerEvents(new CombatListener(this), plugin);
         Bukkit.getPluginManager().registerEvents(new RotationListener(this), plugin);
         Bukkit.getPluginManager().registerEvents(new InventoryListener(this), plugin);
+        Bukkit.getPluginManager().registerEvents(new BlockBreakListener(this), plugin);
         Bukkit.getPluginManager().registerEvents(new AntiCheatListener(this), plugin);
 
         // Lancer la tâche de decay/recovery (toutes les minutes)

@@ -40,12 +40,20 @@ public class PlayerData {
     // ── Combat ──
     /** Timestamps des clics (pour CPS) */
     private final List<Long> clickTimestamps = new ArrayList<>();
+    /** Buffer de violations AutoClicker consécutives */
+    private int autoClickerBuffer;
     /** UUID de la dernière entité attaquée */
     private UUID lastTargetId;
     /** Timestamp de la dernière attaque */
     private long lastAttackTimestamp;
     /** Nombre de changements de cible rapides */
     private int rapidTargetSwitches;
+
+    // ── Casse de blocs (FastBreak / Nuker) ──
+    /** Timestamps des casses de blocs solides (non-instant) */
+    private final List<Long> solidBreakTimestamps = new ArrayList<>();
+    /** Buffer de violations FastBreak consécutives */
+    private int fastBreakBuffer;
 
     // ── Rotation ──
     /** Historique des dernières rotations yaw */
@@ -186,32 +194,52 @@ public class PlayerData {
     // ═══════════════════════════════════════════════════
 
     public void addClick(long timestamp) {
+        // Débounce : même swing peut arriver via Interact + EntityDamage
+        if (!clickTimestamps.isEmpty()) {
+            long last = clickTimestamps.get(clickTimestamps.size() - 1);
+            if (timestamp - last < 35L) {
+                return;
+            }
+        }
         clickTimestamps.add(timestamp);
-        // Nettoyer les clics vieux de plus de 2 secondes
-        clickTimestamps.removeIf(t -> timestamp - t > 2000);
+        // Garder un historique un peu plus long que la fenêtre CPS max
+        clickTimestamps.removeIf(t -> timestamp - t > 4000);
     }
 
     /**
-     * Calcule le CPS sur la dernière seconde.
+     * Calcule le CPS moyen sur la fenêtre donnée (ms), normalisé en clics/seconde.
+     */
+    public int getCPS(int windowMs) {
+        long now = System.currentTimeMillis();
+        int window = Math.max(250, windowMs);
+        long count = clickTimestamps.stream().filter(t -> now - t <= window).count();
+        return (int) Math.round(count * 1000.0 / window);
+    }
+
+    /**
+     * Calcule le CPS sur la dernière seconde (compat).
      */
     public int getCPS() {
-        long now = System.currentTimeMillis();
-        return (int) clickTimestamps.stream().filter(t -> now - t <= 1000).count();
+        return getCPS(1000);
     }
 
     /**
-     * Calcule l'écart-type des intervalles entre clics (en ms).
+     * Calcule l'écart-type des intervalles entre clics (en ms) sur la fenêtre donnée.
      * Un écart-type très faible indique un autoclicker.
      */
-    public double getClickDeviation() {
-        if (clickTimestamps.size() < 3) return Double.MAX_VALUE;
+    public double getClickDeviation(int windowMs) {
+        long now = System.currentTimeMillis();
+        int window = Math.max(250, windowMs);
+        List<Long> recent = clickTimestamps.stream()
+                .filter(t -> now - t <= window)
+                .sorted()
+                .toList();
 
-        List<Long> sorted = new ArrayList<>(clickTimestamps);
-        sorted.sort(Long::compareTo);
+        if (recent.size() < 5) return Double.MAX_VALUE;
 
         List<Long> intervals = new ArrayList<>();
-        for (int i = 1; i < sorted.size(); i++) {
-            intervals.add(sorted.get(i) - sorted.get(i - 1));
+        for (int i = 1; i < recent.size(); i++) {
+            intervals.add(recent.get(i) - recent.get(i - 1));
         }
 
         double mean = intervals.stream().mapToLong(Long::longValue).average().orElse(0);
@@ -219,6 +247,45 @@ public class PlayerData {
                 .mapToDouble(i -> Math.pow(i - mean, 2))
                 .average().orElse(0);
         return Math.sqrt(variance);
+    }
+
+    public double getClickDeviation() {
+        return getClickDeviation(2000);
+    }
+
+    public int getAutoClickerBuffer() {
+        return autoClickerBuffer;
+    }
+
+    public void incrementAutoClickerBuffer() {
+        this.autoClickerBuffer++;
+    }
+
+    public void resetAutoClickerBuffer() {
+        this.autoClickerBuffer = 0;
+    }
+
+    public void addSolidBreak(long timestamp, int retainMs) {
+        solidBreakTimestamps.add(timestamp);
+        int retain = Math.max(1000, retainMs);
+        solidBreakTimestamps.removeIf(t -> timestamp - t > retain);
+    }
+
+    public int getSolidBreakCount(long now, int windowMs) {
+        int window = Math.max(250, windowMs);
+        return (int) solidBreakTimestamps.stream().filter(t -> now - t <= window).count();
+    }
+
+    public int getFastBreakBuffer() {
+        return fastBreakBuffer;
+    }
+
+    public void incrementFastBreakBuffer() {
+        this.fastBreakBuffer++;
+    }
+
+    public void resetFastBreakBuffer() {
+        this.fastBreakBuffer = 0;
     }
 
     public UUID getLastTargetId() {

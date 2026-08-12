@@ -23,7 +23,7 @@ router.get("/catalog", (_req: Request, res: Response) => {
     items: SHOP_CATALOG,
     notice: config.shop.enabled
       ? null
-      : "La boutique est temporairement fermée. Les paniers sont conservés pour quand elle rouvrira.",
+      : "La boutique est fermée : conditions de l'hébergeur actuel. Ouverture prévue pour la S1 après changement d'hébergeur.",
   });
 });
 
@@ -147,7 +147,8 @@ router.post("/checkout", requireAuth, async (_req: Request, res: Response): Prom
   if (!config.shop.enabled) {
     res.status(503).json({
       error: "Boutique fermée",
-      message: "Les transactions sont temporairement désactivées. Réessaie plus tard.",
+      message:
+        "Les conditions de notre hébergeur actuel ne permettent pas d'ouvrir les paiements. Ouverture prévue pour la S1 après changement d'hébergeur.",
     });
     return;
   }

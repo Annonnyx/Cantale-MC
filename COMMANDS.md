@@ -4,11 +4,13 @@ Format : /commande — usage — permission (si présente)
 
 - /cantale — Affiche les informations du serveur et les commandes utiles
 - /admin — Liste toutes les commandes admin et modérateur — permission : cantale.admin
+  - /admin f rename <faction> <nouveau_nom> — Renommer une faction (+ tag / Discord)
 - /dropvie — Sacrifier une vie
 - /givevie <joueur> — Donner une vie — permission : cantale.givevie
 - /addlife <joueur> <nombre> — Ajouter des vies (admin) — permission : cantale.admin
 - /removelife <joueur> <nombre> — Retirer des vies (admin) — permission : cantale.admin
 - /f (alias /faction) — Commandes de faction
+  - /f rename <nouveau_nom> — Renommer (chef seulement ; alias /f name, /f renommer)
 - /profile — Affiche le profil du joueur
 - /link — Génère un code pour lier son compte Discord — utilise la base de données
 - /pay <joueur> <montant> — Payer un joueur
@@ -17,6 +19,9 @@ Format : /commande — usage — permission (si présente)
 - /trade <joueur|accept|decline> — Échanger
 - /customitem <type> — Donner un item custom (admin) — permission : cantale.admin
 - /home [set|delete|del] [nom] — Gérer ses homes personnels
+- /adminhome check <joueur> | /adminhome <joueur> <nom> (aliases : ahome, seehome) — Lister / TP vers homes d'un joueur — permission : cantale.moderator (admin inclus)
+- /adminec <joueur> (aliases : aec, seeec) — Voir/éditer l'ender chest d'un joueur — permission : cantale.moderator
+- /adminpc <joueur> [1|2|3] (aliases : apc, sepc) — Voir/éditer les PC d'un joueur — permission : cantale.moderator
 - /warp [nom|set|delete|toggle] — Téléportation aux warps publics
 - /spawn — Téléportation au spawn
 - /rtp — Téléportation aléatoire
@@ -29,7 +34,7 @@ Format : /commande — usage — permission (si présente)
 - /perm <set|remove|check|list> — Gérer les permissions des joueurs
 - /unbanip <ip> — Débannir une IP
 - /leaderboard <type> [limite] (aliases : top, lb...)
-- /lastdeath [joueur]
+- /lastdeath [joueur] — Date + coords de la dernière mort (online/offline)
 - /optimize [stats|cleanup|clearall|save|chunks|villagers|gc|on|off|reload] — permission : cantale.admin
 - /ec — Ouvrir l’Ender Chest
 - /pc2 — 2ème coffre privé (grade Chèvre)
@@ -37,7 +42,7 @@ Format : /commande — usage — permission (si présente)
 - /day — Afficher le jour et l’heure Minecraft
 - /daily (aliases : /journalier) — Réclame la récompense quotidienne
 - /vote [claim|stats|top|help] — Système de vote
-- /web link <code> (aliases : website, site) — Lier son compte Minecraft au site Cantale
+- /web (aliases : website, site) — Obsolète : affiche le lien https://www.cantale.world/connexion (connexion Discord OAuth). Liaison Discord : /link
 - /tag <create|delete|add|remove|list> — Gérer les tags — permission : cantale.moderator
 - /discord <message|joueur> [message] — Envoyer un message sur Discord depuis Minecraft
 

@@ -49,7 +49,9 @@ entries:
       - "je suis pas dans une faction"
     response: |
       Pour créer une faction : /f create <nom>
+      Nom : 3–16 caractères (lettres, chiffres, _ et -).
       Effet : claim auto du chunk + spawn de faction à ta position (hors zone protégée / chunk déjà claim).
+      Renommer (chef) : /f rename <nouveau_nom> (met aussi à jour le tag).
       Pour rejoindre une faction existante : demande une invitation (/f invite), puis /f accept.
 
   - id: faction_join
@@ -82,8 +84,9 @@ entries:
     response: |
       Pour claim le chunk où tu te trouves : /f claim
       Pour unclaim : /f unclaim
-      Quota claims : max(5, pouvoir / 10). Distance min 2 chunks avec les autres facs.
-      Pouvoir : 60 + 5/membre à la création (65 seul), +5 join / −5 leave-kick, PvP ±5, events top, /f bank power.
+      Carte interactive : /f map (inventaire — clic gauche gris = claim, clic droit sur ta fac = unclaim). /f map chat = ancienne grille ASCII.
+      Quota claims : max(5, pouvoir / 10). Claims contigus obligatoires (touche N/S/E/O un claim existant, sauf le 1er du monde). Distance min 2 chunks avec les autres facs.
+      Pouvoir : 60 + 5/membre à la création (65 seul), +5 join / −5 leave-kick, PvP ±5, events top, /f power (GUI ; 1 unité achetée → +10 pouvoir).
 
   - id: faction_spawn
     triggers:
@@ -135,9 +138,11 @@ entries:
       - "coffre argent faction"
       - "argent commun faction"
     response: |
-      Banque : /f bank | /f bank add|take <montant> | /f bank power [n]
+      Banque : /f bank (GUI) | /f bank add|take <montant> | /f power | /f bank power [n]
+      /f bank → bouton Historique : dépôts, retraits, achats pouvoir (qui / montant / date).
+      /f power (ou /f bank power) : GUI quotas, paliers, achat 1/2/3/5/max unités. Avec n : achat chat.
       Déposer : Recrue+. Retirer / acheter pouvoir : Officier ou chef.
-      Prix pouvoir : floor(5000 × 1,18^(points_achetés × 10)), max 50 points par achat.
+      Achat : 1 unité → +10 pouvoir (n → +10×n). Prix : floor(5000 × 1,18^(unités_achetées × 10)), max 50 unités/achat.
 
   - id: money
     triggers:
@@ -484,7 +489,11 @@ entries:
       - "comment acheter un grade"
     response: |
       Les grades sont : AVENTURIER, VIP, CHEVRE, MODERATOR, ADMIN, OWNER.
-      Ils offrent des bonus (Cantox/jour, vies/mois, homes, slots /pc, etc.).
+      Vol en claim (Chèvre uniquement, pas modos/staff) :
+      - vol créatif (double-tap) dans les claims de TA faction ;
+      - fouiller les coffres/conteneurs des claims ÉTRANGERS (alliés ou ennemis).
+      Les membres d'une fac ouvrent toujours leurs propres coffres.
+      Ils offrent aussi des bonus (Cantox/jour, vies/mois, homes, slots /pc, etc.).
       Utilise /rank info <pseudo> pour voir les avantages.
 
   - id: events
@@ -524,8 +533,12 @@ entries:
       - "web"
       - "lien site"
       - "comment lier le site"
+      - "connexion site"
+      - "cantale.world"
     response: |
-      Pour lier ton compte au site Cantale : /web link <code>
+      Pour te connecter au site Cantale : va sur https://www.cantale.world/connexion et connecte-toi avec Discord.
+      Si ton Discord n'est pas encore lié à Minecraft : tape /link en jeu, puis /link sur Discord.
+
 
   - id: discord
     triggers:
@@ -540,6 +553,21 @@ entries:
     response: |
       Rejoins le Discord de Cantale avec /discord en jeu.
       C'est utile pour lier ton compte, participer aux giveaways et contacter le staff.
+
+  - id: counting
+    triggers:
+      - "salon compteur"
+      - "compteur discord"
+      - "counting"
+      - "comment compter discord"
+      - "regle compteur"
+      - "regles compteur"
+      - "comment marche le compteur"
+    response: |
+      Salon compteur Discord :
+      - Avec un chiffre : le nombre doit etre le precedent + 1 (souvent en debut de message).
+      - Sans aucun chiffre : chat libre, le compteur n avance pas.
+      - Mauvais nombre : message supprime + court avertissement.
 
   - id: support
     triggers:

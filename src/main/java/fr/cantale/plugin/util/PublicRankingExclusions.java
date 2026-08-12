@@ -5,10 +5,12 @@ import java.util.Locale;
 import java.util.stream.Collectors;
 
 /**
- * Comptes exclus des classements publics (jeu, Discord, sync) et des tops
- * joueurs. Liste centrale — ne pas hardcoder le pseudo ailleurs.
+ * Comptes / factions exclus des classements publics (jeu, Discord, sync) et des tops.
+ * Liste centrale — ne pas hardcoder le pseudo / nom ailleurs.
  *
  * Aligné sur Site-Cantale/web/src/server/public-ranking-exclusions.ts
+ *
+ * Factions : exclusion des tops publics uniquement — la faction reste en jeu.
  */
 public final class PublicRankingExclusions {
 
@@ -17,6 +19,12 @@ public final class PublicRankingExclusions {
 
     /** UUID offline optionnels — plus durables si le pseudo change. */
     public static final List<String> UUIDS = List.of();
+
+    /**
+     * Noms de factions exclus des classements publics.
+     * Ø (unicode), O latin, ∅ — le nom en jeu peut varier.
+     */
+    public static final List<String> FACTION_NAMES = List.of("Ø", "O", "∅");
 
     private PublicRankingExclusions() {
     }
@@ -51,6 +59,27 @@ public final class PublicRankingExclusions {
         return sb.length() > 0 ? sb.toString() : "1=1";
     }
 
+    /**
+     * Clause SQL excluant les factions listées (nom et éventuellement tag).
+     *
+     * @param nameColumn colonne nom ({@code name}, {@code f.name})
+     * @param tagColumn  colonne tag, ou {@code null} pour ignorer
+     */
+    public static String sqlExcludeFaction(String nameColumn, String tagColumn) {
+        if (FACTION_NAMES.isEmpty()) {
+            return "1=1";
+        }
+        String list = FACTION_NAMES.stream()
+                .map(name -> "'" + escapeSql(name.toLowerCase(Locale.ROOT)) + "'")
+                .collect(Collectors.joining(", "));
+        StringBuilder sb = new StringBuilder();
+        sb.append("LOWER(").append(nameColumn).append(") NOT IN (").append(list).append(")");
+        if (tagColumn != null) {
+            sb.append(" AND LOWER(").append(tagColumn).append(") NOT IN (").append(list).append(")");
+        }
+        return sb.toString();
+    }
+
     /** Préfixe {@code WHERE …} pour une requête sans clause WHERE existante. */
     public static String whereExclude(String usernameColumn, String uuidColumn) {
         return " WHERE " + sqlExclude(usernameColumn, uuidColumn);
@@ -59,6 +88,17 @@ public final class PublicRankingExclusions {
     /** Préfixe {@code AND …} pour une requête qui a déjà un WHERE. */
     public static String andExclude(String usernameColumn, String uuidColumn) {
         String clause = sqlExclude(usernameColumn, uuidColumn);
+        return "1=1".equals(clause) ? "" : " AND " + clause;
+    }
+
+    /** Préfixe {@code WHERE …} pour une requête factions sans clause WHERE. */
+    public static String whereExcludeFaction(String nameColumn, String tagColumn) {
+        return " WHERE " + sqlExcludeFaction(nameColumn, tagColumn);
+    }
+
+    /** Préfixe {@code AND …} pour une requête factions qui a déjà un WHERE. */
+    public static String andExcludeFaction(String nameColumn, String tagColumn) {
+        String clause = sqlExcludeFaction(nameColumn, tagColumn);
         return "1=1".equals(clause) ? "" : " AND " + clause;
     }
 

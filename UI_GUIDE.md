@@ -163,11 +163,47 @@ plugin.getUIManager().goBack(player); // retour
 | Slot | Item | Action |
 |------|------|--------|
 | 4 | GOLD_BLOCK | Solde |
-| 11 | LIME_WOOL | Déposer |
-| 13 | RED_WOOL | Retirer |
-| 15 | BOOK | Historique |
+| 11–15 | dépôts | Déposer montants |
+| 20–24 | retraits | Retirer montants |
+| 29 | NETHER_STAR | Ouvre FactionPowerShopUI |
+| 31 | BOOK | Ouvre FactionBankHistoryUI |
 | 36 | ARROW | Retour |
 | 40 | BARRIER | Fermer |
+
+### FactionBankHistoryUI — depuis `/f bank` → Historique
+
+**Titre :** `§7Historique — {faction}`  
+**Taille :** 6 lignes
+
+| Slot | Item | Action |
+|------|------|--------|
+| 4 | BOOK | Résumé (solde, nb entrées, page) |
+| 9–36 | EMERALD / GOLD_NUGGET / NETHER_STAR / … | Entrées (qui, type, montant, solde après, date) |
+| 45 | ARROW | Retour banque |
+| 48 | PAPER | Page précédente |
+| 49 | BARRIER | Fermer |
+| 50 | PAPER | Page suivante |
+| 53 | COMPASS | Actualiser |
+
+Types logués : `DEPOSIT`, `WITHDRAW`, `POWER_BUY`, `ADMIN_ADD`, `ADMIN_REMOVE` (table `faction_bank_log`).
+
+### FactionPowerShopUI — `/f power` · `/f bank power`
+
+**Titre :** `§8[§6Cantale§8] §7Pouvoir — {faction}`  
+**Taille :** 6 lignes
+
+| Slot | Item | Action |
+|------|------|--------|
+| 4 | NETHER_STAR | Pouvoir, quotas, solde, prochain prix |
+| 11 | GRASS_BLOCK | Claims + palier suivant |
+| 13 | RED_BED | F-homes + palier suivant |
+| 15 | ENDER_PEARL | Warps + palier suivant |
+| 22 | PAPER | Explication pouvoir |
+| 29–33 | teintures / améthyste | Achat 1 / 2 / 3 / 5 / max unités (1 → +10 pouvoir ; confirm) |
+| 40 | BOOK | Formule de prix (+ rappel 1 unité → +10 pouvoir) |
+| 45 | ARROW | Retour |
+| 49 | BARRIER | Fermer |
+| 53 | COMPASS | Actualiser |
 
 ### EconomyUI — `/balance`
 

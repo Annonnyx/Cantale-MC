@@ -118,31 +118,107 @@ public class HomeManager {
     }
 
     public List<Home> getPlayerHomes(UUID uuid) {
-        Map<String, Home> homes = playerHomes.get(uuid);
-        return homes != null ? List.copyOf(homes.values()) : List.of();
+        return List.copyOf(ensureHomesLoaded(uuid).values());
     }
 
-    public void listHomes(Player player) {
-        UUID uuid = player.getUniqueId();
+    /**
+     * Charge depuis la DB si besoin, puis retourne la map des homes (jamais null).
+     */
+    public Map<String, Home> ensureHomesLoaded(UUID uuid) {
         Map<String, Home> homes = playerHomes.get(uuid);
-
-        // Charger les homes si pas encore chargés
         if (homes == null) {
             loadPlayerHomes(uuid);
             homes = playerHomes.get(uuid);
         }
+        return homes != null ? homes : Map.of();
+    }
 
-        if (homes == null || homes.isEmpty()) {
+    /**
+     * Recherche un home par nom (insensible à la casse).
+     */
+    public Home findHome(UUID uuid, String name) {
+        if (uuid == null || name == null || name.isBlank()) return null;
+        Map<String, Home> homes = ensureHomesLoaded(uuid);
+        Home exact = homes.get(name);
+        if (exact != null) return exact;
+        for (Map.Entry<String, Home> entry : homes.entrySet()) {
+            if (entry.getKey().equalsIgnoreCase(name)) {
+                return entry.getValue();
+            }
+        }
+        return null;
+    }
+
+    public void listHomes(Player player) {
+        UUID uuid = player.getUniqueId();
+        Map<String, Home> homes = ensureHomesLoaded(uuid);
+
+        if (homes.isEmpty()) {
             player.sendMessage("§8[§6Cantale§8] §cVous n'avez aucun home.");
             return;
         }
 
         int maxHomes = getMaxHomes(player);
-        player.sendMessage("§8[§6Cantale§8] §7=== Vos Homes (" + homes.size() + "/" + maxHomes + ") ===");
+        String maxLabel = maxHomes == Integer.MAX_VALUE ? "∞" : String.valueOf(maxHomes);
+        player.sendMessage("§8[§6Cantale§8] §7=== Vos Homes (" + homes.size() + "/" + maxLabel + ") ===");
         for (Home home : homes.values()) {
-            Location loc = home.getLocation();
-            player.sendMessage("§7  - §e" + home.getName() + " §7(" + loc.getWorld().getName() + ", " + loc.getBlockX() + ", " + loc.getBlockY() + ", " + loc.getBlockZ() + ")");
+            sendHomeLine(player, home);
         }
+    }
+
+    /**
+     * Liste les homes d'un joueur cible pour le staff (/adminhome check).
+     */
+    public void listHomesOf(org.bukkit.command.CommandSender viewer, UUID targetUuid, String displayName) {
+        Map<String, Home> homes = ensureHomesLoaded(targetUuid);
+        String name = displayName != null ? displayName : targetUuid.toString();
+
+        if (homes.isEmpty()) {
+            viewer.sendMessage("§8[§6Cantale§8] §c" + name + " n'a aucun home.");
+            return;
+        }
+
+        int maxHomes = getMaxHomes(targetUuid);
+        String maxLabel = maxHomes == Integer.MAX_VALUE ? "∞" : String.valueOf(maxHomes);
+        viewer.sendMessage("§8[§6Cantale§8] §7=== Homes de §e" + name + " §7(" + homes.size() + "/" + maxLabel + ") ===");
+        for (Home home : homes.values()) {
+            sendHomeLine(viewer, home);
+        }
+    }
+
+    /**
+     * Téléporte immédiatement un staff vers le home d'un autre joueur (pas de délai / cooldown).
+     */
+    public boolean teleportAdminToHome(Player admin, UUID targetUuid, String homeName, String targetDisplayName) {
+        Home home = findHome(targetUuid, homeName);
+        if (home == null) {
+            admin.sendMessage("§8[§6Cantale§8] §cHome §e" + homeName + " §cinexistant pour §e"
+                    + (targetDisplayName != null ? targetDisplayName : "ce joueur") + "§c.");
+            return false;
+        }
+
+        Location loc = home.getLocation();
+        if (loc == null || loc.getWorld() == null) {
+            admin.sendMessage("§8[§6Cantale§8] §cLe monde de ce home est introuvable (déchargé ?).");
+            return false;
+        }
+
+        plugin.getChunkLoader().preloadChunksAround(loc, 1);
+        loc.getWorld().getChunkAtAsync(loc.getBlockX() >> 4, loc.getBlockZ() >> 4);
+        admin.teleport(loc);
+        admin.sendMessage("§8[§6Cantale§8] §aTéléporté au home §e" + home.getName()
+                + " §ade §e" + (targetDisplayName != null ? targetDisplayName : "joueur") + "§a.");
+        return true;
+    }
+
+    private void sendHomeLine(org.bukkit.command.CommandSender viewer, Home home) {
+        Location loc = home.getLocation();
+        if (loc == null || loc.getWorld() == null) {
+            viewer.sendMessage("§7  - §e" + home.getName() + " §c(monde introuvable)");
+            return;
+        }
+        viewer.sendMessage("§7  - §e" + home.getName() + " §7(" + loc.getWorld().getName()
+                + ", " + loc.getBlockX() + ", " + loc.getBlockY() + ", " + loc.getBlockZ() + ")");
     }
 
     public void loadPlayerHomes(UUID uuid) {

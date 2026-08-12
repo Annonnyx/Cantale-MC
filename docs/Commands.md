@@ -12,6 +12,8 @@ Catégories de commandes
 
 2. Téléportation
 - /home [set|delete|del] [nom] — gère les homes personnels.
+- /adminhome check <joueur> — (staff) liste les homes d'un joueur.
+- /adminhome <joueur> <nom> — (staff) se téléporte à ce home (alias : /adminhome tp <joueur> <nom>).
 - /warp [nom|set|delete|toggle] — téléporte vers un warp public ou gère les warps.
 - /spawn — téléporte au spawn.
 - /rtp — téléporte aléatoirement.
@@ -28,6 +30,8 @@ Catégories de commandes
 - /pc — coffre privé virtuel.
 - /pc2 — second coffre privé (grade Chèvre).
 - /ec — ouvrir l’Ender Chest.
+- /adminec <joueur> — (staff) voir/éditer l’EC d’un joueur (live si en ligne ; hors ligne = legacy DB seulement).
+- /adminpc <joueur> [1|2|3] — (staff) voir/éditer les PC (DB, en ligne ou hors ligne).
 
 5. Modération
 - /moderation <kick|mute|unmute|tp|tphere|vanish> — outils modération.
@@ -51,8 +55,8 @@ Exemples d’usage courants
 - /vanish — active ou désactive le vanish.
 
 Permissions et mapping
-- cantale.admin — accès complet aux commandes d’administration et d’optimisation.
-- cantale.moderator — accès aux commandes de modération non-OP.
+- cantale.admin — accès complet aux commandes d’administration et d’optimisation (inclut cantale.moderator).
+- cantale.moderator — accès aux commandes de modération non-OP + /adminhome, /adminec, /adminpc.
 - cantale.givevie — autorise /givevie.
 
 Mapping simple par rôle

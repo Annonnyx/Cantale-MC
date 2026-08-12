@@ -33,7 +33,7 @@ router.post("/request-link", requestLinkLimiter, async (_req: Request, res: Resp
       code,
       expiresAt,
       ttlSeconds: config.linkCode.ttlSeconds,
-      instruction: `Connecte-toi sur Minecraft puis tape /web link ${code}`,
+      instruction: `Connecte-toi sur https://www.cantale.world/connexion avec Discord (la commande /web link n'existe plus).`,
     });
   } catch (err) {
     console.error("[auth] request-link error:", err);

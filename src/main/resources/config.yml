@@ -30,6 +30,10 @@ lives:
   ban-on-zero: true
   # Message affiché au ban
   ban-message: "&cVous n'avez plus de vies ! Achetez-en une ou attendez qu'un ami vous en donne une."
+  # Saturation (effet PotionEffectType.SATURATION, amplifier 0) après respawn.
+  # Amp 0 = régén faim utile sans être abusif ; durée rafraîchie à chaque respawn.
+  # Recommandé 120–180 s ; défaut 150 (~2,5 min).
+  respawn-saturation-seconds: 150
 
 # ─── Économie ────────────────────────────────────────────────
 economy:
@@ -53,12 +57,21 @@ factions:
   start-homes: 30
 
   # Achat de pouvoir via /f bank power (officiers + chef)
-  # cost(i) = floor(base * growth^(i * 10)) où i = power_purchased
-  # (chaque point acheté compte ×10 dans l'exposant — courbe beaucoup plus raide)
+  # cost(i) = floor(base * growth^(i * 10)) où i = power_purchased (unités, pas le pouvoir)
+  # Chaque unité achetée → +power-per-unit pouvoir ; power_purchased += unités (échelle de prix)
   power-buy:
     base: 5000
     growth: 1.18
     max-per-purchase: 50
+    power-per-unit: 10
+
+  # Limite de hoppers posables (anti-lag). Craft désactivé ; achat /shop cher + cap quotidien.
+  # max = max(min, pouvoir / divisor) — division entière. Pose uniquement dans les claims de SA fac.
+  # Ex. pouvoir 65 → 3 hoppers ; 200 → 10 ; 500 → 25. Place-only (les déjà posés restent).
+  hopper-limit:
+    enabled: true
+    divisor: 20
+    min: 0
 
   # ── Protection des claims ──
   claim-protection:
@@ -134,17 +147,49 @@ factions:
 messages:
   prefix: "&8[&6Cantale&8] &r"
 
+# ─── Clear-lag (items au sol) ──────────────────────────────────
+clearlag:
+  # Intervalle entre deux clears (secondes). Warnings à T-30/10/5/3/2/1.
+  interval: 180
+  # Ne jamais supprimer les items plus jeunes que ce délai (secondes).
+  # Protège le loot de mort : un joueur a plusieurs minutes pour revenir.
+  protect-recent-seconds: 300
+
 # ─── Optimisation serveur ──────────────────────────────────────
 optimization:
   # Intervalle d'auto-save en minutes
   autosave-interval: 5
   # Intervalle de nettoyage des entités en secondes
   entity-cleanup-interval: 60
-  # Maximum d'items au sol par chunk
+  # Maximum d'items au sol par chunk (les items récents / loot de mort sont exclus du cull)
   max-items-per-chunk: 20
-  # Maximum d'entités par chunk (hors joueurs/villageois)
+  # Maximum d'entités par chunk (hostiles, armor stands, bateaux, etc.).
+  # Animals (passifs) exclus : empilés via mob-stacking. Exclus du compte / protégés :
+  # joueurs, villageois, items, Animals, entités nommées (hors stacks Cantale),
+  # Tameable apprivoisés, NPCs Cantale. Surplus = plus vieux d'abord.
+  # Appliqué par l'optimizer (~60s) et aussi à chaque cycle ClearLag.
   max-entities-per-chunk: 15
-  # Supprimer les items au sol vieux de 2min
+  # Empilement des animaux passifs de ferme (remplace le cull pour les Animals)
+  mob-stacking:
+    enabled: true
+    # Taille max d'un stack (une seule entité simulée)
+    max-stack: 64
+    # Rayon (blocs) pour merger le même type / même variante
+    radius: 8.0
+    # Intervalle de la passe de merge (secondes)
+    interval-seconds: 10
+    # Ne pas empiler les bébés (recommandé : évite les bugs d'âge / growth)
+    stack-babies: false
+    # Ne pas empiler les mobs nommés par un joueur (hors libellé ×N du stack)
+    stack-named: false
+    # Ne pas empiler les Tameable déjà apprivoisés
+    stack-tamed: false
+  # Ne jamais clear/cull un item plus jeune que ce délai (secondes) — loot de mort
+  protect-recent-item-seconds: 300
+  # (Historique) Âge mini avant clear silencieux — le clear par âge est fait par ClearLag
+  # (clearlag.protect-recent-seconds), pas par l'optimizer, pour que le compteur annoncé soit juste.
+  ground-item-max-age-seconds: 300
+  # Cull items par chunk (max-items-per-chunk) hors grâce ; le clear périodique = ClearLag
   clear-ground-items: true
   # Supprimer les flèches vieilles de 30s
   clear-arrows: true
@@ -195,6 +240,8 @@ discord:
     events: "1504901579130798121"
     # Salon piège anti-bot : tout message → suppression + ban
     anti-bot: "1513931644963262544"
+    # Salon compteur (prev+1 ; sans chiffre = chat libre)
+    counting: "1537112048314491040"
 
   # ── Rôles ──
   roles:
@@ -476,9 +523,13 @@ anticheat:
       trust-penalty: 5
     autoclicker:
       enabled: true
-      # CPS maximum autorisé
-      max-cps: 20
-      trust-penalty: 3
+      # CPS combat max (fenêtre cps-window-ms). Dig herbe/fleurs/neige exclu en code.
+      max-cps: 24
+      # Fenêtre de mesure CPS (ms) — plus longue = moins de pics faux positifs
+      cps-window-ms: 2000
+      # Violations consécutives avant pénalité trust (decay VL prioritaire)
+      buffer: 6
+      trust-penalty: 2
     aim:
       enabled: true
       # Écart-type max « trop parfait » (plus bas = moins de faux positifs)
@@ -506,6 +557,18 @@ anticheat:
       trust-penalty: 2
     fastuse:
       enabled: false
+      trust-penalty: 2
+
+  # ── Checks monde (casse de blocs) ──
+  world:
+    fastbreak:
+      enabled: true
+      # Max de casses de blocs SOLIDES sur la fenêtre (herbe/fleurs/instant exclus)
+      max-solid-breaks: 14
+      # Fenêtre de mesure (ms)
+      window-ms: 2000
+      # Buffer VL avant pénalité trust
+      buffer: 4
       trust-penalty: 2
   
   # ── Checks de packets (nécessite ProtocolLib) ──

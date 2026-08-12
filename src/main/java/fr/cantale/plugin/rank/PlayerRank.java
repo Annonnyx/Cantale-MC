@@ -41,7 +41,13 @@ public enum PlayerRank {
     public int getMaxAhListings() { return maxAhListings; }
 
     public boolean hasNoTpCooldown() { return this == CHEVRE || this == MODERATOR || this == ADMIN || this == OWNER; }
-    public boolean hasUnlimitedFlight() { return this == CHEVRE || this == MODERATOR || this == ADMIN || this == OWNER; }
+    /** Vol créatif dans les claims de sa faction — uniquement Chèvre (pas le staff). */
+    public boolean hasUnlimitedFlight() { return this == CHEVRE; }
+    /**
+     * Fouiller les conteneurs d'un claim étranger (allié ou ennemi) — uniquement Chèvre (pas le staff).
+     * Les membres de la faction propriétaire y ont toujours accès (ce n'est pas du « vol »).
+     */
+    public boolean canStealInClaims() { return this == CHEVRE; }
     public boolean hasSecondChest() { return this == CHEVRE || this == MODERATOR || this == ADMIN || this == OWNER; }
     public boolean isAtLeastVIP() { return this == VIP || this == CHEVRE || this == MODERATOR || this == ADMIN || this == OWNER; }
     public boolean isAtLeastAventurier() { return this != NONE; }

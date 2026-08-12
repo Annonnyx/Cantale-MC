@@ -68,6 +68,14 @@ public class ConfigManager {
                 "&cVous n'avez plus de vies ! Achetez-en une ou attendez qu'un ami vous en donne une.");
     }
 
+    /**
+     * Durée (secondes) de l'effet Saturation appliqué au respawn.
+     * Défaut 150 (~2,5 min). Plancher 1 s pour éviter une durée nulle/négative.
+     */
+    public int getRespawnSaturationSeconds() {
+        return Math.max(1, config.getInt("lives.respawn-saturation-seconds", 150));
+    }
+
     public double getStartBalance() {
         return config.getDouble("economy.start-balance", 10000.0);
     }
@@ -102,6 +110,30 @@ public class ConfigManager {
 
     public int getPowerBuyMaxPerPurchase() {
         return Math.max(1, config.getInt("factions.power-buy.max-per-purchase", 50));
+    }
+
+    /** Pouvoir octroyé par unité achetée (prix inchangé ; défaut 10). */
+    public int getPowerBuyPowerPerUnit() {
+        return Math.max(1, config.getInt("factions.power-buy.power-per-unit", 10));
+    }
+
+    public boolean isHopperLimitEnabled() {
+        return config.getBoolean("factions.hopper-limit.enabled", true);
+    }
+
+    /** Diviseur pouvoir → max hoppers (défaut 20). */
+    public int getHopperLimitDivisor() {
+        return Math.max(1, config.getInt("factions.hopper-limit.divisor", 20));
+    }
+
+    /** Plancher du plafond hoppers (défaut 0). */
+    public int getHopperLimitMin() {
+        return Math.max(0, config.getInt("factions.hopper-limit.min", 0));
+    }
+
+    /** max hoppers posables = max(min, pouvoir / divisor). */
+    public int getMaxHoppersForPower(int power) {
+        return Math.max(getHopperLimitMin(), Math.max(0, power) / getHopperLimitDivisor());
     }
 
     public String getMessagePrefix() {

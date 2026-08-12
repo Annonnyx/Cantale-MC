@@ -101,7 +101,9 @@ public class LeaderboardManager {
 
     public List<FactionLeaderboardEntry> getTopFactions(int limit) {
         List<FactionLeaderboardEntry> entries = new ArrayList<>();
-        String sql = "SELECT name, balance, power FROM factions ORDER BY balance DESC LIMIT ?";
+        String sql = "SELECT name, balance, power FROM factions"
+                + PublicRankingExclusions.whereExcludeFaction("name", "tag")
+                + " ORDER BY balance DESC LIMIT ?";
         
         try (Connection conn = databaseManager.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
@@ -127,7 +129,9 @@ public class LeaderboardManager {
     /** Classement factions par pouvoir (décroissant). */
     public List<FactionLeaderboardEntry> getTopFactionsByPower(int limit) {
         List<FactionLeaderboardEntry> entries = new ArrayList<>();
-        String sql = "SELECT name, balance, power FROM factions ORDER BY power DESC LIMIT ?";
+        String sql = "SELECT name, balance, power FROM factions"
+                + PublicRankingExclusions.whereExcludeFaction("name", "tag")
+                + " ORDER BY power DESC LIMIT ?";
 
         try (Connection conn = databaseManager.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {

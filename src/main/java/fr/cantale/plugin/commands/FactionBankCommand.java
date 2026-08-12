@@ -6,6 +6,8 @@ import fr.cantale.plugin.factions.Faction;
 import fr.cantale.plugin.factions.FactionManager;
 import fr.cantale.plugin.factions.FactionPowerShop;
 import fr.cantale.plugin.factions.permissions.FactionPermission;
+import fr.cantale.plugin.ui.inventory.FactionBankUI;
+import fr.cantale.plugin.ui.inventory.FactionPowerShopUI;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -39,7 +41,7 @@ public class FactionBankCommand implements CommandExecutor {
         }
 
         if (args.length == 0) {
-            showBankInfo(player, faction);
+            openBankUI(player, faction);
             return true;
         }
 
@@ -80,7 +82,8 @@ public class FactionBankCommand implements CommandExecutor {
                     return true;
                 }
                 if (bankManager.deposit(faction.getId(), player.getUniqueId(), amount)) {
-                    player.sendMessage("§8[§6Cantale§8] §aVous avez déposé §6" + formatMoney(amount) + " §aCantox dans la banque.");
+                    player.sendMessage("§8[§6Cantale§8] §aVous avez déposé §6"
+                            + FactionPowerShop.formatMoney(amount) + " §aCantox dans la banque.");
                 } else {
                     player.sendMessage("§8[§6Cantale§8] §cDépôt échoué. Vérifiez votre solde.");
                 }
@@ -93,7 +96,8 @@ public class FactionBankCommand implements CommandExecutor {
                     return true;
                 }
                 if (bankManager.withdraw(faction.getId(), player.getUniqueId(), amount)) {
-                    player.sendMessage("§8[§6Cantale§8] §aVous avez retiré §6" + formatMoney(amount) + " §aCantox de la banque.");
+                    player.sendMessage("§8[§6Cantale§8] §aVous avez retiré §6"
+                            + FactionPowerShop.formatMoney(amount) + " §aCantox de la banque.");
                 } else {
                     player.sendMessage("§8[§6Cantale§8] §cRetrait échoué. Banque insuffisante.");
                 }
@@ -106,23 +110,24 @@ public class FactionBankCommand implements CommandExecutor {
         return true;
     }
 
-    private void showBankInfo(Player player, Faction faction) {
+    private void openBankUI(Player player, Faction faction) {
         if (!factionManager.hasPermission(player.getUniqueId(), FactionPermission.INFO_BANK)
                 && !faction.isLeader(player.getUniqueId())
                 && !factionManager.hasPermission(player.getUniqueId(), FactionPermission.BANK_ADD)) {
             player.sendMessage("§8[§6Cantale§8] §cVous n'avez pas accès à la banque de faction.");
             return;
         }
-        double next = powerShop.nextPointCost(faction);
-        player.sendMessage("§8[§6Cantale§8] §7=== Banque de §e" + faction.getName() + " §7===");
-        player.sendMessage("§7Solde : §6" + formatMoney(bankManager.getBalance(faction.getId())) + " §7Cantox");
-        player.sendMessage("§7Pouvoir : §b" + faction.getPower()
-                + " §7(claims max §e" + faction.getMaxClaims() + "§7)");
-        player.sendMessage("§7Prochain point de pouvoir : §6" + formatMoney(next) + " §7Cantox");
-        player.sendMessage("§7Usage : §e/f bank add|take <montant> §7| §e/f bank power [nombre]");
+        plugin.getUIManager().getNavigationManager().openUI(player, new FactionBankUI(plugin, player, faction));
     }
 
     private void handlePowerBuy(Player player, Faction faction, String[] args) {
+        // Sans nombre → GUI (tous les membres : info ; achat gated dans l'UI)
+        if (args.length < 2) {
+            plugin.getUIManager().getNavigationManager()
+                    .openUI(player, new FactionPowerShopUI(plugin, player, faction));
+            return;
+        }
+
         boolean canBuy = faction.isLeader(player.getUniqueId())
                 || factionManager.hasPermission(player.getUniqueId(), FactionPermission.BANK_TAKE)
                 || faction.isOfficier(player.getUniqueId());
@@ -131,19 +136,18 @@ public class FactionBankCommand implements CommandExecutor {
             return;
         }
 
-        int points = 1;
-        if (args.length >= 2) {
-            try {
-                points = Integer.parseInt(args[1]);
-            } catch (NumberFormatException e) {
-                player.sendMessage("§8[§6Cantale§8] §cNombre invalide.");
-                return;
-            }
+        int points;
+        try {
+            points = Integer.parseInt(args[1]);
+        } catch (NumberFormatException e) {
+            player.sendMessage("§8[§6Cantale§8] §cNombre invalide.");
+            return;
         }
 
         int max = plugin.getConfigManager().getPowerBuyMaxPerPurchase();
         if (points < 1 || points > max) {
-            player.sendMessage("§8[§6Cantale§8] §cTu peux acheter entre §e1 §cet §e" + max + " §cpoints à la fois.");
+            player.sendMessage("§8[§6Cantale§8] §cTu peux acheter entre §e1 §cet §e" + max
+                    + " §cunités à la fois (§e1 §c→ §b+" + powerShop.powerPerUnit() + " §cpouvoir).");
             return;
         }
 
@@ -152,30 +156,20 @@ public class FactionBankCommand implements CommandExecutor {
 
         switch (outcome.result()) {
             case OK -> {
-                player.sendMessage("§8[§6Cantale§8] §aAchat réussi : §b+" + q.points() + " pouvoir §apour §6"
-                        + formatMoney(q.totalCost()) + " §aCantox.");
+                player.sendMessage("§8[§6Cantale§8] §aAchat réussi : §b+" + q.powerGranted()
+                        + " pouvoir §7(§e" + q.units() + " §7unité"
+                        + (q.units() > 1 ? "s" : "") + "§7) §apour §6"
+                        + FactionPowerShop.formatMoney(q.totalCost()) + " §aCantox.");
                 player.sendMessage("§7Nouveau pouvoir : §b" + faction.getPower()
                         + " §7· claims max : §e" + faction.getMaxClaims()
-                        + " §7· prochain point : §6" + formatMoney(powerShop.nextPointCost(faction)));
+                        + " §7· prochaine unité : §6"
+                        + FactionPowerShop.formatMoney(powerShop.nextPointCost(faction)));
             }
             case INSUFFICIENT_FUNDS -> player.sendMessage("§8[§6Cantale§8] §cBanque insuffisante. Coût : §6"
-                    + formatMoney(q.totalCost()) + " §cCantox (solde : §6"
-                    + formatMoney(faction.getBalance()) + "§c).");
+                    + FactionPowerShop.formatMoney(q.totalCost()) + " §cCantox (solde : §6"
+                    + FactionPowerShop.formatMoney(faction.getBalance()) + "§c).");
             case INVALID_AMOUNT -> player.sendMessage("§8[§6Cantale§8] §cNombre invalide (1–" + max + ").");
             case NO_FACTION -> player.sendMessage("§8[§6Cantale§8] §cFaction introuvable.");
         }
-    }
-
-    private static String formatMoney(double amount) {
-        if (amount >= 1_000_000) {
-            return String.format("%.1fM", amount / 1_000_000.0);
-        }
-        if (amount >= 10_000) {
-            return String.format("%.0fk", amount / 1000.0);
-        }
-        if (Math.floor(amount) == amount) {
-            return String.format("%.0f", amount);
-        }
-        return String.format("%.2f", amount);
     }
 }

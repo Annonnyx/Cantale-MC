@@ -97,7 +97,9 @@ public class DailyLeaderboardTask extends BukkitRunnable {
 
     private void sendFactionsLeaderboard(long channelId) {
         if (channelId == 0L) return;
-        List<Entry> top = queryTop("SELECT name AS username, power AS value FROM factions ORDER BY power DESC LIMIT 10");
+        List<Entry> top = queryTop("SELECT name AS username, power AS value FROM factions"
+                + PublicRankingExclusions.whereExcludeFaction("name", "tag")
+                + " ORDER BY power DESC LIMIT 10");
         EmbedBuilder embed = new EmbedBuilder()
             .setColor(Color.CYAN)
             .setTitle("🏆 Leaderboard — Factions (Power)")

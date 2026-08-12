@@ -3,6 +3,7 @@
  */
 
 import { getDb } from "../db/db";
+import { publicRankingExcludeFactionSql } from "./publicRankingExclusions";
 
 export interface FactionSummary {
   id: number;
@@ -32,6 +33,7 @@ export async function listFactions(): Promise<FactionSummary[]> {
            (SELECT COUNT(*) FROM claims c            WHERE c.faction_id = f.id) AS claimCount
     FROM factions f
     WHERE COALESCE(f.secret_until, 0) < ?
+      AND ${publicRankingExcludeFactionSql("f.name", "f.tag")}
     ORDER BY f.power DESC, memberCount DESC
   `, [Math.floor(Date.now() / 1000)]);
 }

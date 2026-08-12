@@ -176,9 +176,11 @@ items:
   OBSERVER: {category: REDSTONE, buy: 88, sell-enabled: false}
   DROPPER: {category: REDSTONE, buy: 64, sell-enabled: false}
   DISPENSER: {category: REDSTONE, buy: 96, sell-enabled: false}
-  # HOPPER retiré de la vente (lag serveur si achat en masse). Ne pas réintroduire
-  # sans prix extrême + daily-buy-cap serré.
-  # HOPPER: {category: REDSTONE, buy: 140, sell-enabled: false}
+  # HOPPER — réintroduit volontairement cher + cap serré (lag si mass buy).
+  # Repère économie : END_CRYSTAL 100k/cap8, SHULKER_SHELL 350k/cap4, ANCIENT_DEBRIS 120k/cap4.
+  # 150k + cap 4/j ≈ entre cristal et coquille ; sell off (pas de farm shop).
+  # Craft vanilla bloqué (HopperLimitListener) ; pose plafonnée par pouvoir de fac.
+  HOPPER: {category: REDSTONE, buy: 150000, sell-enabled: false, daily-buy-cap: 4}
 
   # ── Guerre & PvP (cœur économique du sink de guerre) ──
   TNT: {category: GUERRE, buy: 1320, sell-enabled: false}

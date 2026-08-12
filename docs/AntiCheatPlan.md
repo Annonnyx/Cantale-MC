@@ -47,8 +47,14 @@ Objectif : détecter reach, killauras, autoclicker, aim assist.
 ### Vérifications prioritaires
 - Reach : signaler les distances d’attaque impossibles.
 - KillAura : détecter les attaques sur plusieurs cibles très rapidement ou des rotations trop parfaites.
-- AutoClicker : chercher une régularité anormale des clics.
+- AutoClicker : CPS combat uniquement (`LEFT_CLICK_AIR` + hits d'entité). **Ne pas** compter le dig
+  sur blocs soft/instant (herbe, fleurs, fougères, neige…) ni le minage solide — faux positifs → ban trust 0.
+  Fenêtre CPS longue (≈2 s), buffer VL, pénalité trust basse.
 - Aim : repérer des rotations trop stables ou trop rapides.
+
+### Monde / casse
+- FastBreak (nuker) : débit de casses **solides** uniquement. Soft/instant exclus via dureté /
+  `getBreakSpeed` ; outils Cantale Multi-Cantool / Pickantaxe / Cantaxe exemptés.
 
 ## 3. Rotation Check
 Objectif : identifier les mouvements de caméra trop parfaits ou trop réguliers.
@@ -108,6 +114,9 @@ AntiCheat/
 │   ├── KillAuraCheck
 │   ├── AutoClickerCheck
 │   └── AimCheck
+├── World/
+│   ├── FastBreakCheck
+│   └── BlockBreakListener
 ├── Packets/
 │   ├── BlinkCheck
 │   ├── BadPacketsCheck

@@ -58,7 +58,7 @@ public class FactionClaimsUI extends BaseUI {
         }
 
         setItem(48, Material.LIME_WOOL, "§a§l+ Claim ici", "§7/f claim", "§7Claim le chunk où vous êtes");
-        setItem(50, Material.MAP, "§eVoir la carte", "§7/f map");
+        setItem(50, Material.MAP, "§eVoir la carte", "§7/f map", "§7Carte inventaire (claim au clic)");
         addNavigationBar(true, true);
     }
 
@@ -68,7 +68,11 @@ public class FactionClaimsUI extends BaseUI {
         if (slot == 49) { close(); return; }
         if (slot == 53) { init(); return; }
         if (slot == 48) { close(); player.performCommand("f claim"); return; }
-        if (slot == 50) { close(); player.performCommand("f map"); return; }
+        if (slot == 50) {
+            plugin.getUIManager().getNavigationManager()
+                    .openUI(player, new FactionMapUI(plugin, player));
+            return;
+        }
 
         int index = slot - 9;
         if (index < 0 || index >= claimList.size()) return;

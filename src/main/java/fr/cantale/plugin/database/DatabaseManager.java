@@ -102,6 +102,10 @@ public class DatabaseManager {
                     kills INTEGER DEFAULT 0,
                     kill_streak INTEGER DEFAULT 0,
                     last_death INTEGER DEFAULT 0,
+                    last_death_world VARCHAR(255),
+                    last_death_x REAL,
+                    last_death_y REAL,
+                    last_death_z REAL,
                     tutorial_progress INTEGER DEFAULT 0,
                     created_at INTEGER DEFAULT 0
                 )
@@ -243,14 +247,16 @@ public class DatabaseManager {
                 )
                 """);
 
-            // Historique banque faction
+            // Historique banque faction (dépôts, retraits, achats pouvoir, admin)
             stmt.execute("""
                 CREATE TABLE IF NOT EXISTS faction_bank_log (
                     id INTEGER PRIMARY KEY AUTO_INCREMENT,
                     faction_id INTEGER NOT NULL,
                     player_uuid VARCHAR(36),
+                    player_name VARCHAR(32),
                     action VARCHAR(50) NOT NULL,
                     amount REAL NOT NULL,
+                    balance_after REAL,
                     reason TEXT,
                     created_at INTEGER DEFAULT 0,
                     FOREIGN KEY (faction_id) REFERENCES factions(id) ON DELETE CASCADE
@@ -640,9 +646,31 @@ public class DatabaseManager {
                 stmt.execute("ALTER TABLE players ADD COLUMN last_ip VARCHAR(45)");
             } catch (java.sql.SQLException ignored) {}
 
+            // Migration : coords dernière mort (/lastdeath)
+            try {
+                stmt.execute("ALTER TABLE players ADD COLUMN last_death_world VARCHAR(255)");
+            } catch (java.sql.SQLException ignored) {}
+            try {
+                stmt.execute("ALTER TABLE players ADD COLUMN last_death_x REAL");
+            } catch (java.sql.SQLException ignored) {}
+            try {
+                stmt.execute("ALTER TABLE players ADD COLUMN last_death_y REAL");
+            } catch (java.sql.SQLException ignored) {}
+            try {
+                stmt.execute("ALTER TABLE players ADD COLUMN last_death_z REAL");
+            } catch (java.sql.SQLException ignored) {}
+
             // Migration : points de pouvoir achetés via banque (courbe de prix)
             try {
                 stmt.execute("ALTER TABLE factions ADD COLUMN power_purchased INTEGER DEFAULT 0");
+            } catch (java.sql.SQLException ignored) {}
+
+            // Migration : historique banque — nom joueur + solde après opération
+            try {
+                stmt.execute("ALTER TABLE faction_bank_log ADD COLUMN player_name VARCHAR(32)");
+            } catch (java.sql.SQLException ignored) {}
+            try {
+                stmt.execute("ALTER TABLE faction_bank_log ADD COLUMN balance_after REAL");
             } catch (java.sql.SQLException ignored) {}
 
             // Backfill joined_at manquant : seuls les leaders ont une date fiable (création faction).

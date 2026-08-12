@@ -18,8 +18,11 @@ import org.bukkit.event.block.BlockExplodeEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityExplodeEvent;
+import org.bukkit.block.BlockState;
+import org.bukkit.event.inventory.InventoryOpenEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
+import org.bukkit.inventory.BlockInventoryHolder;
 import org.bukkit.metadata.FixedMetadataValue;
 
 import java.util.HashMap;
@@ -145,9 +148,10 @@ public class ClaimListener implements Listener {
         Claim claim = getClaimAt(victim.getLocation());
         if (claim == null) return; // wilderness : PvP libre
 
-        // Zones PASDIC (spawn/warp) : pas de PvP
+        // Zones PASDIC (spawn/warp) : impossible d'initier du PvP
         if (claim.isPasdic()) {
             event.setCancelled(true);
+            attacker.sendMessage(formatMessage("&cPvP interdit en zone PASDIC (spawn / warp)."));
             return;
         }
 
@@ -179,9 +183,50 @@ public class ClaimListener implements Listener {
             return;
         }
 
-        if (!canInteract(event.getPlayer(), loc)) {
+        Player player = event.getPlayer();
+        Material type = event.getClickedBlock().getType();
+
+        // Conteneurs lootables : membres de la fac OK ; alliés & ennemis = vol Chèvre uniquement.
+        // Ateliers (table de craft, enclume…) restent sur canInteract (alliés OK).
+        if (isStealableContainer(type)) {
+            if (!canAccessClaimStorage(player, claim)) {
+                event.setCancelled(true);
+                if (!player.isOp() && !player.hasPermission("cantale.admin")) {
+                    player.sendMessage(formatMessage(
+                            "&cFouiller les conteneurs d'un claim étranger est réservé au grade Chèvre."));
+                }
+            }
+            return;
+        }
+
+        // Portes, boutons, etc. : membres + alliés (+ admin) — pas les ennemis.
+        if (!canInteract(player, loc)) {
             event.setCancelled(true);
-            event.getPlayer().sendMessage(formatMessage("&cVous ne pouvez pas interagir avec ce block dans ce claim."));
+            player.sendMessage(formatMessage("&cVous ne pouvez pas interagir avec ce block dans ce claim."));
+        }
+    }
+
+    /**
+     * Filet de sécurité : ouverture d'inventaire bloc (coffre, hopper…) même si
+     * {@link PlayerInteractEvent} a été contourné.
+     */
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onInventoryOpen(InventoryOpenEvent event) {
+        if (!(event.getPlayer() instanceof Player player)) return;
+        if (!(event.getInventory().getHolder() instanceof BlockInventoryHolder holder)) return;
+
+        BlockState state = holder.getBlock().getState();
+        org.bukkit.Location loc = state.getLocation();
+        Claim claim = getClaimAt(loc);
+        if (claim == null) return;
+
+        Material type = state.getType();
+        if (!isStealableContainer(type)) return;
+
+        if (!canAccessClaimStorage(player, claim)) {
+            event.setCancelled(true);
+            player.sendMessage(formatMessage(
+                    "&cFouiller les conteneurs d'un claim étranger est réservé au grade Chèvre."));
         }
     }
 
@@ -288,6 +333,35 @@ public class ClaimListener implements Listener {
     }
 
     /**
+     * Accès aux conteneurs / blocs de stockage d'un claim.
+     * <ul>
+     *   <li>Membres de la fac propriétaire : toujours</li>
+     *   <li>Alliés / ennemis / sans fac : uniquement grade Chèvre ({@code canStealInClaims})</li>
+     *   <li>PASDIC : membres seulement (pas de vol, même Chèvre)</li>
+     *   <li>op / cantale.admin : bypass modération (pas un avantage de grade)</li>
+     * </ul>
+     */
+    private boolean canAccessClaimStorage(Player player, Claim claim) {
+        if (player.isOp() || player.hasPermission("cantale.admin")) return true;
+
+        Faction claimFaction = factionManager.getFaction(claim.getFactionId());
+        Faction playerFaction = factionManager.getPlayerFaction(player.getUniqueId());
+
+        if (playerFaction != null && claimFaction != null
+                && playerFaction.getId() == claimFaction.getId()) {
+            return true;
+        }
+
+        // Zones spawn/warp : pas de fouille étrangère
+        if (claim.isPasdic()) {
+            return false;
+        }
+
+        var rank = plugin.getRankManager().getRank(player);
+        return rank != null && rank.canStealInClaims();
+    }
+
+    /**
      * @param isCulture true si l'action est considérée comme "culture" (cassage de plantes/cultures).
      */
     private boolean canInteractFor(Player player, org.bukkit.Location location, boolean isCulture) {
@@ -318,7 +392,7 @@ public class ClaimListener implements Listener {
             return true;
         }
 
-        // Faction alliancée
+        // Faction alliancée (portes / build — PAS les conteneurs : voir canAccessClaimStorage)
         DiplomacyManager diplomacy = plugin.getDiplomatieManager();
         if (playerFaction != null && diplomacy != null && diplomacy.isAllied(playerFaction.getId(), claimFaction.getId())) {
             return true;
@@ -347,6 +421,25 @@ public class ClaimListener implements Listener {
 
     private boolean isProtectedStorageBlock(Material mat) {
         return protectedStorageBlocks.contains(mat);
+    }
+
+    /**
+     * Conteneurs dont le contenu est volable (coffres, fours, hoppers, shulkers…).
+     * Exclut les ateliers sans inventaire de loot partagé (craft, enclume, loom…).
+     */
+    private boolean isStealableContainer(Material mat) {
+        if (mat == null) return false;
+        String n = mat.name();
+        if (n.contains("SHULKER_BOX")) return true;
+        return switch (mat) {
+            case CHEST, TRAPPED_CHEST, BARREL,
+                 FURNACE, BLAST_FURNACE, SMOKER,
+                 HOPPER, DISPENSER, DROPPER,
+                 BREWING_STAND, ENDER_CHEST,
+                 CHISELED_BOOKSHELF, DECORATED_POT,
+                 CRAFTER, JUKEBOX -> true;
+            default -> false;
+        };
     }
 
     /** Ateliers autorisés en wilderness (pose) malgré storage-blocks ; casse en claim inchangée. */

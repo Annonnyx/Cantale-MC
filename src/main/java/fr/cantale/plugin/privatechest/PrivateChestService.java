@@ -12,8 +12,10 @@ import org.bukkit.persistence.PersistentDataType;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
@@ -26,11 +28,48 @@ public class PrivateChestService {
     private final Map<UUID, Map<ChestType, ItemStack[]>> cache = new ConcurrentHashMap<>();
     /** Génération monotone par coffre — empêche une save async obsolète d'écraser la plus récente. */
     private final Map<String, AtomicLong> saveGenerations = new ConcurrentHashMap<>();
+    /**
+     * Joueurs dont un close/save PC est déjà en cours sur ce thread.
+     * Empêche closeInventory() → InventoryCloseEvent → save → closeInventory() en boucle.
+     */
+    private final ThreadLocal<Set<UUID>> closeSaveGuard = ThreadLocal.withInitial(HashSet::new);
 
     public PrivateChestService(CantalePlugin plugin) {
         this.plugin = plugin;
         this.chestDAO = new PrivateChestDAO(plugin);
         this.navKey = new org.bukkit.NamespacedKey(plugin, "pc_nav");
+    }
+
+    /** @return false si ce joueur est déjà gardé (appel réentrant — ignorer le close). */
+    public boolean enterCloseSaveGuard(UUID playerId) {
+        return playerId != null && closeSaveGuard.get().add(playerId);
+    }
+
+    public void leaveCloseSaveGuard(UUID playerId) {
+        if (playerId != null) {
+            closeSaveGuard.get().remove(playerId);
+        }
+    }
+
+    public boolean isCloseSaveGuarded(UUID playerId) {
+        return playerId != null && closeSaveGuard.get().contains(playerId);
+    }
+
+    /**
+     * Ferme l'inventaire d'un autre viewer sans re-déclencher une save via onInventoryClose.
+     * No-op si le viewer est déjà dans le garde (ex. le joueur qui ferme actuellement).
+     */
+    private void closeViewerWithoutResave(Player viewer) {
+        if (viewer == null || !viewer.isOnline()) return;
+        UUID id = viewer.getUniqueId();
+        if (!enterCloseSaveGuard(id)) {
+            return;
+        }
+        try {
+            viewer.closeInventory();
+        } finally {
+            leaveCloseSaveGuard(id);
+        }
     }
 
     public int getPrivateChestCount(PlayerRank rank) {
@@ -95,10 +134,10 @@ public class PrivateChestService {
         });
 
         Player online = Bukkit.getPlayer(uuid);
-        if (online != null && online.isOnline()) {
+        if (online != null && online.isOnline() && !isCloseSaveGuarded(uuid)) {
             Inventory top = online.getOpenInventory().getTopInventory();
             if (top.getHolder() instanceof PrivateChestHolder holder && holder.getType() == type) {
-                online.closeInventory();
+                closeViewerWithoutResave(online);
             }
         }
     }
@@ -172,45 +211,80 @@ public class PrivateChestService {
             return;
         }
 
-        int size = getPrivateChestSize(rank);
-        boolean hasNavigation = getPrivateChestCount(rank) > 1;
-        PrivateChestHolder holder = new PrivateChestHolder(type);
-        Inventory inventory = Bukkit.createInventory(holder, size, type.getTitle());
-        holder.setInventory(inventory);
-        UUID uuid = player.getUniqueId();
+        openOwnedChest(player, player.getUniqueId(), type, rank, false, null);
+    }
 
-        ItemStack[] cached = getCached(uuid, type);
+    /**
+     * Ouvre le coffre privé d'un autre joueur pour inspection/édition staff
+     * (en ligne ou hors ligne — contenu DB + cache).
+     */
+    public void openForeignChest(Player viewer, UUID ownerUuid, String ownerName, ChestType type) {
+        if (type == ChestType.EC) {
+            viewer.sendMessage("§8[§6Cantale§8] §cUtilise §e/adminec §cpour l'ender chest.");
+            return;
+        }
+        if (ownerUuid == null) {
+            viewer.sendMessage("§8[§6Cantale§8] §cJoueur introuvable.");
+            return;
+        }
+
+        PlayerRank ownerRank = plugin.getRankManager().getRank(ownerUuid);
+        if (!canAccess(ownerRank, type)) {
+            viewer.sendMessage("§8[§6Cantale§8] §c" + (ownerName != null ? ownerName : "Ce joueur")
+                    + " n'a pas accès à " + type.getTitle() + "§c.");
+            return;
+        }
+
+        openOwnedChest(viewer, ownerUuid, type, ownerRank, true, ownerName);
+    }
+
+    private void openOwnedChest(Player viewer, UUID ownerUuid, ChestType type, PlayerRank sizeRank,
+                                boolean foreignInspect, String ownerName) {
+        int size = getPrivateChestSize(sizeRank);
+        boolean hasNavigation = getPrivateChestCount(sizeRank) > 1;
+        PrivateChestHolder holder = new PrivateChestHolder(type, foreignInspect ? ownerUuid : null, foreignInspect);
+        String title = foreignInspect
+                ? "§c[Staff] " + type.getTitle() + " §8— §e" + (ownerName != null ? ownerName : "joueur")
+                : type.getTitle();
+        Inventory inventory = Bukkit.createInventory(holder, size, title);
+        holder.setInventory(inventory);
+
+        ItemStack[] cached = getCached(ownerUuid, type);
         if (cached != null) {
-            applyContents(player, inventory, cached, size, hasNavigation, rank, type);
-            player.openInventory(inventory);
+            applyContents(viewer, inventory, cached, size, hasNavigation, sizeRank, type, foreignInspect);
+            viewer.openInventory(inventory);
             return;
         }
 
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
-            ChestSnapshot snapshot = chestDAO.loadChest(uuid, type, size);
+            ChestSnapshot snapshot = chestDAO.loadChest(ownerUuid, type, size);
             ItemStack[] contents = snapshot.contents() != null ? snapshot.contents() : new ItemStack[size];
             Bukkit.getScheduler().runTask(plugin, () -> {
-                if (!player.isOnline()) return;
-                applyContents(player, inventory, contents, size, hasNavigation, rank, type);
-                updateCache(uuid, type, extractStorage(inventory));
-                player.openInventory(inventory);
+                if (!viewer.isOnline()) return;
+                applyContents(viewer, inventory, contents, size, hasNavigation, sizeRank, type, foreignInspect);
+                updateCache(ownerUuid, type, extractStorage(inventory));
+                viewer.openInventory(inventory);
             });
         });
     }
 
     private void applyContents(Player player, Inventory inventory, ItemStack[] raw,
-                               int size, boolean hasNavigation, PlayerRank rank, ChestType type) {
+                               int size, boolean hasNavigation, PlayerRank rank, ChestType type,
+                               boolean foreignInspect) {
         ItemStack[] resized = resizeContents(raw, size);
         inventory.setContents(resized);
 
-        List<ItemStack> overflow = collectOverflow(raw, size);
-        for (ItemStack extra : overflow) {
-            HashMap<Integer, ItemStack> left = player.getInventory().addItem(extra);
-            if (!left.isEmpty()) {
-                left.values().forEach(i -> player.getWorld().dropItemNaturally(player.getLocation(), i));
-                player.sendMessage("§8[§6Cantale§8] §eDes items en trop ont été déposés (inventaire plein).");
-            } else {
-                player.sendMessage("§8[§6Cantale§8] §eDes items ont été déplacés dans ton inventaire (changement de taille de coffre).");
+        // Overflow de resize : uniquement pour le propriétaire (évite de dump dans l'inv staff)
+        if (!foreignInspect) {
+            List<ItemStack> overflow = collectOverflow(raw, size);
+            for (ItemStack extra : overflow) {
+                HashMap<Integer, ItemStack> left = player.getInventory().addItem(extra);
+                if (!left.isEmpty()) {
+                    left.values().forEach(i -> player.getWorld().dropItemNaturally(player.getLocation(), i));
+                    player.sendMessage("§8[§6Cantale§8] §eDes items en trop ont été déposés (inventaire plein).");
+                } else {
+                    player.sendMessage("§8[§6Cantale§8] §eDes items ont été déplacés dans ton inventaire (changement de taille de coffre).");
+                }
             }
         }
 
@@ -220,16 +294,24 @@ public class PrivateChestService {
     }
 
     public void saveChest(Player player, Inventory inventory, ChestType type, boolean isStaff) {
+        UUID owner = player.getUniqueId();
+        if (inventory.getHolder() instanceof PrivateChestHolder holder && holder.isForeignInspect()
+                && holder.getOwnerUuid() != null) {
+            owner = holder.getOwnerUuid();
+        }
+        saveChestForOwner(owner, inventory, type);
+    }
+
+    private void saveChestForOwner(UUID ownerUuid, Inventory inventory, ChestType type) {
         if (type == ChestType.EC) {
             // Vanilla — Paper persiste tout seul
             return;
         }
 
         ItemStack[] storageContents = extractStorage(inventory);
-        UUID uuid = player.getUniqueId();
-        updateCache(uuid, type, storageContents.clone());
+        updateCache(ownerUuid, type, storageContents.clone());
 
-        String key = saveKey(uuid, type);
+        String key = saveKey(ownerUuid, type);
         long gen = saveGenerations.computeIfAbsent(key, k -> new AtomicLong()).incrementAndGet();
         ItemStack[] snapshot = cloneContents(storageContents);
 
@@ -238,8 +320,21 @@ public class PrivateChestService {
             if (current == null || current.get() != gen) {
                 return; // une save plus récente existe
             }
-            chestDAO.saveChest(uuid, type, snapshot);
+            chestDAO.saveChest(ownerUuid, type, snapshot);
         });
+
+        // Si le propriétaire a ce coffre ouvert (autre viewer), fermer pour éviter un écrasement croisé.
+        // Ne jamais closeInventory() le joueur déjà en train de fermer — pendant InventoryCloseEvent
+        // getOpenInventory() pointe encore sur le coffre et re-déclencherait une boucle infinie.
+        Player online = Bukkit.getPlayer(ownerUuid);
+        if (online != null && online.isOnline() && !isCloseSaveGuarded(ownerUuid)) {
+            Inventory top = online.getOpenInventory().getTopInventory();
+            if (top.getHolder() instanceof PrivateChestHolder holder
+                    && holder.getType() == type
+                    && !holder.isForeignInspect()) {
+                closeViewerWithoutResave(online);
+            }
+        }
     }
 
     /**

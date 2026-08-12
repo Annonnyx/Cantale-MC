@@ -3,7 +3,7 @@
  */
 
 import { getDb } from "../db/db";
-import { publicRankingExcludeSql } from "./publicRankingExclusions";
+import { publicRankingExcludeFactionSql, publicRankingExcludeSql } from "./publicRankingExclusions";
 
 export type LeaderboardType = "kills" | "deaths" | "balance" | "kill_streak" | "votes" | "factions";
 
@@ -73,6 +73,7 @@ export async function getLeaderboard(type: LeaderboardType, limit = 10): Promise
                 CAST((SELECT COUNT(*) FROM faction_members fm WHERE fm.faction_id = f.id) AS TEXT) AS extra
          FROM factions f
          WHERE COALESCE(f.secret_until, 0) < ?
+           AND ${publicRankingExcludeFactionSql("f.name", "f.tag")}
          ORDER BY f.power DESC LIMIT ?`,
         [Math.floor(Date.now() / 1000), lim]
       );

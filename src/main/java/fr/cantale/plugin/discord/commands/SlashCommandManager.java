@@ -839,7 +839,9 @@ public class SlashCommandManager extends ListenerAdapter {
                 default -> Color.GREEN;
             };
 
-            String sql = "SELECT name, tag, " + column + " FROM factions ORDER BY " + column + " DESC LIMIT 10";
+            String sql = "SELECT name, tag, " + column + " FROM factions"
+                    + PublicRankingExclusions.whereExcludeFaction("name", "tag")
+                    + " ORDER BY " + column + " DESC LIMIT 10";
             java.util.List<String> lines = new java.util.ArrayList<>();
             String[] medals = {"🥇", "🥈", "🥉", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"};
 

@@ -232,7 +232,7 @@ public class NavigationManager {
 §7(permission requise)` | Ouvre AdminUI |
 | 32 | NETHER_STAR | `§eRanks` | `§7Grades VIP / Chèvre` | Ouvre RankUI |
 | 33 | REPEATER | `§ePermissions` | `§7Gérer les permissions` | Ouvre PermissionUI |
-| 34 | COMPASS | `§eWeb / Link` | `§7Lier compte Discord/Site` | Ouvre WebLinkUI |
+| 34 | COMPASS | `§eWeb / Link` | `§7Discord /link · Site /connexion` | Ouvre WebLinkUI |
 | 49 | BARRIER | `§cFermer` | `§7Fermer le menu` | Ferme l'inventaire |
 
 ---
@@ -264,7 +264,7 @@ public class NavigationManager {
 | 14 | BOOK | `§ePermissions` | `§7Gérer les permissions
 §7de grade` | Ouvre FactionPermsUI |
 | 15 | ENDER_PEARL | `§eWarp / Spawn` | `§7TP au spawn faction` | Téléporte au spawn faction |
-| 16 | MAP | `§eCarte` | `§7Carte des claims autour` | Ouvre FactionMapUI |
+| 16 | MAP | `§eCarte` | `§7Carte des claims autour` | Ouvre FactionMapUI (`/f map`) — grille inventaire 9×5 |
 | 20 | LIME_WOOL | `§aInviter un joueur` | `§7Envoyer une invitation` | Ouvre FactionInviteUI |
 | 21 | ANVIL | `§ePromouvoir / Rétrograder` | `§7Gérer les grades` | Ouvre FactionPromoteUI |
 | 22 | RED_WOOL | `§cQuitter la faction` | `§7Attention ! Action définitive` | Ouvre FactionLeaveConfirmUI |
@@ -273,6 +273,24 @@ public class NavigationManager {
 | 30 | SIGN | `§eDéfinir le warp` | `§7Position actuelle` | /f setwarp |
 | 45 | ARROW | `§7Retour` | | Retour au Menu Principal |
 | 49 | BARRIER | `§cFermer` | | Ferme |
+
+### 4.1b Faction Map UI (`FactionMapUI`)
+**Titre :** `§8[§6Cantale§8] §7Carte des claims`
+**Taille :** 6 lignes · commande `/f map` (alias chat : `/f map chat`)
+
+Grille **9×5** chunks (lignes 0–4, N en haut), centrée sur le chunk du joueur. Ligne 5 = légende / infos / fermer / actualiser.
+
+| Couleur (vitre) | Signification | Action |
+|-----------------|---------------|--------|
+| Lime | Position du joueur (centre) | Selon le type de case (lore) |
+| Vert | Claim de ta faction | Clic droit = unclaim |
+| Gris | Wilderness claimable | Clic gauche = claim |
+| Rouge | Non claimable / ennemi | — |
+| Bleu clair | Allié | — |
+| Orange | Autre faction | — |
+| Violet | PASDIC | — |
+
+Mêmes contrôles que `/f claim` / `/f unclaim` : permission, quota, zone protégée, distance min 2, contiguïté N/S/E/O. Actualiser recentre sur la position actuelle.
 
 ### 4.2 Faction Members UI
 **Titre :** `§7Membres de {faction_name}`
@@ -810,10 +828,12 @@ public class NavigationManager {
 | 11 | BOOK | `§eDiscord` | `§7/link
 §7Générer un code
 §7Statut: §e{discord_status}` | /link |
-| 13 | COMPASS | `§eSite Web` | `§7/web link
-§7Statut: §e{web_status}` | /web |
+| 13 | COMPASS | `§eSite Web` | `§7cantale.world/connexion
+§7OAuth Discord (plus de /web link)` | Message /web → URL site |
 | 18 | ARROW | `§7Retour` | | |
 | 22 | BARRIER | `§cFermer` | | |
+
+> **Note (août 2026) :** `/web link` est obsolète. `/web` affiche uniquement le lien https://www.cantale.world/connexion. La liaison Discord reste `/link`.
 
 ---
 
@@ -938,7 +958,8 @@ Pour chaque UI implémentée, vérifier :
 | 2 | `FactionMainUI` | `/f` | Faction | 6 | CRITIQUE |
 | 3 | `FactionMembersUI` | `/f members` | Membres | 6 | CRITIQUE |
 | 4 | `FactionClaimsUI` | `/f claim` | Claims | 5 | CRITIQUE |
-| 5 | `FactionBankUI` | `/f bank` | Banque | 4 | HAUTE |
+| 5 | `FactionBankUI` | `/f bank` | Banque | 5 | HAUTE |
+| 5b | `FactionBankHistoryUI` | `/f bank` → Historique | Historique banque | 6 | MOYENNE |
 | 6 | `FactionPermsUI` | `/f perms` | Permissions | 5 | HAUTE |
 | 7 | `FactionCreateUI` | `/f create` | Créer | 3 | HAUTE |
 | 8 | `FactionInviteUI` | `/f invite` | Inviter | 3 | MOYENNE |
@@ -968,7 +989,7 @@ Pour chaque UI implémentée, vérifier :
 | 32 | `RankUI` | `/rank` | Grades | 4 | HAUTE |
 | 33 | `RankAdminUI` | `/rank` (admin) | Ranks Admin | 4 | MOYENNE |
 | 34 | `PermissionUI` | `/perm` | Permissions | 5 | MOYENNE |
-| 35 | `WebLinkUI` | `/web` | Liaisons | 3 | BASSE |
+| 35 | `WebLinkUI` | `/web` (redir. site) / `/link` | Liaisons | 3 | BASSE |
 | 36 | `PlayerSelectorUI` | (réutilisable) | Sélection | 5 | CRITIQUE |
 | 37 | `ConfirmDialogUI` | (réutilisable) | Confirmer | 3 | CRITIQUE |
 

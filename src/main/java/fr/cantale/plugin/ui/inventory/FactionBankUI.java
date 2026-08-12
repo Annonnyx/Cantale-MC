@@ -56,7 +56,14 @@ public class FactionBankUI extends BaseUI {
             setItem(22, Material.BARRIER, "§cAucune action disponible", "§7Votre grade ne permet pas", "§7d'accéder à la banque.");
         }
 
-        setItem(31, Material.BOOK, "§eHistorique", "§7Voir les transactions", "§7(à venir)");
+        setItem(29, Material.NETHER_STAR, "§b§lPouvoir",
+                "§7Pouvoir : §b" + faction.getPower(),
+                "§7Quotas, paliers et achat",
+                "§7Aussi : §e/f power");
+
+        setItem(31, Material.BOOK, "§eHistorique",
+                "§7Voir les transactions",
+                "§7Dépôts, retraits, achats pouvoir");
 
         addNavigationBar(true, true);
     }
@@ -74,6 +81,10 @@ public class FactionBankUI extends BaseUI {
             case 22 -> { close(); player.performCommand("f bank withdraw 10000"); }
             case 23 -> { close(); player.performCommand("f bank withdraw 100000"); }
             case 24 -> { close(); player.performCommand("f bank withdraw " + (int) faction.getBalance()); }
+            case 29 -> plugin.getUIManager().getNavigationManager()
+                    .openUI(player, new FactionPowerShopUI(plugin, player, faction));
+            case 31 -> plugin.getUIManager().getNavigationManager()
+                    .openUI(player, new FactionBankHistoryUI(plugin, player, faction));
         }
     }
 }

@@ -76,7 +76,7 @@ que dans ses tables propres (préfixées `web_*`).
      │                     │ ────────────────▶│                      │
      │      pending        │                  │                      │
      │ ◀───────────────────│                  │                      │
-     │                     │           Joueur tape /web link 123456  │
+     │                     │           (obsolète) /web link 123456   │
      │                     │                  │   UPDATE consumed    │
      │                     │                  │◀─────────────────────│
      │  GET /check-link/123456 (poll suivant) │                      │
@@ -223,13 +223,11 @@ curl https://cantale.fr/api/health
 
 ## Côté plugin Minecraft
 
-Le plugin écrit dans la **même DB** (SQLite ou MySQL) et expose la commande `/web link <code>` (voir `@/Users/Noe/Cantale/src/main/java/fr/cantale/plugin/commands/WebCommand.java`).
+La commande `/web link` est **obsolète**. Le site Next.js se connecte via Discord OAuth
+sur https://www.cantale.world/connexion. En jeu, `/web` (alias `/website`, `/site`) affiche
+uniquement ce lien. La liaison Discord ↔ Minecraft reste `/link`.
 
-Pour que ça fonctionne :
-- Si `DB_TYPE=sqlite` : le backend et le plugin doivent tourner sur **la même machine** (chemin fichier partagé).
-- Si `DB_TYPE=mysql` : le plugin et le backend pointent sur **la même base MySQL** (recommandé en production).
-
-**Le plugin n'a pas besoin d'API externe** — il consomme directement les codes de liaison via SQL.
+Ancien flux (backend legacy `/api/auth/request-link`) : plus consommé par le plugin.
 
 ---
 

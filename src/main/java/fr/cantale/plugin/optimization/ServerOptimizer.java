@@ -26,6 +26,8 @@ public class ServerOptimizer {
     private int tpsWarningThreshold;
     private boolean villagersDisabled;
     private long lastSaveTime;
+    /** Ne jamais supprimer / cull un item plus jeune que ce délai (loot de mort). */
+    private int protectRecentItemSeconds;
 
     public ServerOptimizer(CantalePlugin plugin) {
         this.plugin = plugin;
@@ -45,6 +47,14 @@ public class ServerOptimizer {
         this.optimizeChunks = plugin.getConfig().getBoolean("optimization.optimize-chunks", true);
         this.tpsWarningThreshold = plugin.getConfig().getInt("optimization.tps-warning-threshold", 15);
         this.villagersDisabled = plugin.getConfig().getBoolean("optimization.villagers-disabled", false);
+        // Défaut 5 min : une mort + retour spawn/home ne doit jamais perdre le loot au nettoyage
+        this.protectRecentItemSeconds = Math.max(60,
+                plugin.getConfig().getInt("optimization.protect-recent-item-seconds", 300));
+    }
+
+    /** True si l'item est trop récent pour être clear/cull (loot de mort, drops récents). */
+    private boolean isProtectedRecentItem(Item item) {
+        return item.getTicksLived() < protectRecentItemSeconds * 20;
     }
 
     public boolean isVillagersDisabled() {
@@ -117,10 +127,16 @@ public class ServerOptimizer {
         // Stockage en mouvement (minecart à coffre / hopper) — préserver par sécurité
         if (e instanceof StorageMinecart || e instanceof HopperMinecart) return true;
 
-        // Entités nommées : conservées par défaut sauf si includeNamed
-        if (!includeNamed && e.customName() != null) return true;
+        // Entités nommées : conservées par défaut sauf si includeNamed.
+        // Les stacks Cantale (PDC mob_stack + libellé ×N) ne comptent pas comme « nom joueur ».
+        if (!includeNamed && e.customName() != null && !isCantaleMobStack(e)) return true;
 
         return false;
+    }
+
+    private boolean isCantaleMobStack(Entity e) {
+        MobStackManager stacks = plugin.getMobStackManager();
+        return stacks != null && stacks.isStacked(e);
     }
 
     public void startTasks() {
@@ -154,18 +170,9 @@ public class ServerOptimizer {
         int removedExcess = 0;
 
         for (World world : Bukkit.getWorlds()) {
-            // Nettoyer les items au sol
-            if (clearGroundItems) {
-                for (Entity entity : world.getEntities()) {
-                    if (entity instanceof Item item) {
-                        // Supprimer les items au sol vieux de plus de 2 minutes
-                        if (item.getTicksLived() > 20 * 120) {
-                            item.remove();
-                            removedItems++;
-                        }
-                    }
-                }
-            }
+            // Âge des items au sol : géré uniquement par ClearLagTask (annonces joueurs).
+            // Un clear silencieux ici (toutes les ~60s, même seuil 5 min) vidait les
+            // items éligibles avant le countdown → ClearLag annonçait toujours « 0 ».
 
             // Nettoyer les flèches
             if (clearArrows) {
@@ -189,29 +196,10 @@ public class ServerOptimizer {
                 }
             }
 
-            // Limiter les entités par chunk
-            Map<Long, List<Entity>> chunkEntities = new HashMap<>();
-            for (Entity entity : world.getEntities()) {
-                if (entity instanceof Player || entity instanceof Villager) continue;
-                if (entity instanceof Animals && !((Animals) entity).isAdult()) continue; // Protéger les bébés
+            // Plafond max-entities-per-chunk (Animals exclus — empilés via MobStack)
+            removedExcess += cullExcessEntitiesInWorld(world);
 
-                long chunkKey = getChunkKey(entity.getLocation().getChunk().getX(), entity.getLocation().getChunk().getZ());
-                chunkEntities.computeIfAbsent(chunkKey, k -> new ArrayList<>()).add(entity);
-            }
-
-            for (Map.Entry<Long, List<Entity>> entry : chunkEntities.entrySet()) {
-                List<Entity> entities = entry.getValue();
-                if (entities.size() > maxEntitiesPerChunk) {
-                    // Trier par âge (les plus vieux en premier)
-                    entities.sort((a, b) -> Long.compare(b.getTicksLived(), a.getTicksLived()));
-                    for (int i = maxEntitiesPerChunk; i < entities.size(); i++) {
-                        entities.get(i).remove();
-                        removedExcess++;
-                    }
-                }
-            }
-
-            // Limiter les items par chunk
+            // Limiter les items par chunk — ne cull jamais les items récents (loot de mort)
             if (clearGroundItems) {
                 Map<Long, List<Item>> chunkItems = new HashMap<>();
                 for (Entity entity : world.getEntities()) {
@@ -223,12 +211,21 @@ public class ServerOptimizer {
 
                 for (Map.Entry<Long, List<Item>> entry : chunkItems.entrySet()) {
                     List<Item> items = entry.getValue();
-                    if (items.size() > maxItemsPerChunk) {
-                        items.sort((a, b) -> Long.compare(b.getTicksLived(), a.getTicksLived()));
-                        for (int i = maxItemsPerChunk; i < items.size(); i++) {
-                            items.get(i).remove();
-                            removedItems++;
+                    if (items.size() <= maxItemsPerChunk) continue;
+
+                    // Cull uniquement les items hors grâce, plus vieux d'abord
+                    List<Item> cullable = new ArrayList<>();
+                    for (Item item : items) {
+                        if (!isProtectedRecentItem(item)) {
+                            cullable.add(item);
                         }
+                    }
+                    cullable.sort((a, b) -> Long.compare(b.getTicksLived(), a.getTicksLived()));
+
+                    int over = items.size() - maxItemsPerChunk;
+                    for (int i = 0; i < over && i < cullable.size(); i++) {
+                        cullable.get(i).remove();
+                        removedItems++;
                     }
                 }
             }
@@ -242,6 +239,69 @@ public class ServerOptimizer {
         stats.put("last_cleanup_items", removedItems);
         stats.put("last_cleanup_arrows", removedArrows);
         stats.put("last_cleanup_excess", removedExcess);
+    }
+
+    /**
+     * Applique le plafond {@code max-entities-per-chunk} sur tous les mondes.
+     * Animals exclus (stacking passif). Protège joueurs, villageois, items,
+     * entités nommées (hors stacks Cantale), pets apprivoisés ({@link Tameable#isTamed()}),
+     * NPCs Cantale. Surplus retiré plus vieux d'abord. Appelé par l'optimizer (~60s)
+     * et le ClearLag.
+     *
+     * @return nombre d'entités retirées
+     */
+    public int cullExcessEntitiesPerChunk() {
+        if (!enabled) return 0;
+        int removed = 0;
+        for (World world : Bukkit.getWorlds()) {
+            removed += cullExcessEntitiesInWorld(world);
+        }
+        if (removed > 0) {
+            plugin.getLogger().info("[Optimizer] Plafond chunk: " + removed + " entités en surplus retirées");
+            stats.put("last_cleanup_excess", removed);
+        }
+        return removed;
+    }
+
+    /**
+     * Cull entités d'un monde au-delà de {@link #maxEntitiesPerChunk} par chunk.
+     * Animals exclus (mob stacking) ; items / joueurs / villageois / nommés / tamed / NPCs exclus.
+     */
+    private int cullExcessEntitiesInWorld(World world) {
+        Map<Long, List<Entity>> chunkEntities = new HashMap<>();
+        for (Entity entity : world.getEntities()) {
+            if (shouldSkipEntityCap(entity)) continue;
+
+            long chunkKey = getChunkKey(entity.getLocation().getChunk().getX(), entity.getLocation().getChunk().getZ());
+            chunkEntities.computeIfAbsent(chunkKey, k -> new ArrayList<>()).add(entity);
+        }
+
+        int removed = 0;
+        for (List<Entity> entities : chunkEntities.values()) {
+            if (entities.size() <= maxEntitiesPerChunk) continue;
+            // Plus vieux d'abord → on retire le surplus le plus ancien
+            entities.sort((a, b) -> Integer.compare(b.getTicksLived(), a.getTicksLived()));
+            int toRemove = entities.size() - maxEntitiesPerChunk;
+            for (int i = 0; i < toRemove; i++) {
+                entities.get(i).remove();
+                removed++;
+            }
+        }
+        return removed;
+    }
+
+    /** Entités qui ne comptent pas / ne sont jamais cullées par le plafond par chunk. */
+    private boolean shouldSkipEntityCap(Entity entity) {
+        if (entity instanceof Player || entity instanceof Villager) return true;
+        if (entity instanceof Item) return true; // items : ClearLag + max-items-per-chunk
+        // Passifs : empilés via MobStackManager (plus de cull moutons/vaches/…)
+        if (entity instanceof Animals) return true;
+        if (entity instanceof Tameable t && t.isTamed()) return true;
+        // Mobs nommés joueur — les stacks Cantale ont un customName mais restent cullables
+        // s'ils n'étaient pas Animals (ne devrait pas arriver pour les types stackables).
+        if (entity.customName() != null && !isCantaleMobStack(entity)) return true;
+        if (entity.hasMetadata("cantale_npc") || entity.hasMetadata("cantale_keep")) return true;
+        return false;
     }
 
     public void autoSave() {
@@ -289,10 +349,12 @@ public class ServerOptimizer {
 
     private void emergencyCleanup() {
         int removed = 0;
+        // Même en urgence TPS : ne pas toucher au loot de mort récent
+        int itemMinAgeTicks = protectRecentItemSeconds * 20;
         for (World world : Bukkit.getWorlds()) {
             for (Entity entity : world.getEntities()) {
                 if (entity instanceof Item item) {
-                    if (item.getTicksLived() > 20 * 30) { // 30 secondes en urgence
+                    if (item.getTicksLived() > itemMinAgeTicks) {
                         item.remove();
                         removed++;
                     }

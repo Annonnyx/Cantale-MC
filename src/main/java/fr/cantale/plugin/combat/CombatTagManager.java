@@ -1,10 +1,14 @@
 package fr.cantale.plugin.combat;
 
 import fr.cantale.plugin.CantalePlugin;
+import fr.cantale.plugin.factions.Claim;
+import fr.cantale.plugin.factions.Faction;
+import fr.cantale.plugin.factions.FactionManager;
 import net.md_5.bungee.api.ChatMessageType;
 import net.md_5.bungee.api.chat.TextComponent;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
+import org.bukkit.Location;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.scheduler.BukkitTask;
@@ -62,6 +66,43 @@ public class CombatTagManager {
 
     public boolean isInCombat(UUID uuid) {
         return getRemainingSeconds(uuid) > 0;
+    }
+
+    /**
+     * Zone no-PvP pour ce joueur, alignée sur {@code ClaimListener#onEntityDamage} :
+     * claim PASDIC (spawn/warp), ou claim de SA propre faction (safe chez soi).
+     * <p>
+     * Règle combat : un joueur tagué ne peut pas <em>entrer</em> dans une telle zone
+     * (mouvement / pearl / portail). S'il y est déjà (pearl admin, claim devenu PASDIC, etc.) :
+     * le tag continue, les coups restent annulés par ClaimListener, la sortie est libre,
+     * la ré-entrée est bloquée tant que le tag est actif.
+     */
+    public boolean isNoPvpZone(Player player, Location location) {
+        if (player == null || location == null || location.getWorld() == null) {
+            return false;
+        }
+
+        FactionManager factionManager = plugin.getFactionManager();
+        if (factionManager == null) {
+            return false;
+        }
+
+        Claim claim = factionManager.getClaimAt(
+                location.getWorld().getName(),
+                location.getBlockX() >> 4,
+                location.getBlockZ() >> 4
+        );
+        if (claim == null) {
+            return false; // wilderness : PvP libre
+        }
+        if (claim.isPasdic()) {
+            return true;
+        }
+
+        Faction claimFaction = factionManager.getFaction(claim.getFactionId());
+        Faction playerFaction = factionManager.getPlayerFaction(player.getUniqueId());
+        return claimFaction != null && playerFaction != null
+                && claimFaction.getId() == playerFaction.getId();
     }
 
     /**

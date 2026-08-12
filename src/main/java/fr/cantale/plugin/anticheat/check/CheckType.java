@@ -27,6 +27,9 @@ public enum CheckType {
     CHEST_STEALER("ChestStealer", Category.INVENTORY),
     FAST_USE("FastUse", Category.INVENTORY),
 
+    // ── Monde / casse de blocs ──
+    FAST_BREAK("FastBreak", Category.WORLD),
+
     // ── Packets ──
     BLINK("Blink", Category.PACKET),
     BAD_PACKETS("BadPackets", Category.PACKET);
@@ -55,6 +58,7 @@ public enum CheckType {
         COMBAT("Combat"),
         ROTATION("Rotation"),
         INVENTORY("Inventaire"),
+        WORLD("Monde"),
         PACKET("Packets");
 
         private final String displayName;

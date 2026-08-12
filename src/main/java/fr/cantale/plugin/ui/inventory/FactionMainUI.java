@@ -32,11 +32,16 @@ public class FactionMainUI extends BaseUI {
             setItem(11, Material.PLAYER_HEAD, "§eMembres", "§7Voir / gérer les membres", "§7Promote, demote, kick");
             setItem(12, Material.GRASS_BLOCK, "§eClaims", "§7Liste des chunks claimés", "§7TP et unclaim");
             setItem(13, Material.GOLD_INGOT, "§eBanque", "§7Déposer / Retirer", "§7Solde : §6" + (int) faction.getBalance() + " §7Cantox");
-            setItem(14, Material.BOOK, "§ePermissions", "§7Voir les permissions par grade");
-            setItem(15, Material.ENDER_PEARL, "§eSpawn", "§7TP au spawn faction");
-            setItem(16, Material.MAP, "§eCarte", "§7Carte des claims");
-            setItem(17, Material.COMPASS, "§eWarps", "§7Téléportations publiques", "§7de la faction");
-            setItem(18, Material.RED_BED, "§eHomes", "§7Vos homes de faction");
+            setItem(14, Material.NETHER_STAR, "§bPouvoir",
+                    "§7Pouvoir : §b" + faction.getPower(),
+                    "§7Claims / homes / warps",
+                    "§7Paliers + achat GUI",
+                    "§8Aussi : §7/f power");
+            setItem(15, Material.BOOK, "§ePermissions", "§7Voir les permissions par grade");
+            setItem(16, Material.ENDER_PEARL, "§eSpawn", "§7TP au spawn faction");
+            setItem(17, Material.MAP, "§eCarte", "§7Carte des claims");
+            setItem(18, Material.COMPASS, "§eWarps", "§7Téléportations publiques", "§7de la faction");
+            setItem(19, Material.RED_BED, "§eHomes", "§7Vos homes de faction");
 
             setItem(20, Material.LIME_WOOL, "§aInviter", "§7Envoyer une invitation");
             setItem(21, Material.ANVIL, "§ePromouvoir / Rétrograder", "§7Gérer les grades");
@@ -73,11 +78,12 @@ public class FactionMainUI extends BaseUI {
                 case 11 -> nav.openUI(player, new FactionMembersUI(plugin, player, faction));
                 case 12 -> nav.openUI(player, new FactionClaimsUI(plugin, player, faction));
                 case 13 -> nav.openUI(player, new FactionBankUI(plugin, player, faction));
-                case 14 -> { close(); player.performCommand("f perms"); }
-                case 15 -> { close(); player.performCommand("f spawn"); }
-                case 16 -> { close(); player.performCommand("f map"); }
-                case 17 -> nav.openUI(player, new FactionWarpsUI(plugin, player, faction));
-                case 18 -> nav.openUI(player, new FactionHomesUI(plugin, player, faction));
+                case 14 -> nav.openUI(player, new FactionPowerShopUI(plugin, player, faction));
+                case 15 -> { close(); player.performCommand("f perms"); }
+                case 16 -> { close(); player.performCommand("f spawn"); }
+                case 17 -> nav.openUI(player, new FactionMapUI(plugin, player));
+                case 18 -> nav.openUI(player, new FactionWarpsUI(plugin, player, faction));
+                case 19 -> nav.openUI(player, new FactionHomesUI(plugin, player, faction));
                 case 20 -> nav.openUI(player, new PlayerSelectorUI(plugin, player, "§7Inviter un joueur", target -> {
                     player.performCommand("f invite " + target.getName());
                 }, title));

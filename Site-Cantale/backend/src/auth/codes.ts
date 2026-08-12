@@ -1,14 +1,17 @@
 /**
- * Gestion des codes de liaison in-game.
+ * Gestion des codes de liaison in-game (legacy backend).
  *
- * Flux :
+ * @deprecated Flux obsolète : le site Next.js utilise Discord OAuth sur
+ * https://www.cantale.world/connexion. L'ancienne commande Minecraft /web link
+ * n'est plus active (message de redirection uniquement).
+ *
+ * Ancien flux :
  *  1. Frontend → POST /api/auth/request-link  → backend génère un code 6 chiffres,
  *     stocke {code, expires_at, player_uuid=NULL} en DB, renvoie le code.
  *  2. Frontend poll → GET /api/auth/check-link/:code → tant que player_uuid=NULL,
  *     renvoie "pending". Dès que consumed_at est rempli (par le plugin), renvoie
  *     {linked: true, name, uuid} et le backend crée une session + envoie le cookie.
- *  3. In-game : `/web link 123456` → le plugin appelle (directement en DB) :
- *     UPDATE web_link_codes SET player_uuid=?, player_name=?, consumed_at=NOW WHERE code=? AND expires_at>NOW.
+ *  3. In-game (obsolète) : `/web link 123456` → UPDATE web_link_codes …
  */
 
 import crypto from "crypto";

@@ -5,22 +5,25 @@ import fr.cantale.plugin.anticheat.check.Check;
 import fr.cantale.plugin.anticheat.check.CheckResult;
 import fr.cantale.plugin.anticheat.check.CheckType;
 import fr.cantale.plugin.anticheat.data.PlayerData;
+import fr.cantale.plugin.anticheat.util.InstantBreakUtil;
 import org.bukkit.GameMode;
+import org.bukkit.block.Block;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+import org.bukkit.event.block.Action;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
-import org.bukkit.event.block.Action;
 
 /**
  * Listener principal pour les checks de combat.
  *
- * Écoute les attaques (EntityDamageByEntityEvent) pour le reach et le killaura.
- * Écoute les clics (PlayerInteractEvent LEFT_CLICK) pour l'autoclicker.
+ * Écoute les attaques (EntityDamageByEntityEvent) pour reach / killaura / aim / CPS.
+ * Écoute les clics air (LEFT_CLICK_AIR) pour l'autoclicker.
+ * Les LEFT_CLICK_BLOCK sur blocs soft/instant sont ignorés (spam légitime herbe/fleurs).
  */
 public class CombatListener implements Listener {
 
@@ -36,12 +39,10 @@ public class CombatListener implements Listener {
             return;
         }
 
-        // Ignorer les modes créatif et spectateur
         if (attacker.getGameMode() == GameMode.CREATIVE || attacker.getGameMode() == GameMode.SPECTATOR) {
             return;
         }
 
-        // Vérifier le bypass
         if (manager.shouldBypass(attacker)) {
             return;
         }
@@ -81,14 +82,17 @@ public class CombatListener implements Listener {
                 manager.handleViolation(attacker, result, aimCheck);
             }
         }
+
+        // ── AutoClicker : un coup porté compte comme un clic combat ──
+        runAutoClicker(attacker, data);
     }
 
     @EventHandler(priority = EventPriority.HIGH)
     public void onPlayerInteract(PlayerInteractEvent event) {
         Player player = event.getPlayer();
 
-        // Seulement les clics gauche (attaque)
-        if (event.getAction() != Action.LEFT_CLICK_AIR && event.getAction() != Action.LEFT_CLICK_BLOCK) {
+        Action action = event.getAction();
+        if (action != Action.LEFT_CLICK_AIR && action != Action.LEFT_CLICK_BLOCK) {
             return;
         }
 
@@ -104,10 +108,24 @@ public class CombatListener implements Listener {
             return;
         }
 
-        // ── AutoClicker Check ──
+        // Casse / dig : ne pas traiter comme CPS PvP
+        if (action == Action.LEFT_CLICK_BLOCK) {
+            Block clicked = event.getClickedBlock();
+            // Soft/instant (herbe, fleurs, neige…) → jamais d'AutoClicker
+            if (clicked != null && InstantBreakUtil.isSoftOrInstant(player, clicked)) {
+                return;
+            }
+            // Dig sur bloc solide → pas de CPS combat non plus (FastBreak gère le nuker)
+            return;
+        }
+
+        PlayerData data = manager.getPlayerData(player.getUniqueId());
+        runAutoClicker(player, data);
+    }
+
+    private void runAutoClicker(Player player, PlayerData data) {
         Check autoClickerCheck = manager.getCheckRegistry().get(CheckType.AUTOCLICKER);
         if (autoClickerCheck != null && autoClickerCheck.isEnabled() && autoClickerCheck instanceof AutoClickerCheck ac) {
-            PlayerData data = manager.getPlayerData(player.getUniqueId());
             CheckResult result = ac.checkClick(player, data);
             if (result.isViolated()) {
                 manager.handleViolation(player, result, autoClickerCheck);

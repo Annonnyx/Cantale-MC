@@ -1,5 +1,27 @@
 # TODO Cantale
 
+## URGENT — crash récursion PrivateChest (août 2026)
+- [x] **Cause** : `saveChestForOwner` appelait `closeInventory()` pendant `InventoryCloseEvent`
+  (l’inventaire paraît encore ouvert) → re-entrée `onInventoryClose` → StackOverflow / serveur mort.
+- [x] Fix durable : `ThreadLocal` garde `closeSaveGuard` — skip close réentrant ; fermeture des
+  *autres* viewers sans re-save (`closeViewerWithoutResave`).
+- [ ] **Déployer le JAR immédiatement** (serveur Paper en prod).
+
+## Discord — salon compteur (août 2026)
+- [x] Listener JDA `CountingListener` sur `discord.channels.counting`
+  (`1537112048314491040`) : prev+1 si chiffres ; sans chiffre = chat libre.
+- [x] Persistance `discord-counting.yml` + reprise historique si fichier vide.
+- [x] Suppression + avertissement FR si mauvais nombre (Manage Messages).
+- [x] Docs `docs/Discord.md` + wiki Discord & site + FAQ.
+- [ ] Déployer le JAR plugin + vérifier permissions bot (Manage Messages).
+
+## Fix /lastdeath coords (août 2026)
+- [x] **Cause** : seule `players.last_death` (timestamp) était persistée ; `/lastdeath`
+  affichait « Localisation : Non disponible » (TODO) et ne résolvait que les joueurs online.
+- [x] Fix : colonnes `last_death_world/x/y/z` (+ migration), écrites à la mort et à la
+  déco combat ; commande affiche les coords ; résolution offline via BDD / OfflinePlayer.
+- [ ] Déployer le JAR.
+
 ## Équipe + alliances Discord (août 2026)
 - [x] `/recrutement#equipe` : staff réel uniquement — MC `player_permissions` (Owner /
   Admin / Modo) + Discord direction + Développeur / Admin / Support / Builder / Monteur /
@@ -69,7 +91,7 @@
 - [x] Refonte articles wiki `factions/*` + récompenses events : tables depuis le code
   (`FactionManager`, `Faction`, `FactionPowerShop`, `FactionBankCommand`, `ClaimListener`,
   `FactionPermissions`, `config.yml` factions.*, `events.yml` rewards). Couvre toutes les `/f`,
-  sources pouvoir (65 création, +5/membre, PvP ±5, bank ×10 exposant, events top, `/admin addpower`),
+  sources pouvoir (65 création, +5/membre, PvP ±5, bank 1 unité→+10 pouvoir + ×10 exposant, events top, `/admin addpower`),
   quotas claims/fhomes/warps, rangs, wilderness/PASDIC, règles stockage/explosifs.
 - [x] Support `WikiTable` dans `wiki-content.ts` + rendu page article + index recherche.
 - [x] Alignement `faq.yml` (création, claim/pouvoir, warps, homes, banque) sur les mêmes formules.
@@ -78,10 +100,16 @@
 - [x] `/f map` UX : grille chat 11×11 lisible (`+ # @ X = P -`), highlight ta fac, diplomatie
   allié/ennemi, PASDIC, secret masqué aux non-membres, légende dynamique, « Ici » + tags autour,
   moins de spam préfixe ; wiki + `docs/UI_GUIDE.md`.
+- [x] `/f map` inventaire : GUI 9×5 chunks (`FactionMapUI`) — vert/lime/gris/rouge/bleu/orange/violet,
+  clic gauche claim / clic droit unclaim (mêmes checks que `/f claim` `/f unclaim`), fermer/refresh ;
+  `/f map chat` conserve l’ASCII 11×11 ; wiki + UI_GUIDE + faq.
 - [x] Vol en claim : uniquement `PlayerRank.CHEVRE` — (1) vol créatif `hasUnlimitedFlight` dans
   ses claims ; (2) fouille conteneurs étrangers `canStealInClaims` (alliés/ennemis) via
   `ClaimListener` — plus d'ouverture libre des coffres alliés ; pas modos/admin/owner ;
   wiki grades + claims + faq + `CustomItemListener`.
+- [x] Renommage faction : `/f rename` (chef) + `/admin f rename` (staff) — validation nom partagée
+  avec create (3–16, lettres/chiffres/_/-), tag régénéré, DB + cache, nametags membres online,
+  rôle Discord ; wiki + COMMANDS + plugin.yml.
 - [ ] Redeploy site + redeploy `faq.yml` / JAR serveur si besoin.
 
 ## Refonte site web (août 2026) — `Site-Cantale/web/` (Next.js 16 full-stack, TS, Tailwind v4)
@@ -136,6 +164,8 @@
 - [x] `/link` (Minecraft) : clic sur le code → copie presse-papiers (`ClickEvent.copyToClipboard` + hover « Clique pour copier »)
 - [x] Commande admin `/linkforce <Pseudo MC> <ID Discord>` (Minecraft + Discord) — upsert `discord_links`, permission `cantale.admin` / Discord ADMINISTRATOR, gestion des conflits
 - [x] Exclusion publique **Anox26** (owner) : Cantox/vies en circulation + tous les classements (site `public-ranking-exclusions.ts`, API legacy, `/leaderboard` jeu, Discord `/leaderboard` + daily LB, tops votes) — liste centrale réutilisable (UUID optionnel)
+- [x] Exclusion publique faction **Ø** (noms `Ø` / `O` / `∅`, case-insensitive) : tops pouvoir/richesse/membres site + Discord `/fleaderboard` + daily LB + `/leaderboard` jeu — listes centrales `PUBLIC_RANKING_EXCLUDED_FACTION_NAMES` / `FACTION_NAMES` ; faction reste en jeu + détail slug OK
+- [x] Deploy `Annonnyx/Cantale` `f550770` → Vercel `site-cantale` prod Ready (`site-cantale-3a54jc441…`). Plugin `mvn package` OK (redeploy JAR serveur à faire).
 - [x] Fix playtime site : sync BDD à la connexion + toutes les 5 min (avant : uniquement au quit → stats à 0 / périmées)
 - [x] Shop : Élytra à 2 000 000 Cantox (`NETHER_END`, sell off, daily-buy-cap 1) — ajouter manuellement si `shop.yml` serveur déjà généré
 - [x] Fix vote : toujours 1–3 Cadeaux du Roi (plus de loot Rare/Épique au vote), matching Votifier souple (serveur-prive / serveurliste / top-serveurs), messages publics corrects, `/vote` sans liste Rare|Épique
@@ -167,6 +197,8 @@
 - [x] Support `/profile <joueur>` pour afficher le profil de n'importe quel joueur
 - [x] Système de chat de faction Minecraft (`/f c` et `/fc`)
 - [x] Fix faux-positifs AntiCheat (Timer Check : seuil à 28 pkts/s + tampon de lissage)
+- [x] Fix faux-positifs AntiCheat (AutoClicker : ban en maintenant clic sur herbe) — CPS dig soft/instant exclu ;
+  fenêtre 2s + buffer VL ; FastBreak solide séparé (nuker) ; Multi-Cantool exempté
 - [x] Système Anti-AFK par grade (10m Joueur, 30m Aventurier, 1h VIP, illimité pour Chèvre/Staff)
 ## Fait
 - [x] Refonte Multi-Cantool : suppression de l'annulation d'événement (plus de desync client/serveur ni de blocs fantômes) + ajustement natif de la vitesse de minage via `PlayerBlockBreakSpeedEvent`
@@ -197,6 +229,15 @@
 - [x] `/pc` `/ec` : plus de wipe (resize au lieu d'égalité stricte, saves versionnées, `/ec` = vanilla + migration, nav PDC, vote via service)
 - [ ] **Ops** : déployer le nouveau JAR + reparer les lignes stale (`lives > 0` alors que le joueur est ban « plus de vies »)
 
+## Hotfix — ClearLag annonce toujours « 0 items » (2026-08-12)
+- [x] **Cause** : pas un compteur cassé. `ServerOptimizer#cleanupEntities` faisait un
+  clear silencieux des items ≥ `ground-item-max-age` (5 min) toutes les ~60s, **avant**
+  le ClearLag (180s + warnings). Au moment de l’annonce, plus rien d’éligible → « 0 ».
+- [x] Fix : l’âge périodique des items est **uniquement** `ClearLagTask` ; l’optimizer
+  garde le cull par chunk (`max-items-per-chunk`) hors grâce. Message ClearLag honnête
+  (nombre réel, ou « aucun ancien / X protégés », silence si rien au sol).
+- [ ] Déployer le JAR.
+
 ## Hotfix — loot de mort qui disparaît (2026-08-12)
 - [x] **Cause** : `ClearLagTask` supprimait TOUS les items sans grâce ; `ServerOptimizer`
   cullait les Item via `max-entities-per-chunk: 15` en priorisant les **plus récents**
@@ -213,10 +254,19 @@
 - [x] **Cause** : `ServerOptimizer#cleanupEntities` cullait les `Animals` adultes sous
   `max-entities-per-chunk: 15` (seuls les bébés étaient protégés). ClearLag ne touche
   pas aux mobs ; le spawn n'est pas annulé — c'était bien le cull par chunk.
-- [x] Fix : exclure tous les `Animals` + `Tameable.isTamed()` du cull entités/chunk
-  (esprit items/joueurs). Hostiles, armor stands, bateaux, etc. restent cullés.
-  Plafond `max-entities-per-chunk` inchangé (ne pas le monter pour les passifs).
-- [ ] Déployer le JAR.
+- [x] Fix temporaire : exclure tous les `Animals` + `Tameable.isTamed()` du cull.
+- [x] **Révision (même jour)** : les fermes trop denses (>>15 moutons/chunk) n'étaient
+  plus réduites. Les `Animals` **comptent à nouveau** vers le plafond 15. Protégés :
+  joueurs, villageois, items, nommés, `Tameable.isTamed()`, NPCs Cantale. Surplus =
+  plus vieux d'abord. Helper `cullExcessEntitiesPerChunk` aussi appelé au cycle ClearLag
+  (en plus de l'optimizer ~60s). Grâce items / loot de mort inchangée.
+- [x] **Stacking passifs (même jour)** : au lieu de cull les Animals, empilement
+  (`MobStackManager` / `MobStackListener`) — mouton/vache/poulet/cochon/lapin/champimeuh/chèvre,
+  libellé `Mouton ×12`, kill = −1 + loot d'une mort. Animals **exclus** du plafond 15
+  (le cap reste pour hostiles / armor stands / bateaux…). Config
+  `optimization.mob-stacking.*`. Non empilés : bébés, nommés joueur, tamed, laisse.
+  Wiki `afk-clearlag` mis à jour.
+- [ ] Déployer le JAR + fusionner `optimization.mob-stacking` dans le `config.yml` serveur.
 
 ## En cours / à valider
 - [x] ClearLag : intervalle 3 min (180s), premier warning à T-30s uniquement (paliers 30/10/5/3/2/1)
@@ -263,6 +313,11 @@
   `LEGACY_*` → `ItemStack` illégal dans `ShopCategoryUI.init()` (exception, menu qui ne s'ouvre pas).
   Fix : `ShopConfig.load()` ignore `material.isLegacy() || !material.isItem()`.
 - [x] Hoppers retirés de la vente shop (`shop.yml`) — lag serveur si achat en masse.
+- [x] **Hoppers anti-lag (août 2026)** : craft bloqué (`HopperLimitListener` — HOPPER +
+  HOPPER_MINECART) ; `/shop` HOPPER **150 000** Cantox, sell off, `daily-buy-cap: 4` ;
+  pose uniquement en claim de sa fac, plafond `max(0, pouvoir / 20)`
+  (`factions.hopper-limit` dans `config.yml`). Place-only (pas de retrait à l'unclaim).
+  Wiki économie + factions mis à jour. `/shop reload` + reload plugin pour appliquer.
 - [x] Prix d'achat shop ×2 (100%+) sur toutes les catégories **sauf `MINERAIS`** (charbon→émeraude
   inchangés V1). Netherite (scrap/ingot/bloc/debris) et Shulker (shell/box) : achat à prix massifs +
   `daily-buy-cap` (voir `shop.yml`). Ventes inchangées. `/shop reload` pour appliquer.
@@ -308,11 +363,21 @@
 
 ## Respawn & claims
 - [x] Invulnérabilité 10s au respawn (anti spawn-kill)
+- [x] Saturation au respawn : `PotionEffectType.SATURATION` amp 0, durée `lives.respawn-saturation-seconds` (défaut 150 ≈ 2,5 min) ; refresh à chaque respawn (PlayerListener)
 - [x] Stockage (liste `claim-protection.storage-blocks`) posable uniquement dans les claims de sa faction
 - [x] Exception wilderness : `CRAFTING_TABLE` + fours (`FURNACE`, `BLAST_FURNACE`, `SMOKER`) posables hors claim (`ClaimListener`) ; autres ateliers/stockage inchangés ; casse storage en claim inchangée
 - [x] Hors claim : coffres/conteneurs ouvrables par tous (structures) ; pose stockage interdite (sauf table de craft + fours)
 - [x] PvP claims : safe dans le claim de sa fac ; on peut tuer les non-membres présents dans son claim ; PASDIC = no PvP
 - [x] `/f bank power [n]` : achat de pouvoir via banque (officiers/chef), prix exponentiel (`cost = floor(base * growth^(power_purchased * 10))`)
+- [x] **GUI pouvoir** (`FactionPowerShopUI`) : `/f power`, `/f bank power` (sans n), bouton `/f` + `/f bank` —
+  quotas claims/fhomes/warps, paliers suivants, achat 1/2/3/5/max (confirm) ; chat `/f bank power <n>` conservé.
+  Voir = membres ; acheter = officiers/chef/BANK_TAKE. Wiki + faq + `plugin.yml`.
+- [x] **Historique banque** (`FactionBankHistoryUI`, août 2026) : bouton livre dans `/f bank` —
+  table `faction_bank_log` (uuid/nom, type, montant, solde après, note, timestamp) ; logs dépôt/retrait
+  (`BankManager`), achat pouvoir (`FactionPowerShop`), admin add/removebank ; GUI paginée (28/page).
+- [x] **Achat pouvoir ×10** (août 2026) : même formule / prix listés ; 1 unité → **+10 pouvoir**,
+  `power_purchased` += unités seulement (`power-per-unit: 10` dans config). GUI/lore/chat/faq/wiki
+  clarifiés (« Acheter 1 → +10 pouvoir »). `FactionPowerShop`, `FactionPowerShopUI`, `FactionBankCommand`.
 - [x] **Pouvoir par membre** : base création **60** + **+5** par membre (chef inclus → fac neuve = **65**) ;
   join (`FactionManager#addMember`) **+5** ; leave/kick (`#removeMember`) **-5** (plancher 0 + ajustement claims).
   Pas de double-compte à la création (leader via DAO, pas via `addMember`). `PowerManager` quotidien non branché.
@@ -344,7 +409,7 @@
   - `commandes-joueur` : essentiels hors `/f` (éco, coffres, TP aperçu, vies, classements, link) + renvoi Factions
   - `teleportation` : spawn/home cooldown 20 s, TPA 60 s, homes par grade, précision Chèvre ≠ bypass cooldown 20 s
   - `grades-permissions` : tableaux PlayerRank / RankManager / PrivateChestService / Feed / RTP / vol claim
-  - `discord-site` : flux `/link` MC (copie clic, 10 min) → Discord `/link` ; `/linkforce` admin ; compte site OAuth `/connexion` ; `/web link` distinct
+  - `discord-site` : flux `/link` MC (copie clic, 10 min) → Discord `/link` ; `/linkforce` admin ; compte site OAuth `/connexion` ; `/web link` obsolète (redir. URL)
   - `coffres-inventaires` : 1/2/3 coffres, 27→54 slots
 - [x] Redeploy site pour publier le wiki mis à jour (`Annonnyx/Cantale` `1328221` / Vercel `site-cantale` prod Ready)
 
@@ -367,6 +432,16 @@
 
 ## Commandes VIP (août 2026)
 - [x] `/feed` : restaure faim + saturation. Accès VIP+ via `PlayerRank#isAtLeastVIP()` (ou `cantale.feed` / `cantale.admin`). Cooldown VIP 3 min, Chèvre+ 1 min, `cantale.admin` sans cooldown.
+
+## Dépréciation /web link (août 2026)
+- [x] `/web link` obsolète : `WebCommand` affiche uniquement https://www.cantale.world/connexion (+ rappel `/link` Discord). Fichiers Java conservés (`WebCommand`, `WebLinkDAO`).
+- [x] Docs / FAQ / wiki / `COMMANDS.md` / `login.html` / backend auth messages mis à jour. `/link` Discord inchangé.
+
+## Commandes staff inspection (août 2026)
+- [x] `/adminhome check|list <joueur>` — liste les homes ; `/adminhome <joueur> <nom>` ou `/adminhome tp <joueur> <nom>` — TP staff immédiat. Aliases `ahome`/`seehome`. Perm `cantale.moderator` (+ grade staff).
+- [x] `/adminec <joueur>` — EC live si online ; hors ligne : pas d'API `OfflinePlayer#getEnderChest` (Paper) → legacy DB seulement. Aliases `aec`/`seeec`.
+- [x] `/adminpc <joueur> [1|2|3]` — PC DB/cache éditable online/offline (`openForeignChest`). Aliases `apc`/`sepc`.
+- [x] Docs : `plugin.yml`, `COMMANDS.md`, `docs/Commands.md`, wiki `grades-permissions` + `coffres-inventaires`, `/modhelp`.
 
 ## BossBar infos joueur (août 2026)
 - [x] **BossBar rotative personnelle** : une barre par joueur qui cycle Cantox → Vies → Wanted

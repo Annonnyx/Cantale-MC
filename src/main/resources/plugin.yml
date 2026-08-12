@@ -21,7 +21,7 @@ commands:
     usage: /cantale
   admin:
     description: Liste toutes les commandes admin et modérateur
-    usage: /admin
+    usage: /admin [f rename <faction> <nouveau_nom>|…]
     permission: cantale.admin
   dropvie:
     description: Sacrifier une vie
@@ -40,8 +40,8 @@ commands:
     usage: /removelife <joueur> <nombre>
     permission: cantale.admin
   f:
-    description: Commandes de faction
-    usage: /f <subcommand>
+    description: Commandes de faction (menu /f, banque, pouvoir, claims…)
+    usage: /f [rename|bank|power|claim|…]
     aliases: [faction]
   fc:
     description: Chat de faction
@@ -78,6 +78,24 @@ commands:
   home:
     description: Gérer ses homes personnels
     usage: /home [set|delete|del] [nom]
+  adminhome:
+    description: "Staff — lister/TP vers les homes d'un joueur"
+    usage: "/adminhome check <joueur> | /adminhome <joueur> <nom> | /adminhome tp <joueur> <nom>"
+    aliases: [ahome, seehome]
+    permission: cantale.moderator
+    permission-message: "§cPermission refusée (cantale.admin / cantale.moderator)."
+  adminec:
+    description: "Staff — ouvrir/éditer l'ender chest d'un joueur (live si en ligne)"
+    usage: /adminec <joueur>
+    aliases: [aec, seeec]
+    permission: cantale.moderator
+    permission-message: "§cPermission refusée (cantale.admin / cantale.moderator)."
+  adminpc:
+    description: "Staff — ouvrir/éditer les coffres privés (PC) d'un joueur"
+    usage: /adminpc <joueur> [1|2|3]
+    aliases: [apc, sepc]
+    permission: cantale.moderator
+    permission-message: "§cPermission refusée (cantale.admin / cantale.moderator)."
   warp:
     description: Téléportation aux warps publics
     usage: /warp [nom|set|delete|toggle]
@@ -135,7 +153,7 @@ commands:
     usage: /leaderboard <type> [limite]
     aliases: [top, lb, leaderboards, classement, classements]
   lastdeath:
-    description: Afficher les infos de la dernière mort
+    description: Afficher date et coords de la dernière mort
     usage: /lastdeath [joueur]
   optimize:
     description: Optimisation du serveur (admin)
@@ -179,9 +197,10 @@ commands:
     description: Liste des sites de vote et récompenses
     usage: /vote [claim|stats|top|help]
   web:
-    description: Lier son compte Minecraft au site Cantale
-    usage: /web link <code>
+    description: Affiche le lien vers le site Cantale (connexion Discord OAuth)
+    usage: /web
     aliases: [website, site]
+
   tag:
     description: Gérer les tags des joueurs
     usage: /tag <create|delete|add|remove|color|edit|list>

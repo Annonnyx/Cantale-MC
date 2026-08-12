@@ -60,6 +60,10 @@ public class OptimizeCommand implements CommandExecutor, TabCompleter {
             }
             case "reload" -> {
                 optimizer.loadConfig();
+                if (plugin.getMobStackManager() != null) {
+                    plugin.getMobStackManager().loadConfig();
+                    plugin.getMobStackManager().start();
+                }
                 sender.sendMessage(formatMessage("&aConfiguration rechargée."));
             }
             case "villagers", "villager" -> handleVillagers(sender, args);
@@ -76,14 +80,15 @@ public class OptimizeCommand implements CommandExecutor, TabCompleter {
         if (args.length < 2) {
             sender.sendMessage(formatMessage("&eIntervalle ClearLag actuel : &6" + plugin.getClearLagTask().getInterval() + " &esecondes."));
             sender.sendMessage(formatMessage("&7Prochain clear dans : &e" + plugin.getClearLagTask().getCountdown() + " &esecondes."));
+            sender.sendMessage(formatMessage("&7Items récents protégés : &e" + plugin.getClearLagTask().getProtectRecentSeconds() + " &esecondes."));
             sender.sendMessage(formatMessage("&7Usage : /optimize clearlag <secondes>"));
             return;
         }
 
         try {
             int seconds = Integer.parseInt(args[1]);
-            if (seconds < 10) {
-                sender.sendMessage(formatMessage("&cIntervalle trop court. Minimum 10 secondes."));
+            if (seconds < 60) {
+                sender.sendMessage(formatMessage("&cIntervalle trop court. Minimum 60 secondes."));
                 return;
             }
             plugin.getClearLagTask().setInterval(seconds);

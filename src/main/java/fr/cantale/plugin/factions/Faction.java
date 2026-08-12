@@ -142,6 +142,33 @@ public class Faction {
         return 1 + (power - 60) / 30;
     }
 
+    /** Pouvoir total requis pour le prochain slot de claim (au-delà du plafond actuel). */
+    public int powerRequiredForNextClaimSlot() {
+        return (getMaxClaims() + 1) * 10;
+    }
+
+    /** Pouvoir total requis pour le prochain f-home (par joueur). */
+    public int powerRequiredForNextFhome() {
+        return (getMaxFhomes() + 1) * 20;
+    }
+
+    /** Pouvoir total requis pour le prochain warp de faction. */
+    public int powerRequiredForNextWarp() {
+        return 60 + getMaxWarps() * 30;
+    }
+
+    public int powerUntilNextClaimSlot() {
+        return Math.max(0, powerRequiredForNextClaimSlot() - power);
+    }
+
+    public int powerUntilNextFhome() {
+        return Math.max(0, powerRequiredForNextFhome() - power);
+    }
+
+    public int powerUntilNextWarp() {
+        return Math.max(0, powerRequiredForNextWarp() - power);
+    }
+
     // Tiers de faction
     public String getTier() {
         if (type.equals("empire")) return "Empire";

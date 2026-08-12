@@ -69,28 +69,25 @@
 <section class="login-hero">
   <div class="login-box">
     <h1 class="login-title">SE <span>CONNECTER</span></h1>
-    <p class="login-sub">Lie ton compte Minecraft pour accéder à ton profil, gérer ton panier de boutique et plus.</p>
+    <p class="login-sub">Connecte-toi avec Discord sur cantale.world pour accéder à ton profil et à la boutique.</p>
 
     <div id="step-start">
-      <button class="login-cta" id="btn-start">Générer mon code</button>
+      <p class="login-sub" style="margin-bottom:16px">
+        La connexion par code Minecraft (<span class="cmd">/web link</span>) n'existe plus.
+        Connecte-toi avec Discord sur le nouveau site.
+      </p>
+      <a class="login-cta" href="https://www.cantale.world/connexion">Aller à la connexion →</a>
+      <p class="login-sub" style="margin-top:16px;font-size:14px;color:var(--dim)">
+        Pour lier Discord ↔ Minecraft en jeu : <span class="cmd">/link</span> puis <span class="cmd">/link</span> sur Discord.
+      </p>
       <div class="login-status" id="status-start"></div>
     </div>
 
     <div id="step-link" style="display:none">
       <div class="login-step">
-        <div class="login-step-num">ÉTAPE 1 / 2</div>
-        <div class="login-step-text">Connecte-toi sur Minecraft à <strong style="color:var(--red3)">play.cantale.world</strong> (ou ton IP serveur).</div>
+        <div class="login-step-num">OBSOLÈTE</div>
+        <div class="login-step-text">Ce flux n'est plus utilisé. Va sur <strong style="color:var(--red3)"><a href="https://www.cantale.world/connexion" style="color:var(--red3)">cantale.world/connexion</a></strong>.</div>
       </div>
-      <div class="login-step">
-        <div class="login-step-num">ÉTAPE 2 / 2</div>
-        <div class="login-step-text">Tape la commande suivante dans le tchat :</div>
-        <code class="login-code" id="link-code">------</code>
-        <div class="login-step-text" style="text-align:center;color:var(--dim)">
-          → <span class="cmd">/web link <span id="link-code-inline">------</span></span>
-        </div>
-        <div class="timer" id="link-timer">Expire dans <span id="seconds">300</span> s</div>
-      </div>
-      <div class="login-status" id="status-link"></div>
       <button class="login-cta" id="btn-cancel" style="background:#333">Annuler</button>
     </div>
 
@@ -105,81 +102,8 @@
 <script src="config.js"></script>
 <script src="api-client.js"></script>
 <script>
-const $ = (id) => document.getElementById(id);
-let pollInterval = null;
-let timerInterval = null;
-
-function show(stepId) {
-  ['step-start','step-link','step-success'].forEach(id => $(id).style.display = id === stepId ? '' : 'none');
-}
-
-async function startLink() {
-  $('btn-start').disabled = true;
-  $('status-start').textContent = 'Génération du code…';
-  $('status-start').className = 'login-status';
-  try {
-    const r = await CantaleAPI.requestLink();
-    $('link-code').textContent = r.code;
-    $('link-code-inline').textContent = r.code;
-    show('step-link');
-    startPolling(r.code, r.expiresAt);
-  } catch (e) {
-    $('status-start').textContent = 'Erreur : ' + e.message;
-    $('status-start').className = 'login-status err';
-    $('btn-start').disabled = false;
-  }
-}
-
-function startPolling(code, expiresAt) {
-  // Timer
-  timerInterval = setInterval(() => {
-    const remaining = Math.max(0, expiresAt - Math.floor(Date.now() / 1000));
-    $('seconds').textContent = remaining;
-    if (remaining === 0) {
-      stopAll();
-      $('status-link').textContent = 'Code expiré. Cliquez sur Annuler puis recommencez.';
-      $('status-link').className = 'login-status err';
-    }
-  }, 1000);
-
-  // Poll toutes les 2s
-  pollInterval = setInterval(async () => {
-    try {
-      const r = await CantaleAPI.checkLink(code);
-      if (r.status === 'linked') {
-        stopAll();
-        $('welcome').textContent = `Bienvenue, ${r.user.name} !`;
-        show('step-success');
-      } else if (r.status === 'expired') {
-        stopAll();
-        $('status-link').textContent = 'Code expiré.';
-        $('status-link').className = 'login-status err';
-      }
-    } catch (e) {
-      if (e.status === 410) {
-        stopAll();
-        $('status-link').textContent = 'Code expiré.';
-        $('status-link').className = 'login-status err';
-      }
-    }
-  }, 2000);
-}
-
-function stopAll() {
-  if (pollInterval) clearInterval(pollInterval);
-  if (timerInterval) clearInterval(timerInterval);
-  pollInterval = timerInterval = null;
-}
-
-$('btn-start').addEventListener('click', startLink);
-$('btn-cancel').addEventListener('click', () => {
-  stopAll();
-  show('step-start');
-  $('btn-start').disabled = false;
-  $('status-start').textContent = '';
-});
-
-// Si déjà connecté, rediriger
+// Flux /web link obsolète — redirection manuelle vers cantale.world/connexion.
+// Si déjà connecté (session legacy), rediriger vers le profil.
 (async () => {
   try {
     await CantaleAPI.me();

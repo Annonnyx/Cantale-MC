@@ -3,6 +3,7 @@ package fr.cantale.plugin.lives;
 import fr.cantale.plugin.CantalePlugin;
 import fr.cantale.plugin.database.PlayerDAO;
 import org.bukkit.ChatColor;
+import org.bukkit.Location;
 import org.bukkit.entity.Player;
 
 import java.util.UUID;
@@ -50,10 +51,11 @@ public class LifeManager {
 
     public void handleDeath(Player player) {
         UUID uuid = player.getUniqueId();
+        Location deathLoc = player.getLocation();
         
         // Les admins ont des vies illimitées
         if (player.hasPermission("cantale.admin")) {
-            playerDAO.incrementDeaths(uuid);
+            playerDAO.incrementDeaths(uuid, deathLoc);
             player.sendMessage(formatMessage("&cVous êtes mort ! En tant qu'admin, vous avez des vies illimitées."));
             return;
         }
@@ -62,11 +64,11 @@ public class LifeManager {
 
         if (currentLives <= 1) {
             playerDAO.setLives(uuid, 0);
-            playerDAO.incrementDeaths(uuid);
+            playerDAO.incrementDeaths(uuid, deathLoc);
             banPlayer(player);
         } else {
             playerDAO.decrementLives(uuid);
-            playerDAO.incrementDeaths(uuid);
+            playerDAO.incrementDeaths(uuid, deathLoc);
             int remaining = getLives(uuid);
             player.sendMessage(formatMessage("&cVous êtes mort ! Il vous reste " + remaining + " vie(s)."));
         }
@@ -82,7 +84,7 @@ public class LifeManager {
         UUID uuid = player.getUniqueId();
         int currentLives = getLives(uuid);
 
-        playerDAO.incrementDeaths(uuid);
+        playerDAO.incrementDeaths(uuid, player.getLocation());
 
         if (currentLives <= 1) {
             playerDAO.setLives(uuid, 0);

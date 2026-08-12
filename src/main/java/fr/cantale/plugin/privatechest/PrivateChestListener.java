@@ -14,6 +14,8 @@ import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 
+import java.util.UUID;
+
 public class PrivateChestListener implements Listener {
 
     private final CantalePlugin plugin;
@@ -30,6 +32,15 @@ public class PrivateChestListener implements Listener {
         return chestService.resolveTypeFromTitle(title);
     }
 
+    private PlayerRank resolveNavRank(Player player, Inventory top) {
+        if (top.getHolder() instanceof PrivateChestHolder holder && holder.isForeignInspect()
+                && holder.getOwnerUuid() != null) {
+            return plugin.getRankManager().getRank(holder.getOwnerUuid());
+        }
+        boolean isStaff = player.hasPermission("cantale.admin");
+        return isStaff ? PlayerRank.CHEVRE : plugin.getRankManager().getRank(player);
+    }
+
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onInventoryClick(InventoryClickEvent event) {
         if (!(event.getWhoClicked() instanceof Player player)) return;
@@ -40,10 +51,12 @@ public class PrivateChestListener implements Listener {
 
         int size = top.getSize();
         int bottomRowStart = size - 9;
-        boolean isStaff = player.hasPermission("cantale.admin");
-        PlayerRank rank = isStaff ? PlayerRank.CHEVRE : plugin.getRankManager().getRank(player);
+        PlayerRank rank = resolveNavRank(player, top);
         boolean hasNavigation = chestService.getPrivateChestCount(rank) > 1;
         if (!hasNavigation) return;
+
+        boolean isStaff = player.hasPermission("cantale.admin")
+                || (top.getHolder() instanceof PrivateChestHolder h && h.isForeignInspect());
 
         // Clics dans la barre de navigation
         if (event.getClickedInventory() == top) {
@@ -56,7 +69,14 @@ public class PrivateChestListener implements Listener {
                     if (item != null && chestService.isNavItem(item)) {
                         chestService.saveChest(player, top, type, isStaff);
                         ChestType next = chestService.getNextPrivateChest(rank, type);
-                        chestService.openChest(player, next, isStaff);
+                        if (top.getHolder() instanceof PrivateChestHolder holder && holder.isForeignInspect()
+                                && holder.getOwnerUuid() != null) {
+                            UUID owner = holder.getOwnerUuid();
+                            String ownerName = org.bukkit.Bukkit.getOfflinePlayer(owner).getName();
+                            chestService.openForeignChest(player, owner, ownerName, next);
+                        } else {
+                            chestService.openChest(player, next, isStaff);
+                        }
                     }
                 }
                 return;
@@ -69,8 +89,6 @@ public class PrivateChestListener implements Listener {
             if (action == InventoryAction.MOVE_TO_OTHER_INVENTORY
                 || action == InventoryAction.COLLECT_TO_CURSOR
                 || event.getClick() == ClickType.DOUBLE_CLICK) {
-                // Laisser le vanilla remplir le storage ; on nettoie la nav après coup si besoin
-                // Annuler uniquement si le seul espace libre est dans la barre nav
                 if (!hasFreeStorageSlot(top, bottomRowStart) && action == InventoryAction.MOVE_TO_OTHER_INVENTORY) {
                     event.setCancelled(true);
                 }
@@ -86,8 +104,7 @@ public class PrivateChestListener implements Listener {
         ChestType type = resolve(top, event.getView().getTitle());
         if (type == null || type == ChestType.EC) return;
 
-        boolean isStaff = player.hasPermission("cantale.admin");
-        PlayerRank rank = isStaff ? PlayerRank.CHEVRE : plugin.getRankManager().getRank(player);
+        PlayerRank rank = resolveNavRank(player, top);
         if (chestService.getPrivateChestCount(rank) <= 1) return;
 
         int bottomRowStart = top.getSize() - 9;
@@ -103,12 +120,32 @@ public class PrivateChestListener implements Listener {
     public void onInventoryClose(InventoryCloseEvent event) {
         if (!(event.getPlayer() instanceof Player player)) return;
 
-        Inventory top = event.getView().getTopInventory();
-        ChestType type = resolve(top, event.getView().getTitle());
-        if (type == null || type == ChestType.EC) return;
+        // closeInventory() pendant une save ne doit pas re-entrer (récursion StackOverflow).
+        if (!chestService.enterCloseSaveGuard(player.getUniqueId())) {
+            return;
+        }
+        try {
+            Inventory top = event.getView().getTopInventory();
+            ChestType type = resolve(top, event.getView().getTitle());
+            if (type == null) return;
 
-        boolean isStaff = player.hasPermission("cantale.admin");
-        chestService.saveChest(player, top, type, isStaff);
+            // EC vanilla live : Paper persiste tout seul. EC legacy hors ligne (staff) → DB.
+            if (type == ChestType.EC) {
+                if (top.getHolder() instanceof PrivateChestHolder holder
+                        && holder.isForeignInspect()
+                        && holder.getOwnerUuid() != null) {
+                    ItemStack[] contents = top.getContents();
+                    chestService.adminReplaceStorage(holder.getOwnerUuid(), ChestType.EC, contents);
+                }
+                return;
+            }
+
+            boolean isStaff = player.hasPermission("cantale.admin")
+                    || (top.getHolder() instanceof PrivateChestHolder h && h.isForeignInspect());
+            chestService.saveChest(player, top, type, isStaff);
+        } finally {
+            chestService.leaveCloseSaveGuard(player.getUniqueId());
+        }
     }
 
     private boolean hasFreeStorageSlot(Inventory top, int bottomRowStart) {

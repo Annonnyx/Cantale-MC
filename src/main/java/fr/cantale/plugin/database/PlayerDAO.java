@@ -1,6 +1,7 @@
 package fr.cantale.plugin.database;
 
 import fr.cantale.plugin.CantalePlugin;
+import org.bukkit.Location;
 
 import java.sql.*;
 import java.util.UUID;
@@ -175,11 +176,33 @@ public class PlayerDAO {
     }
 
     public void incrementDeaths(UUID uuid) {
-        String sql = "UPDATE players SET deaths = deaths + 1, last_death = ?, kill_streak = 0 WHERE uuid = ?";
+        incrementDeaths(uuid, null);
+    }
+
+    /**
+     * Incrémente les morts et horodate {@code last_death}.
+     * Si {@code location} est fournie, enregistre aussi world+x+y+z ; sinon les coords existantes sont conservées.
+     */
+    public void incrementDeaths(UUID uuid, Location location) {
+        String sql;
+        if (location != null && location.getWorld() != null) {
+            sql = "UPDATE players SET deaths = deaths + 1, last_death = ?, kill_streak = 0, "
+                    + "last_death_world = ?, last_death_x = ?, last_death_y = ?, last_death_z = ? WHERE uuid = ?";
+        } else {
+            sql = "UPDATE players SET deaths = deaths + 1, last_death = ?, kill_streak = 0 WHERE uuid = ?";
+        }
         try (Connection conn = databaseManager.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setLong(1, System.currentTimeMillis() / 1000);
-            stmt.setString(2, uuid.toString());
+            if (location != null && location.getWorld() != null) {
+                stmt.setString(2, location.getWorld().getName());
+                stmt.setDouble(3, location.getX());
+                stmt.setDouble(4, location.getY());
+                stmt.setDouble(5, location.getZ());
+                stmt.setString(6, uuid.toString());
+            } else {
+                stmt.setString(2, uuid.toString());
+            }
             stmt.executeUpdate();
         } catch (SQLException e) {
             plugin.getLogger().severe("Erreur incrementDeaths : " + e.getMessage());
@@ -199,6 +222,55 @@ public class PlayerDAO {
             plugin.getLogger().severe("Erreur getLastDeath : " + e.getMessage());
         }
         return 0;
+    }
+
+    /**
+     * Lieu de la dernière mort (null si jamais mort ou coords absentes — morts avant migration).
+     */
+    public LastDeathLocation getLastDeathLocation(UUID uuid) {
+        String sql = "SELECT last_death_world, last_death_x, last_death_y, last_death_z FROM players WHERE uuid = ?";
+        try (Connection conn = databaseManager.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, uuid.toString());
+            ResultSet rs = stmt.executeQuery();
+            if (rs.next()) {
+                String world = rs.getString("last_death_world");
+                if (world == null || world.isBlank()) {
+                    return null;
+                }
+                double x = rs.getDouble("last_death_x");
+                if (rs.wasNull()) {
+                    return null;
+                }
+                double y = rs.getDouble("last_death_y");
+                double z = rs.getDouble("last_death_z");
+                return new LastDeathLocation(world, x, y, z);
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().severe("Erreur getLastDeathLocation : " + e.getMessage());
+        }
+        return null;
+    }
+
+    public UUID getUuidByUsername(String username) {
+        if (username == null || username.isBlank()) {
+            return null;
+        }
+        String sql = "SELECT uuid FROM players WHERE LOWER(username) = LOWER(?)";
+        try (Connection conn = databaseManager.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, username.trim());
+            ResultSet rs = stmt.executeQuery();
+            if (rs.next()) {
+                String uuidStr = rs.getString("uuid");
+                if (uuidStr != null && !uuidStr.isBlank()) {
+                    return UUID.fromString(uuidStr);
+                }
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().severe("Erreur getUuidByUsername : " + e.getMessage());
+        }
+        return null;
     }
 
     public int getKills(UUID uuid) {
@@ -398,6 +470,26 @@ public class PlayerDAO {
         } catch (SQLException e) {
             plugin.getLogger().severe("Erreur updatePlaytime : " + e.getMessage());
         }
+    }
+
+    /** Coordonnées persistées de la dernière mort. */
+    public static class LastDeathLocation {
+        private final String world;
+        private final double x;
+        private final double y;
+        private final double z;
+
+        public LastDeathLocation(String world, double x, double y, double z) {
+            this.world = world;
+            this.x = x;
+            this.y = y;
+            this.z = z;
+        }
+
+        public String getWorld() { return world; }
+        public double getX() { return x; }
+        public double getY() { return y; }
+        public double getZ() { return z; }
     }
 
     /**

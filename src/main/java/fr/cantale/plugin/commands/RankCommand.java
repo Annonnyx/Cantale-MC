@@ -93,7 +93,8 @@ public class RankCommand implements CommandExecutor, TabCompleter {
                     sender.sendMessage("§8[§6Cantale§8] §7  Homes : §e" + rank.getMaxHomes());
                     sender.sendMessage("§8[§6Cantale§8] §7  Ventes /ah : §e" + rank.getMaxAhListings());
                     sender.sendMessage("§8[§6Cantale§8] §7  Pas de cooldown TP : §e" + (rank.hasNoTpCooldown() ? "Oui" : "Non"));
-                    sender.sendMessage("§8[§6Cantale§8] §7  Vol illimité : §e" + (rank.hasUnlimitedFlight() ? "Oui" : "Non"));
+                    sender.sendMessage("§8[§6Cantale§8] §7  Vol créatif (claims) : §e" + (rank.hasUnlimitedFlight() ? "Oui" : "Non"));
+                    sender.sendMessage("§8[§6Cantale§8] §7  Vol coffres (claims étrangers) : §e" + (rank.canStealInClaims() ? "Oui" : "Non"));
                 }
             }
             default -> sendHelp(sender);

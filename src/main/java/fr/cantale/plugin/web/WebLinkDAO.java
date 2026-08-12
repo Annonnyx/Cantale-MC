@@ -10,10 +10,12 @@ import java.sql.SQLException;
 /**
  * DAO côté plugin pour la table web_link_codes (partagée avec le backend Node).
  *
- * Le plugin n'INSÈRE PAS de codes (c'est le rôle du backend) — il se contente
- * de les CONSOMMER quand un joueur tape /web link <code>.
+ * @deprecated La commande {@code /web link} est obsolète : la connexion site
+ * se fait via Discord OAuth sur https://www.cantale.world/connexion.
+ * Conservé (pas de suppression de fichier) ; plus appelé par {@code WebCommand}.
  *
- * Si le backend n'a jamais tourné, la table peut ne pas exister : on tolère.
+ * Historique : le backend générait les codes (INSERT) ; ce DAO les consommait
+ * quand un joueur tapait /web link &lt;code&gt;.
  */
 public class WebLinkDAO {
 
