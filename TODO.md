@@ -1,5 +1,22 @@
 # TODO Cantale
 
+## Équipe + alliances Discord (août 2026)
+- [x] `/recrutement#equipe` : staff réel uniquement — MC `player_permissions` (Owner /
+  Admin / Modo) + Discord direction + Développeur / Admin / Support / Builder / Monteur /
+  Graphiste (IDs défauts `DISCORD_ROLES`, override env optionnel). Merge/dédup Discord ID.
+- [x] `/partenariats#allies` : Partenaires actifs + Creators (rôles Discord), hors Équipe.
+- [x] UI : grilles par grade (avatar MC ou Discord, lien profil, handle Discord).
+- [ ] Ops : vérifier Server Members Intent sur l’appli bot si des rôles Discord manquent.
+- [ ] Deploy Annonnyx/Cantale + sync monorepo (staff Équipe + alliances partenariats).
+
+## Boutique fermée — hébergeur / S1 (août 2026)
+- [x] Copy `/boutique` (SHOP_ENABLED off) : fermée à cause des conditions de l’hébergeur
+  actuel ; ouverture pour la S1 après changement d’hébergeur. Stamp « Fermée ».
+- [x] Aligné messages checkout 503 + HTML legacy (`boutique.html` / `cart.html`) + backend
+  Express notice.
+- [x] Deploy `Annonnyx/Cantale` `e6f2fac` → Vercel `site-cantale` prod Ready
+  (`site-cantale-7hmqylwbq…`, aliases www.cantale.world). Live vérifié.
+
 ## Fix tickets recrutement Discord (août 2026)
 - [x] Cause : `/api/recrutement` (et partenariats) lisaient la session via
   `getSessionUser().catch(() => null)` — échec MySQL/rôles → identité Discord
