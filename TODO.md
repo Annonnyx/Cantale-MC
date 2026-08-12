@@ -1,5 +1,11 @@
 # TODO Cantale
 
+## Exemples « noe » → « onyx » (août 2026)
+- [x] Remplacement des pseudos d’exemple `noe` / `Noé` → `onyx` / `Onyx` dans les placeholders
+  site (recrutement + partenariats). Wiki / FAQ : aucun exemple nommé « noe » (déjà `<pseudo>` /
+  `<joueur>`). Exceptions conservées : CGU / mentions légales (Barneron Noé), chemins
+  `/Users/Noe/…`, secrets, historique git.
+
 ## Wiki — Économie / shop / AH / daily / votes / caisses (août 2026)
 - [x] Refonte articles wiki `economie/*` + `recompenses-regulieres` + `caisses-cles` :
   Cantox (start-balance 10k), `/shop` (clics, caps minuit, sinks endgame prix shop.yml),
@@ -17,7 +23,11 @@
   quotas claims/fhomes/warps, rangs, wilderness/PASDIC, règles stockage/explosifs.
 - [x] Support `WikiTable` dans `wiki-content.ts` + rendu page article + index recherche.
 - [x] Alignement `faq.yml` (création, claim/pouvoir, warps, homes, banque) sur les mêmes formules.
-- [ ] Redeploy site + redeploy `faq.yml` serveur si besoin.
+- [x] Claims contigus : nouveau claim doit toucher N/S/E/O un claim existant (sauf 1er du monde) —
+  `FactionManager#isAdjacentToOwnClaimOrFirst` + message FR `/f claim` ; wiki + faq.
+- [x] Vol en claim : uniquement `PlayerRank.CHEVRE` (`hasUnlimitedFlight`) — plus modos/admin/owner ;
+  wiki grades + `CustomItemListener`.
+- [ ] Redeploy site + redeploy `faq.yml` / JAR serveur si besoin.
 
 ## Refonte site web (août 2026) — `Site-Cantale/web/` (Next.js 16 full-stack, TS, Tailwind v4)
 - [x] Scaffold app Next.js dans `Site-Cantale/web/` (App Router, TS strict, Tailwind v4, mysql2)
@@ -141,6 +151,15 @@
   cull items seulement hors grâce, âge sol 5 min, ClearLag min intervalle 60s.
 - [ ] Déployer le JAR + fusionner les clés `clearlag.*` / `protect-recent*` dans le
   `config.yml` serveur si l'existant n'a pas les nouvelles entrées.
+
+## Hotfix — peu d'animaux passifs visibles (2026-08-12)
+- [x] **Cause** : `ServerOptimizer#cleanupEntities` cullait les `Animals` adultes sous
+  `max-entities-per-chunk: 15` (seuls les bébés étaient protégés). ClearLag ne touche
+  pas aux mobs ; le spawn n'est pas annulé — c'était bien le cull par chunk.
+- [x] Fix : exclure tous les `Animals` + `Tameable.isTamed()` du cull entités/chunk
+  (esprit items/joueurs). Hostiles, armor stands, bateaux, etc. restent cullés.
+  Plafond `max-entities-per-chunk` inchangé (ne pas le monter pour les passifs).
+- [ ] Déployer le JAR.
 
 ## En cours / à valider
 - [x] ClearLag : intervalle 3 min (180s), premier warning à T-30s uniquement (paliers 30/10/5/3/2/1)
