@@ -7,7 +7,7 @@
   d’analytics inventés). Footer colonne Légal + liens bas de page. Bandeau cookies **informatif**
   (localStorage `cantale_cookie_notice`) — cookies strictement nécessaires → pas de mur de
   consentement marketing. Sitemap mis à jour.
-- [ ] Redeploy `Annonnyx/Cantale` → Vercel prod (après push).
+- [x] Redeploy `Annonnyx/Cantale` `83e371c` → Vercel prod Ready (pages 200 sur cantale.world).
 
 ## Exemples « noe » → « onyx » (août 2026)
 - [x] Remplacement des pseudos d’exemple `noe` / `Noé` → `onyx` / `Onyx` dans les placeholders
@@ -80,7 +80,7 @@
 | **Ops — urgent** | **Redeploy site** : skins profil cassés (prod sert encore Crafatar 521) ; code HEAD a le proxy `/api/minecraft/*` + `/joueur/[uuid]` — sans redeploy Anox26 et tous les profils restent en image brisée |
 | **Ops** | Site prod : fix MySQL (`DB_*` fallback + env runtime) + menu desktop « Plus » ✓ 2026-08-11 (`Annonnyx/Cantale` `48396d8`) — stats/classements OK |
 | **Ops** | Carte unifiée `/carte` ✓ 2026-08-12 (`Annonnyx/Cantale` `4a7e92c` → Vercel ; Cantale-MC `ad08cf7`) : Leaflet + tuiles Squaremap (proxy) + overlays, fullscreen, X/Z, focus faction, spawn −67/−144. Optionnel : HTTPS dédié `map.cantale.world` |
-| **Ops** | Carte `/carte` warps search + hide players ✓ 2026-08-12 : recherche faction/tag/warp ; stub proxy `tiles/players.json` ; ops Squaremap `player-tracker.enabled: false` recommandé |
+| **Ops** | Carte `/carte` warps search + hide players ✓ 2026-08-12 (`Annonnyx/Cantale` `e3f824a` → Vercel Ready ; Cantale-MC `aa475f8`) : recherche faction/tag/warp ; stub proxy `tiles/players.json` ; ops Squaremap `player-tracker.enabled: false` recommandé |
 | **Ops** | Déploiement + DNS `cantale.world` / `cantale.fun` — fix Vercel 404 (Framework Preset → Next.js, redeploy prod) ✓ 2026-08-10 |
 | **Décision humaine** | Valider les prix boutique (1,99/3,49/5,99/9,99 €) + paiement (cantale.store) **avant** d'activer `SHOP_ENABLED` |
 
