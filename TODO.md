@@ -7,7 +7,8 @@
   l’utilisateur connecté ; nom de salon sans handle Discord.
 - [x] Fix : `getSessionDiscordUser(request)` (cookie seul + fallback header),
   `credentials: "include"`, libellé FR, salon `open-recrutement-<poste>-<username>`.
-- [ ] Deploy `Annonnyx/Cantale` → Vercel `site-cantale` (en cours).
+- [x] Deploy `Annonnyx/Cantale` `79dfbc4` → Vercel `site-cantale` prod Ready
+  (`site-cantale-oy68cti3r…`, aliases www.cantale.world). Monorepo `3e2d47b`.
 
 ## Fix scroll jump clics (août 2026)
 - [x] Cause : `html { scroll-behavior: smooth }` + focus Leaflet (`focus()` puis
