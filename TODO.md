@@ -1,10 +1,21 @@
 # TODO Cantale
 
+## Conformité légale site (août 2026)
+- [x] Pages FR pratiques : `/mentions-legales` (mentions LCEN + CGU, éditeur **Barneron Noé**),
+  `/confidentialite` (RGPD : Discord OAuth identify, liaison MC, formulaires, Turnstile optionnel,
+  droits CNIL), `/cookies` (liste réelle `cantale_session` / `cantale_oauth_state` — **pas**
+  d’analytics inventés). Footer colonne Légal + liens bas de page. Bandeau cookies **informatif**
+  (localStorage `cantale_cookie_notice`) — cookies strictement nécessaires → pas de mur de
+  consentement marketing. Sitemap mis à jour.
+- [ ] Redeploy `Annonnyx/Cantale` → Vercel prod (après push).
+
 ## Exemples « noe » → « onyx » (août 2026)
 - [x] Remplacement des pseudos d’exemple `noe` / `Noé` → `onyx` / `Onyx` dans les placeholders
   site (recrutement + partenariats). Wiki / FAQ : aucun exemple nommé « noe » (déjà `<pseudo>` /
   `<joueur>`). Exceptions conservées : CGU / mentions légales (Barneron Noé), chemins
   `/Users/Noe/…`, secrets, historique git.
+- [x] Sync + deploy : Cantale-MC `f941c80` · Annonnyx/Cantale `218dfba` → Vercel `site-cantale`
+  prod Ready (`dpl_EamRwP3P…`, aliases www.cantale.world). Spot-check partenariats : Onyx/onyx.
 
 ## Wiki — Économie / shop / AH / daily / votes / caisses (août 2026)
 - [x] Refonte articles wiki `economie/*` + `recompenses-regulieres` + `caisses-cles` :
