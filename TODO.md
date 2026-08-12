@@ -27,7 +27,8 @@
   consentement marketing. Sitemap mis à jour.
 - [x] Redeploy `Annonnyx/Cantale` `83e371c` → Vercel prod Ready (pages 200 sur cantale.world).
 - [x] Vouvoiement pages légales + e-mail **contact@cantale.fun** (mailto) mentions / RGPD /
-  cookies / footer. Deploy Annonnyx/Cantale en cours.
+  cookies / footer. Deploy `Annonnyx/Cantale` `b0e7232` → Vercel `site-cantale` prod Ready
+  (`site-cantale-qez1pf3if…`, aliases www.cantale.world). Monorepo `0aaa676`.
 
 ## Exemples « noe » → « onyx » (août 2026)
 - [x] Remplacement des pseudos d’exemple `noe` / `Noé` → `onyx` / `Onyx` dans les placeholders
