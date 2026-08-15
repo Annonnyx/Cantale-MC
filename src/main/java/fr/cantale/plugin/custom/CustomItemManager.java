@@ -1,5 +1,6 @@
 package fr.cantale.plugin.custom;
 
+import fr.cantale.plugin.CantalePlugin;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
 import org.bukkit.enchantments.Enchantment;
@@ -13,41 +14,40 @@ import java.security.NoSuchAlgorithmException;
 
 public class CustomItemManager {
 
-    private static final String CUSTOM_ITEM_KEY = "cantale_custom_item";
     private static final String AUTH_KEY = "cantale_auth";
     // Server secret for anti-fake verification — change this for your server!
     private static final String SERVER_SECRET = "Cantale_2024_xK9mP2vQ";
 
+    // ─── Compteur d'utilisations (outils custom) ─────────────────────────
+    // Les outils (Pickantaxe, Cantaxe, Multi-Cantool) n'utilisent plus la
+    // durabilité vanilla : ce compteur PDC est la SEULE jauge (la barre de
+    // durabilité reste pleine, la perte vanilla est annulée côté listener).
+    // 1 utilisation = 1 coup (1 BlockBreakEvent), quelle que soit la zone
+    // minée (3x3, 5x5, arbre entier…). La Cantalame et l'armure du Garde ne
+    // sont PAS concernées (incassable / durabilité vanilla de combat).
+    private static final org.bukkit.NamespacedKey USES_KEY =
+            new org.bukkit.NamespacedKey("cantale", "uses_left");
+
+    /** Préfixe de la ligne de lore vivante qui suit le compteur. */
+    private static final String USES_LORE_PREFIX = ChatColor.GRAY + "Utilisations restantes : ";
+
     public ItemStack createCustomItem(CustomItemType type) {
+        // La Cantalame a son propre cycle de vie (PDC kills/victimes) : on délègue à
+        // CantalameManager pour que TOUTES les sources (caisses, giveaways, commandes)
+        // produisent une épée fonctionnelle et protégée.
+        if (type.isCantalame()) {
+            return new CantalameManager(CantalePlugin.getInstance()).createCantalame();
+        }
+
         ItemStack item = new ItemStack(type.getMaterial());
         ItemMeta meta = item.getItemMeta();
 
         if (meta == null) return item;
 
         meta.setDisplayName(ChatColor.GOLD + type.getDisplayName());
-        List<String> lore = new ArrayList<>();
-        lore.add("");
-        lore.add(ChatColor.GRAY + "Item custom Cantale");
 
-        if (type.isPickantise()) {
-            addPickantiseLore(type, lore);
-        } else if (type.isCantaxe()) {
-            addCantaxeLore(type, lore);
-        } else if (type.isMultiCantool()) {
-            addMultiCantoolLore(type, lore);
-        } else if (type.isCantalame()) {
-            addCantalameLore(lore);
-        } else if (type == CustomItemType.VIE) {
-            addVieLore(lore);
-        } else if (type.isRuneFortification()) {
-            addRuneFortificationLore(lore);
-        } else if (type.isGardeArmor()) {
-            addGardeArmorLore(type, lore);
-        }
-
-        meta.setLore(lore);
-
-        // Enchantements
+        // Enchantements AVANT le lore : le lore lit les niveaux réellement
+        // appliqués sur la meta, il ne peut donc jamais annoncer autre chose.
         if (type.isPickantise()) {
             addPickantiseEnchantments(type, meta);
         } else if (type.isCantaxe()) {
@@ -57,6 +57,151 @@ public class CustomItemManager {
         } else if (type.isGardeArmor()) {
             addGardeArmorEnchantments(type, meta);
         }
+
+        List<String> lore = new ArrayList<>();
+        lore.add("");
+        lore.add(ChatColor.GRAY + "Item custom Cantale");
+
+        if (type.isPickantise()) {
+            addPickantiseLore(type, meta, lore);
+        } else if (type.isCantaxe()) {
+            addCantaxeLore(type, meta, lore);
+        } else if (type.isMultiCantool()) {
+            addMultiCantoolLore(type, meta, lore);
+        } else if (type == CustomItemType.VIE) {
+            addVieLore(lore);
+        } else if (type.isRuneFortification()) {
+            addRuneFortificationLore(lore);
+        } else if (type.isGardeArmor()) {
+            addGardeArmorLore(type, meta, lore);
+        }
+
+        // Compteur d'utilisations posé dès la création (seule jauge de l'outil).
+        if (isToolWithUses(type)) {
+            meta.getPersistentDataContainer().set(
+                    USES_KEY,
+                    org.bukkit.persistence.PersistentDataType.INTEGER,
+                    getMaxUses(type)
+            );
+        }
+
+        meta.setLore(lore);
+        item.setItemMeta(meta);
+
+        applyCustomIdentity(item, type);
+        return item;
+    }
+
+    // ─── Modèle « utilisations » (Pickantaxe / Cantaxe / Multi-Cantool) ────
+
+    /** True si le type est un outil custom soumis au compteur d'utilisations. */
+    public boolean isToolWithUses(CustomItemType type) {
+        return type != null && (type.isPickantise() || type.isCantaxe() || type.isMultiCantool());
+    }
+
+    /** Nombre de coups d'un outil neuf, selon son tier : Fer 1000, Diamant 2000, Netherite 4000. */
+    public int getMaxUses(CustomItemType type) {
+        if (type.name().contains("NETHERITE")) return 4000;
+        if (type.name().contains("DIAMOND")) return 2000;
+        return 1000; // Fer
+    }
+
+    /** Utilisations restantes, ou null si l'outil n'a pas encore de compteur (legacy). */
+    public Integer getUsesLeft(ItemStack item) {
+        if (item == null || !item.hasItemMeta()) return null;
+        return item.getItemMeta().getPersistentDataContainer().get(
+                USES_KEY, org.bukkit.persistence.PersistentDataType.INTEGER);
+    }
+
+    /**
+     * Consomme 1 utilisation sur l'outil et rafraîchit sa lore.
+     * Migration douce : un outil en circulation SANS compteur est initialisé à
+     * son maximum AVANT le décompte (aucune perte pour les joueurs), et ses
+     * anciennes lignes de lore « durabilité »/« Solidité » sont retirées.
+     *
+     * @return utilisations restantes après décompte (0 = l'outil doit se briser)
+     */
+    public int consumeOneUse(ItemStack item, CustomItemType type) {
+        ItemMeta meta = item.getItemMeta();
+        if (meta == null) return 0;
+
+        Integer left = meta.getPersistentDataContainer().get(
+                USES_KEY, org.bukkit.persistence.PersistentDataType.INTEGER);
+        boolean legacy = left == null;
+        if (legacy) {
+            left = getMaxUses(type);
+        }
+
+        left = Math.max(0, left - 1);
+        meta.getPersistentDataContainer().set(
+                USES_KEY, org.bukkit.persistence.PersistentDataType.INTEGER, left);
+        updateUsesLore(meta, left, legacy);
+        item.setItemMeta(meta);
+        return left;
+    }
+
+    /**
+     * Met à jour (ou insère) la ligne « Utilisations restantes : N » de la lore.
+     *
+     * @param stripLegacy true pour retirer les lignes d'avant le modèle
+     *                    utilisations (« …coûte de la durabilité », « Solidité … »)
+     */
+    /** Retire le segment « Solidité X » (et son séparateur « • ») d'une ligne de lore. */
+    private String stripSolidite(String line) {
+        return line.replaceAll("\\s*•\\s*Solidité\\s+[IVX0-9]+", "")
+                .replaceAll("Solidité\\s+[IVX0-9]+\\s*•\\s*", "")
+                .replaceAll("Solidité\\s+[IVX0-9]+", "");
+    }
+
+    private void updateUsesLore(ItemMeta meta, int usesLeft, boolean stripLegacy) {
+        List<String> lore = meta.hasLore() && meta.getLore() != null
+                ? new ArrayList<>(meta.getLore())
+                : new ArrayList<>();
+        if (stripLegacy) {
+            // Retire les lignes « …coûte de la durabilité » et expurge « Solidité X »
+            // du résumé d'enchantements en gardant le reste (ex. « Efficacité V »).
+            // Une ligne résumé qui ne contenait QUE Solidité disparaît complètement.
+            List<String> cleaned = new ArrayList<>(lore.size());
+            for (String line : lore) {
+                if (line.contains("durabilité")) continue;
+                if (line.contains("Solidité")) {
+                    String stripped = stripSolidite(line);
+                    if (ChatColor.stripColor(stripped).isBlank()) continue;
+                    line = stripped;
+                }
+                cleaned.add(line);
+            }
+            lore = cleaned;
+        }
+
+        String usesLine = USES_LORE_PREFIX + ChatColor.YELLOW + usesLeft;
+        for (int i = 0; i < lore.size(); i++) {
+            if (lore.get(i).contains("Utilisations restantes")) {
+                lore.set(i, usesLine);
+                meta.setLore(lore);
+                return;
+            }
+        }
+        // Pas de ligne existante (outil legacy) : on l'insère avant « Non-craftable ».
+        int insertAt = lore.size();
+        for (int i = 0; i < lore.size(); i++) {
+            if (lore.get(i).contains("Non-craftable")) {
+                insertAt = i;
+                break;
+            }
+        }
+        lore.add(insertAt, usesLine);
+        meta.setLore(lore);
+    }
+
+    /**
+     * Applique l'identité Cantale sur un item : CustomModelData (resource pack),
+     * tag PDC {@code custom_item} et hash anti-fake. Partagé avec CantalameManager,
+     * qui construit sa propre meta mais doit porter la même identité.
+     */
+    public void applyCustomIdentity(ItemStack item, CustomItemType type) {
+        ItemMeta meta = item.getItemMeta();
+        if (meta == null) return;
 
         // CustomModelData pour le resource pack
         int modelData = getCustomModelData(type);
@@ -80,31 +225,67 @@ public class CustomItemManager {
         );
 
         item.setItemMeta(meta);
-        return item;
     }
 
-    private void addPickantiseLore(CustomItemType type, List<String> lore) {
+    /** Résumé FR des enchantements réellement présents sur la meta (jamais inventé). */
+    private String enchantSummary(ItemMeta meta) {
+        List<String> parts = new ArrayList<>();
+        addEnchantPart(parts, meta, Enchantment.EFFICIENCY, "Efficacité");
+        addEnchantPart(parts, meta, Enchantment.PROTECTION, "Protection");
+        addEnchantPart(parts, meta, Enchantment.THORNS, "Épines");
+        addEnchantPart(parts, meta, Enchantment.UNBREAKING, "Solidité");
+        addEnchantPart(parts, meta, Enchantment.MENDING, "Réparation");
+        return String.join(" • ", parts);
+    }
+
+    private void addEnchantPart(List<String> parts, ItemMeta meta, Enchantment enchant, String nomFr) {
+        int level = meta.getEnchantLevel(enchant);
+        if (level > 0) {
+            parts.add(level > 1 ? nomFr + " " + toRoman(level) : nomFr);
+        }
+    }
+
+    private String toRoman(int n) {
+        return switch (n) {
+            case 1 -> "I";
+            case 2 -> "II";
+            case 3 -> "III";
+            case 4 -> "IV";
+            case 5 -> "V";
+            case 6 -> "VI";
+            case 7 -> "VII";
+            case 8 -> "VIII";
+            case 9 -> "IX";
+            case 10 -> "X";
+            default -> String.valueOf(n);
+        };
+    }
+
+    private void addPickantiseLore(CustomItemType type, ItemMeta meta, List<String> lore) {
         lore.add(ChatColor.AQUA + "Zone de minage : " + type.getMiningRadius() + "x" + type.getMiningRadius());
-        lore.add(ChatColor.GRAY + "Enchantable (Fortune, Silk Touch, Unbreaking)");
+        lore.add(USES_LORE_PREFIX + ChatColor.YELLOW + String.valueOf(getMaxUses(type)));
+        lore.add(ChatColor.GRAY + "1 coup = 1 utilisation, quelle que soit la zone");
+        lore.add(ChatColor.GRAY + enchantSummary(meta));
+        lore.add(ChatColor.DARK_GRAY + "Enchantements fixes — enclume et meule bloquées");
         lore.add(ChatColor.RED + "Non-craftable");
     }
 
-    private void addCantaxeLore(CustomItemType type, List<String> lore) {
+    private void addCantaxeLore(CustomItemType type, ItemMeta meta, List<String> lore) {
         lore.add(ChatColor.AQUA + "One-shot tous les arbres");
-        lore.add(ChatColor.AQUA + "Mine comme une efficacité max");
-        lore.add(ChatColor.GRAY + "Enchantable (Silk Touch, Unbreaking)");
+        lore.add(USES_LORE_PREFIX + ChatColor.YELLOW + String.valueOf(getMaxUses(type)));
+        lore.add(ChatColor.GRAY + "1 arbre abattu = 1 utilisation");
+        lore.add(ChatColor.GRAY + enchantSummary(meta));
+        lore.add(ChatColor.DARK_GRAY + "Enchantements fixes — enclume et meule bloquées");
+        lore.add(ChatColor.RED + "Non-craftable");
     }
 
-    private void addMultiCantoolLore(CustomItemType type, List<String> lore) {
+    private void addMultiCantoolLore(CustomItemType type, ItemMeta meta, List<String> lore) {
         lore.add(ChatColor.AQUA + "Outil multifonction");
-        lore.add(ChatColor.GRAY + "S'adapte au block : Pioche + Hache + Pelle + Cisailles");
+        lore.add(ChatColor.GRAY + "S'adapte au bloc : Pioche + Hache + Pelle + Cisailles");
         lore.add(ChatColor.GRAY + "Mode 1x1 (un seul bloc)");
-    }
-
-    private void addCantalameLore(List<String> lore) {
-        lore.add(ChatColor.AQUA + "Épée évolutive");
-        lore.add(ChatColor.GRAY + "Gagne en puissance avec chaque kill unique");
-        lore.add(ChatColor.GRAY + "Maximum : 100 kills uniques");
+        lore.add(USES_LORE_PREFIX + ChatColor.YELLOW + String.valueOf(getMaxUses(type)));
+        lore.add(ChatColor.GRAY + enchantSummary(meta));
+        lore.add(ChatColor.DARK_GRAY + "Enchantements fixes — enclume et meule bloquées");
         lore.add(ChatColor.RED + "Non-craftable");
     }
 
@@ -119,16 +300,17 @@ public class CustomItemManager {
         lore.add(ChatColor.AQUA + "Clic-droit dans un claim de votre faction");
         lore.add(ChatColor.GRAY + "Fortifie le chunk entier : seuls les membres");
         lore.add(ChatColor.GRAY + "de votre faction peuvent y casser des blocks,");
-        lore.add(ChatColor.GRAY + "et les explosions n'y font aucun dégât.");
+        lore.add(ChatColor.GRAY + "et rien n'y explose (TNT, cristaux, wither…).");
         lore.add("");
         lore.add(ChatColor.GOLD + "Coût : 50 Cantox/jour par chunk fortifié");
         lore.add(ChatColor.GRAY + "Sneak + clic-droit pour retirer (rune récupérée)");
         lore.add(ChatColor.RED + "Non-craftable");
     }
 
-    private void addGardeArmorLore(CustomItemType type, List<String> lore) {
+    private void addGardeArmorLore(CustomItemType type, ItemMeta meta, List<String> lore) {
         lore.add(ChatColor.GOLD + "Armure du Garde");
         lore.add(ChatColor.GRAY + "Pièce authentique — non craftable");
+        lore.add(ChatColor.GRAY + enchantSummary(meta));
         lore.add("");
         lore.add(ChatColor.AQUA + "Bonus par pièce (25% du set) :");
         lore.add(ChatColor.GRAY + "  +1.5 cœurs  |  +7.5% vitesse  |  +6.25% saut");
@@ -145,7 +327,7 @@ public class CustomItemManager {
             }
             case GARDE_BOOTS -> {
                 lore.add("");
-                lore.add(ChatColor.DARK_AQUA + "Extras : Chute amortie IV, Depth Strider III, Soul Speed III");
+                lore.add(ChatColor.DARK_AQUA + "Extras : Chute amortie IV, Agilité aquatique III, Vitesse des âmes III");
             }
             default -> {
             }
@@ -155,7 +337,7 @@ public class CustomItemManager {
     private void addGardeArmorEnchantments(CustomItemType type, ItemMeta meta) {
         meta.addEnchant(Enchantment.PROTECTION, 9, true);
         meta.addEnchant(Enchantment.THORNS, 5, true);
-        meta.addEnchant(Enchantment.UNBREAKING, 10, true);
+        meta.addEnchant(Enchantment.UNBREAKING, 7, true);
         meta.addEnchant(Enchantment.MENDING, 1, true);
 
         switch (type) {
@@ -174,16 +356,15 @@ public class CustomItemManager {
         }
     }
 
+    // Solidité (Unbreaking) n'est plus appliquée aux outils : la durabilité
+    // vanilla est neutralisée, seul le compteur d'utilisations fait foi.
     private void addPickantiseEnchantments(CustomItemType type, ItemMeta meta) {
         if (type.name().contains("IRON")) {
-            meta.addEnchant(Enchantment.UNBREAKING, 5, true);
             meta.addEnchant(Enchantment.EFFICIENCY, 5, true);
         } else if (type.name().contains("DIAMOND")) {
-            meta.addEnchant(Enchantment.UNBREAKING, 7, true);
             meta.addEnchant(Enchantment.EFFICIENCY, 7, true);
         } else if (type.name().contains("NETHERITE")) {
             meta.addEnchant(Enchantment.EFFICIENCY, 10, true);
-            // Netherite = infini (pas de durabilité)
         }
     }
 
@@ -199,13 +380,10 @@ public class CustomItemManager {
 
     private void addMultiCantoolEnchantments(CustomItemType type, ItemMeta meta) {
         if (type.name().contains("IRON")) {
-            meta.addEnchant(Enchantment.UNBREAKING, 5, true);
             meta.addEnchant(Enchantment.EFFICIENCY, 5, true);
         } else if (type.name().contains("DIAMOND")) {
-            meta.addEnchant(Enchantment.UNBREAKING, 7, true);
             meta.addEnchant(Enchantment.EFFICIENCY, 7, true);
         } else if (type.name().contains("NETHERITE")) {
-            // Netherite : pas de durabilité (infini)
             meta.addEnchant(Enchantment.EFFICIENCY, 10, true);
         }
     }

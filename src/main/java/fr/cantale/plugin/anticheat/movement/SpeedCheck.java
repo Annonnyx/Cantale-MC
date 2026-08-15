@@ -27,7 +27,8 @@ public class SpeedCheck extends Check {
 
     @Override
     public CheckResult check(Player player, PlayerData data) {
-        if (data.isMovementExempt()) {
+        // Grâce post-TP / knockback / explosion : la vélocité fausse la mesure
+        if (data.isMovementExempt() || data.isVelocityExempt()) {
             data.resetSpeedBuffer();
             return CheckResult.pass(type);
         }

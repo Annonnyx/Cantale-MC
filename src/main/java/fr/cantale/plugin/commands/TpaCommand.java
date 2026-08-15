@@ -48,7 +48,7 @@ public class TpaCommand implements CommandExecutor, TabCompleter {
                 yield true;
             }
             default -> {
-                player.sendMessage("§8[§6Cantale§8] §e/tpa <joueur> §7· §e/tpahere <joueur> §7· §e/tpyes §7· §e/tpno");
+                player.sendMessage("§8[§6Cantale§8] §e/tpa <joueur> §7(tu vas vers lui) §8· §e/tpahere <joueur> §7(il vient à toi) §8· §e/tpyes §8· §e/tpno");
                 yield true;
             }
         };

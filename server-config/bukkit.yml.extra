@@ -1,0 +1,29 @@
+# ─── bukkit.yml — extraits optimisation (Paper 1.21.x) ──────────────────────
+# Fusionner dans bukkit.yml.
+
+# Plafonds de spawn naturel : [joueurs] × [limite]. Réduits car per-player-mob-spawns
+# (paper-world) distribue équitablement — les fermes Cantale passent par les spawners
+# customs, pas par le spawn naturel.
+# Défauts : monsters 70, animals 10, water-animals 5, water-ambient 20,
+#           water-underground-creature 5, axolotls 5, ambient 15.
+spawn-limits:
+  monsters: 20
+  animals: 5
+  water-animals: 2
+  water-ambient: 2
+  water-underground-creature: 3
+  axolotls: 3
+  ambient: 1
+
+# Fréquence (ticks) des tentatives de spawn. Les mobs aquatiques/ambient n'ont pas
+# besoin de spawner chaque tick.
+# Défauts : tout à 1 sauf animal-spawns 400.
+ticks-per:
+  animal-spawns: 400
+  monster-spawns: 10
+  water-spawns: 400
+  water-ambient-spawns: 400
+  water-underground-creature-spawns: 400
+  axolotl-spawns: 400
+  ambient-spawns: 400
+  autosave: 6000

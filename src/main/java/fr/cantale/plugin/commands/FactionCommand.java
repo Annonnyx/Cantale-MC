@@ -1,8 +1,7 @@
 package fr.cantale.plugin.commands;
 
 import fr.cantale.plugin.CantalePlugin;
-import fr.cantale.plugin.database.SecretCooldownDAO;
-import fr.cantale.plugin.cooldown.CooldownManager;
+import fr.cantale.plugin.factions.AdminBypassManager;
 import fr.cantale.plugin.factions.Faction;
 import fr.cantale.plugin.factions.FactionManager;
 import fr.cantale.plugin.factions.FactionRank;
@@ -32,6 +31,12 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
     // Invitations en mémoire : invité → {factionId, expireAt}
     private final Map<UUID, int[]> pendingInvites = new HashMap<>();
     private static final long INVITE_TTL_MS = 5 * 60 * 1000L; // 5 minutes
+
+    // Confirmations PASDIC : joueur -> {claim visé, activer?, timestamp}
+    private final Map<UUID, PasdicConfirmation> pendingPasdic = new HashMap<>();
+    private static final long PASDIC_CONFIRM_TTL_MS = 60 * 1000L; // 1 minute
+
+    private record PasdicConfirmation(Claim claim, boolean enable, long timestamp) {}
 
     public FactionCommand(CantalePlugin plugin) {
         this.plugin = plugin;
@@ -76,16 +81,25 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
             case "bank" -> handleBank(player, args);
             case "power", "pouvoir" -> handlePower(player);
             case "secret" -> handleSecret(player);
+            case "pasdic", "protect" -> handlePasdic(player, args);
+            case "raid" -> handleRaid(player);
+            case "war", "enemy" -> handleWar(player, args);
+            case "peace" -> handlePeace(player, args);
+            case "surrender" -> handleSurrender(player, args);
+            case "warend" -> handleWarEnd(player, args);
+            case "ally" -> handleAlly(player, args);
             case "perms", "permissions" -> handlePerms(player, args);
             case "members", "membres" -> handleMembers(player);
             case "warp" -> handleFactionWarp(player, args);
             case "setwarp" -> handleSetWarp(player, args);
             case "delwarp" -> handleDelWarp(player, args);
-            case "home" -> handleFactionHome(player, args);
-            case "sethome" -> handleSetFactionHome(player, args);
+            case "home", "sethome", "homes" -> {
+                player.sendMessage(formatMessage("&cLes homes de faction n'existent plus. Utilise &e/home &c(perso), &e/f spawn &cou &e/f warp&c."));
+            }
             case "promote", "promo" -> handlePromote(player, args);
             case "demote", "demo" -> handleDemote(player, args);
             case "c", "chat" -> handleChat(player, args);
+            case "bypass" -> handleBypass(player);
             case "help" -> sendHelp(player);
             default -> player.sendMessage(formatMessage("&cSous-commande inconnue. Utilisez /f help"));
         }
@@ -152,6 +166,10 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
         faction.setSpawnZ(loc.getZ());
         faction.setSpawnWorld(world);
         factionManager.saveFaction(faction);
+        // Marqueur /f spawn initial sur la carte mod client des membres
+        if (plugin.getClientMapBridge() != null) {
+            plugin.getClientMapBridge().refreshMarkersForFaction(faction);
+        }
 
         player.sendMessage(formatMessage("&aFaction &e" + name + " &acrée avec succès !"));
         if (claimed) {
@@ -543,19 +561,8 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
             org.bukkit.World w = Bukkit.getWorld(rs.getString("world"));
             if (w == null) { player.sendMessage(formatMessage("&cMonde inexistant.")); return; }
             org.bukkit.Location destination = new org.bukkit.Location(w, rs.getDouble("x"), rs.getDouble("y"), rs.getDouble("z"));
-            int delay = plugin.getTeleportDelayManager().getTeleportDelay(player);
-            if (delay > 0) {
-                long ticksBefore = Math.max(0, (delay - 1) * 20L);
-                plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
-                    if (destination.getWorld() != null) destination.getChunk().load(true);
-                }, ticksBefore);
-            } else {
-                destination.getChunk().load(true);
-            }
-            plugin.getTeleportDelayManager().delayTeleport(player, () -> {
-                player.teleport(destination);
-                player.sendMessage(formatMessage("&aTéléporté au warp &e" + args[1] + "&a."));
-            });
+            plugin.getTeleportDelayManager().requestTeleport(player, destination, false, () ->
+                    player.sendMessage(formatMessage("&aTéléporté au warp &e" + args[1] + "&a.")));
         } catch (java.sql.SQLException ex) { player.sendMessage(formatMessage("&cErreur DB.")); }
     }
 
@@ -616,78 +623,6 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
             int rows = st.executeUpdate();
             if (rows > 0) player.sendMessage(formatMessage("&aWarp supprimé."));
             else player.sendMessage(formatMessage("&cWarp introuvable."));
-        } catch (java.sql.SQLException ex) { player.sendMessage(formatMessage("&cErreur DB.")); }
-    }
-
-    private void handleFactionHome(Player player, String[] args) {
-        Faction faction = factionManager.getPlayerFaction(player.getUniqueId());
-        if (faction == null) { player.sendMessage(formatMessage("&cVous n'êtes pas dans une faction.")); return; }
-        UUID uuid = player.getUniqueId();
-        try (java.sql.Connection c = plugin.getDatabaseManager().getConnection();
-             java.sql.PreparedStatement st = c.prepareStatement("SELECT name, world, x, y, z FROM faction_homes WHERE faction_id = ? AND player_uuid = ?" + (args.length >= 2 ? " AND name = ?" : ""))) {
-            st.setInt(1, faction.getId());
-            st.setString(2, uuid.toString());
-            if (args.length >= 2) st.setString(3, args[1]);
-            java.sql.ResultSet rs = st.executeQuery();
-            if (args.length < 2) {
-                player.sendMessage(formatMessage("&6=== Vos homes de faction ==="));
-                int count = 0;
-                while (rs.next()) { player.sendMessage(formatMessage("&7- &e" + rs.getString("name"))); count++; }
-                if (count == 0) player.sendMessage(formatMessage("&7Aucun home. Utilisez /f sethome <nom>"));
-            } else if (rs.next()) {
-                org.bukkit.World w = Bukkit.getWorld(rs.getString("world"));
-                if (w == null) { player.sendMessage(formatMessage("&cMonde inexistant.")); return; }
-                org.bukkit.Location destination = new org.bukkit.Location(w, rs.getDouble("x"), rs.getDouble("y"), rs.getDouble("z"));
-                plugin.getTeleportDelayManager().delayTeleport(player, () -> {
-                    player.teleport(destination);
-                    player.sendMessage(formatMessage("&aTéléporté à votre home &e" + args[1] + "&a."));
-                });
-            } else {
-                player.sendMessage(formatMessage("&cHome introuvable."));
-            }
-        } catch (java.sql.SQLException ex) { player.sendMessage(formatMessage("&cErreur DB.")); }
-    }
-
-    private void handleSetFactionHome(Player player, String[] args) {
-        if (args.length < 2) { player.sendMessage(formatMessage("&cUsage : /f sethome <nom>")); return; }
-        Faction faction = factionManager.getPlayerFaction(player.getUniqueId());
-        if (faction == null) { player.sendMessage(formatMessage("&cVous n'êtes pas dans une faction.")); return; }
-        FactionRank rank = faction.getMemberRank(player.getUniqueId());
-        if (!faction.isLeader(player.getUniqueId()) && rank == FactionRank.RECRUIT) {
-            player.sendMessage(formatMessage("&cLes recrues ne peuvent pas créer de home. Montez au grade Membre."));
-            return;
-        }
-        // Doit être dans un claim de la faction
-        org.bukkit.Chunk chunk = player.getLocation().getChunk();
-        Claim claim = factionManager.getClaimAt(player.getWorld().getName(), chunk.getX(), chunk.getZ());
-        if (claim == null || claim.getFactionId() != faction.getId()) {
-            player.sendMessage(formatMessage("&cVous devez être dans un claim de votre faction."));
-            return;
-        }
-        // Vérifier quota fhomes (par joueur)
-        int maxFhomes = faction.getMaxFhomes();
-        try (java.sql.Connection c = plugin.getDatabaseManager().getConnection();
-             java.sql.PreparedStatement st = c.prepareStatement("SELECT COUNT(*) FROM faction_homes WHERE faction_id = ? AND player_uuid = ?")) {
-            st.setInt(1, faction.getId());
-            st.setString(2, player.getUniqueId().toString());
-            java.sql.ResultSet rs = st.executeQuery();
-            if (rs.next() && rs.getInt(1) >= Math.max(1, maxFhomes)) {
-                player.sendMessage(formatMessage("&cQuota de homes atteint (" + Math.max(1, maxFhomes) + ")."));
-                return;
-            }
-        } catch (java.sql.SQLException ex) { player.sendMessage(formatMessage("&cErreur DB.")); return; }
-
-        try (java.sql.Connection c = plugin.getDatabaseManager().getConnection();
-             java.sql.PreparedStatement st = c.prepareStatement("INSERT INTO faction_homes (faction_id, player_uuid, name, world, x, y, z) VALUES (?,?,?,?,?,?,?)")) {
-            st.setInt(1, faction.getId());
-            st.setString(2, player.getUniqueId().toString());
-            st.setString(3, args[1]);
-            st.setString(4, player.getWorld().getName());
-            st.setDouble(5, player.getLocation().getX());
-            st.setDouble(6, player.getLocation().getY());
-            st.setDouble(7, player.getLocation().getZ());
-            st.executeUpdate();
-            player.sendMessage(formatMessage("&aHome &e" + args[1] + " &acréé."));
         } catch (java.sql.SQLException ex) { player.sendMessage(formatMessage("&cErreur DB.")); }
     }
 
@@ -788,16 +723,7 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
             return;
         }
 
-        // Vérifier le cooldown (20 secondes)
-        CooldownManager cooldownManager = plugin.getCooldownManager();
-        long COOLDOWN_MS = 20000;
-        if (cooldownManager.hasCooldown(player, "fspawn", COOLDOWN_MS)) {
-            long remaining = cooldownManager.getRemainingCooldown(player, "fspawn", COOLDOWN_MS);
-            player.sendMessage(formatMessage("&cCooldown ! Attendez encore " + (remaining / 1000) + " secondes."));
-            return;
-        }
-
-        teleportToFactionSpawn(player, faction, true);
+        teleportToFactionSpawn(player, faction);
     }
 
     private void handleGo(Player player) {
@@ -812,10 +738,10 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
             return;
         }
 
-        teleportToFactionSpawn(player, faction, false);
+        teleportToFactionSpawn(player, faction);
     }
 
-    private void teleportToFactionSpawn(Player player, Faction faction, boolean applyCooldown) {
+    private void teleportToFactionSpawn(Player player, Faction faction) {
         org.bukkit.World world = Bukkit.getWorld(faction.getSpawnWorld());
         if (world == null) {
             player.sendMessage(formatMessage("&cLe monde du spawn n'existe plus."));
@@ -828,25 +754,8 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
             faction.getSpawnY(),
             faction.getSpawnZ()
         );
-        int delay = plugin.getTeleportDelayManager().getTeleportDelay(player);
-        if (spawnLoc.getChunk() != null) {
-            if (delay > 0) {
-                long ticksBefore = Math.max(0, (delay - 1) * 20L);
-                plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
-                    if (spawnLoc.getWorld() != null) spawnLoc.getChunk().load(true);
-                }, ticksBefore);
-            } else {
-                spawnLoc.getChunk().load(true);
-            }
-        }
-
-        plugin.getTeleportDelayManager().delayTeleport(player, () -> {
-            player.teleport(spawnLoc);
-            player.sendMessage(formatMessage("&aTéléporté au spawn de votre faction."));
-            if (applyCooldown) {
-                plugin.getCooldownManager().setCooldown(player, "fspawn");
-            }
-        });
+        plugin.getTeleportDelayManager().requestTeleport(player, spawnLoc, false, () ->
+                player.sendMessage(formatMessage("&aTéléporté au spawn de votre faction.")));
     }
 
     private void handleSetSpawn(Player player) {
@@ -876,6 +785,10 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
         faction.setSpawnZ(player.getLocation().getZ());
         faction.setSpawnWorld(player.getWorld().getName());
         factionManager.saveFaction(faction);
+        // Marqueur /f spawn à jour sur la carte des membres équipés du mod
+        if (plugin.getClientMapBridge() != null) {
+            plugin.getClientMapBridge().refreshMarkersForFaction(faction);
+        }
 
         player.sendMessage(formatMessage("&aSpawn de faction défini à votre position."));
     }
@@ -913,12 +826,19 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
         player.sendMessage(ChatColor.GRAY + "/f map chat - Ancienne grille chat 11×11 (cooldown 30 s)");
         player.sendMessage(ChatColor.GRAY + "/f spawn | /f go | /f setspawn - Spawn de faction");
         player.sendMessage(ChatColor.GRAY + "/f warp [nom] | /f setwarp <nom> | /f delwarp <nom>");
-        player.sendMessage(ChatColor.GRAY + "/f home [nom] | /f sethome <nom>");
         player.sendMessage(ChatColor.GRAY + "/f c [message] - Basculer ou envoyer un message dans le chat de faction");
         player.sendMessage(ChatColor.GRAY + "/f bank - Banque GUI | /f bank power [n] (sans n = GUI pouvoir)");
         player.sendMessage(ChatColor.GRAY + "/f power - Pouvoir, quotas, paliers + achat (GUI)");
         player.sendMessage(ChatColor.GRAY + "/f perms [grade] - Voir les permissions par grade");
         player.sendMessage(ChatColor.GRAY + "/f secret - Activer le mode secret (1h)");
+        player.sendMessage(ChatColor.GRAY + "/f war <faction> - Déclarer la guerre (mutuel : démarre si l'ennemi déclare aussi)");
+        player.sendMessage(ChatColor.GRAY + "/f peace <faction> - Proposer la paix (mutuel : fin si l'ennemi propose aussi)");
+        player.sendMessage(ChatColor.GRAY + "/f surrender <faction> - Capituler (fin immédiate + réparations Cantox)");
+        player.sendMessage(ChatColor.GRAY + "/f raid - Déclarer un raid sur le claim ennemi actuel (sans guerre requise)");
+        if (player.hasPermission(AdminBypassManager.PERMISSION)) {
+            player.sendMessage(ChatColor.GRAY + "/f warend <facA> <facB> - Terminer une guerre de force (staff)");
+            player.sendMessage(ChatColor.GRAY + "/f bypass - Bypass admin des protections de claims (session uniquement)");
+        }
     }
 
     public void handleChat(Player player, String[] args) {
@@ -938,6 +858,24 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
             } else {
                 player.sendMessage(formatMessage("&cChat de Faction &eDÉSACTIVÉ&c. Vos messages repassent en chat global."));
             }
+        }
+    }
+
+    /**
+     * /f bypass — toggle du bypass admin des protections de territoire.
+     * Session uniquement (coupé à la déconnexion), chaque bascule est loguée en console.
+     */
+    private void handleBypass(Player player) {
+        if (!player.hasPermission(AdminBypassManager.PERMISSION)) {
+            player.sendMessage(formatMessage("&cPermission refusée. (" + AdminBypassManager.PERMISSION + ")"));
+            return;
+        }
+        boolean active = plugin.getAdminBypassManager().toggle(player);
+        if (active) {
+            player.sendMessage("§8[§6Cantale§8] §eMode bypass admin §aactivé§e — toutes les protections de claims sont ignorées.");
+            player.sendMessage("§8[§6Cantale§8] §7Session uniquement : le bypass se coupe à la déconnexion.");
+        } else {
+            player.sendMessage("§8[§6Cantale§8] §eMode bypass admin §cdésactivé§e — les protections de claims s'appliquent à nouveau.");
         }
     }
 
@@ -1154,7 +1092,6 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
             return;
         }
 
-        // Vérifier la permission
         FactionRank rank = faction.getMemberRank(player.getUniqueId());
         if (!faction.isLeader(player.getUniqueId())
                 && !permissionManager.hasPermission(faction.getId(), rank, FactionPermission.SECRET)) {
@@ -1162,30 +1099,292 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
             return;
         }
 
-        // Vérifier le cooldown (24 heures)
-        SecretCooldownDAO cooldownDAO = new SecretCooldownDAO(plugin);
-        long cooldownMillis = 24 * 60 * 60 * 1000; // 24 heures
-        if (!cooldownDAO.canUseSecret(player.getUniqueId(), cooldownMillis)) {
-            long lastUsed = cooldownDAO.getLastUsed(player.getUniqueId());
-            long remaining = cooldownMillis - (System.currentTimeMillis() - lastUsed * 1000);
-            long hours = remaining / (60 * 60 * 1000);
-            long minutes = (remaining % (60 * 60 * 1000)) / (60 * 1000);
-            player.sendMessage(formatMessage("&cCooldown ! Attendez encore " + hours + "h " + minutes + "min."));
+        plugin.getSecretTaxManager().toggleSecret(player);
+    }
+
+    private void handlePasdic(Player player, String[] args) {
+        Faction faction = factionManager.getPlayerFaction(player.getUniqueId());
+        if (faction == null) {
+            player.sendMessage(formatMessage("&cVous devez être dans une faction."));
+            return;
+        }
+        FactionRank rank = faction.getMemberRank(player.getUniqueId());
+        if (!faction.isLeader(player.getUniqueId())
+                && !permissionManager.hasPermission(faction.getId(), rank, FactionPermission.PASDIC)) {
+            player.sendMessage(formatMessage("&cRang insuffisant (Officier requis)."));
             return;
         }
 
-        // Activer le mode secret (1 heure)
-        long secretDuration = 60 * 60; // 1 heure en secondes
-        long secretUntil = (System.currentTimeMillis() / 1000) + secretDuration;
-        faction.setSecretUntil(secretUntil);
-        factionManager.saveFaction(faction);
+        // Confirmation
+        if (args.length >= 2 && args[1].equalsIgnoreCase("confirm")) {
+            PasdicConfirmation conf = pendingPasdic.get(player.getUniqueId());
+            long now = System.currentTimeMillis();
+            if (conf == null || now - conf.timestamp > PASDIC_CONFIRM_TTL_MS) {
+                player.sendMessage(formatMessage("&cAucune confirmation PASDIC en attente."));
+                return;
+            }
+            org.bukkit.Location loc = player.getLocation();
+            Claim current = factionManager.getClaimAt(loc.getWorld().getName(), loc.getChunk().getX(), loc.getChunk().getZ());
+            if (current == null || current.getFactionId() != conf.claim.getFactionId()
+                    || current.getChunkX() != conf.claim.getChunkX()
+                    || current.getChunkZ() != conf.claim.getChunkZ()
+                    || !current.getWorld().equals(conf.claim.getWorld())) {
+                player.sendMessage(formatMessage("&cTu n'es plus dans le chunk visé."));
+                return;
+            }
+            if (conf.enable) {
+                double cost = plugin.getConfigManager().getPasdicCost();
+                if (faction.getBalance() < cost) {
+                    player.sendMessage(formatMessage("&cLa banque de faction n'a pas assez (" + String.format("%.0f", cost) + " Cantox requis)."));
+                    return;
+                }
+                faction.setBalance(faction.getBalance() - cost);
+                plugin.getPasdicService().setPasdic(current, true, loc.getChunk());
+                factionManager.saveFaction(faction);
+                plugin.getBankManager().logTransaction(faction.getId(), player.getUniqueId(),
+                        fr.cantale.plugin.economy.BankManager.ACTION_PASDIC, cost, faction.getBalance(),
+                        "Conversion claim en PASDIC");
+                player.sendMessage(formatMessage("&aCe claim est désormais un PASDIC."));
+            } else {
+                plugin.getPasdicService().setPasdic(current, false, loc.getChunk());
+                player.sendMessage(formatMessage("&cLe PASDIC a été retiré de ce claim."));
+            }
+            pendingPasdic.remove(player.getUniqueId());
+            return;
+        }
 
-        // Enregistrer le cooldown
-        cooldownDAO.setLastUsed(player.getUniqueId(), System.currentTimeMillis() / 1000);
+        org.bukkit.Location loc = player.getLocation();
+        Claim claim = factionManager.getClaimAt(loc.getWorld().getName(), loc.getChunk().getX(), loc.getChunk().getZ());
+        if (claim == null || claim.getFactionId() != faction.getId()) {
+            player.sendMessage(formatMessage("&cTu dois être dans un claim de ta faction."));
+            return;
+        }
+        if (claim.isPasdic()) {
+            pendingPasdic.put(player.getUniqueId(), new PasdicConfirmation(claim, false, System.currentTimeMillis()));
+            player.sendMessage(formatMessage("&eTape &a/f pasdic confirm &epour retirer le PASDIC de ce chunk (gratuit)."));
+        } else {
+            double cost = plugin.getConfigManager().getPasdicCost();
+            pendingPasdic.put(player.getUniqueId(), new PasdicConfirmation(claim, true, System.currentTimeMillis()));
+            player.sendMessage(formatMessage("&eTape &a/f pasdic confirm &epour convertir ce claim en PASDIC (&6"
+                    + String.format("%.0f", cost) + " Cantox&e)."));
+        }
+    }
 
-        player.sendMessage(formatMessage("&aMode secret activé pour 1 heure !"));
-        player.sendMessage(formatMessage("&7Vos claims et spawn sont cachés aux autres factions."));
-        Bukkit.broadcastMessage(formatMessage("&6[Faction] &e" + faction.getName() + " &7est entré en mode secret."));
+    private void handleRaid(Player player) {
+        Faction faction = factionManager.getPlayerFaction(player.getUniqueId());
+        if (faction == null) {
+            player.sendMessage(formatMessage("&cVous devez être dans une faction."));
+            return;
+        }
+        FactionRank rank = faction.getMemberRank(player.getUniqueId());
+        if (!faction.isLeader(player.getUniqueId())
+                && !permissionManager.hasPermission(faction.getId(), rank, FactionPermission.RAID)) {
+            player.sendMessage(formatMessage("&cRang insuffisant (Officier requis)."));
+            return;
+        }
+        org.bukkit.Location loc = player.getLocation();
+        Claim claim = factionManager.getClaimAt(loc.getWorld().getName(), loc.getChunk().getX(), loc.getChunk().getZ());
+        if (claim == null || claim.getFactionId() == faction.getId()) {
+            player.sendMessage(formatMessage("&cTu dois être dans un claim ennemi pour déclarer un raid."));
+            return;
+        }
+        plugin.getRaidManager().startRaid(player, claim);
+    }
+
+    /**
+     * /f war <faction> — déclaration de guerre MUTUELLE : la première déclaration est
+     * « en attente » (expiration configurable) ; la guerre ne démarre que si l'autre
+     * faction déclare à son tour.
+     */
+    private void handleWar(Player player, String[] args) {
+        Faction faction = factionManager.getPlayerFaction(player.getUniqueId());
+        if (faction == null) {
+            player.sendMessage(formatMessage("&cVous devez être dans une faction."));
+            return;
+        }
+        FactionRank rank = faction.getMemberRank(player.getUniqueId());
+        if (!faction.isLeader(player.getUniqueId())
+                && !permissionManager.hasPermission(faction.getId(), rank, FactionPermission.WAR)) {
+            player.sendMessage(formatMessage("&cRang insuffisant (Officier requis)."));
+            return;
+        }
+        if (args.length < 2) {
+            player.sendMessage(formatMessage("&cUsage : /f war <faction>"));
+            return;
+        }
+        Faction target = resolveFactionByName(args[1]);
+        if (target == null) {
+            player.sendMessage(formatMessage("&cFaction introuvable."));
+            return;
+        }
+        if (target.getId() == faction.getId()) {
+            player.sendMessage(formatMessage("&cTu ne peux pas te déclarer la guerre."));
+            return;
+        }
+        var result = plugin.getDiplomatieManager().declareWar(faction.getId(), target.getId());
+        switch (result) {
+            case PENDING -> player.sendMessage(formatMessage(
+                    "&eDéclaration de guerre enregistrée. En attente de la déclaration de &c"
+                            + target.getName() + "&e."));
+            case STARTED -> player.sendMessage(formatMessage(
+                    "&cLa guerre contre &e" + target.getName() + " &cest déclarée !"));
+            case ALREADY_AT_WAR -> player.sendMessage(formatMessage(
+                    "&cVous êtes déjà en guerre contre " + target.getName() + "."));
+            case ALREADY_DECLARED -> player.sendMessage(formatMessage(
+                    "&cVotre déclaration de guerre contre " + target.getName()
+                            + " est déjà en attente (réponse adverse requise)."));
+            case INVALID -> player.sendMessage(formatMessage("&cDéclaration impossible."));
+        }
+    }
+
+    /**
+     * /f peace <faction> — paix MUTUELLE : la première proposition est « en attente »
+     * (même expiration que les déclarations) ; la guerre ne prend fin que si l'autre
+     * faction propose aussi la paix.
+     */
+    private void handlePeace(Player player, String[] args) {
+        Faction faction = factionManager.getPlayerFaction(player.getUniqueId());
+        if (faction == null) {
+            player.sendMessage(formatMessage("&cVous devez être dans une faction."));
+            return;
+        }
+        FactionRank rank = faction.getMemberRank(player.getUniqueId());
+        if (!faction.isLeader(player.getUniqueId())
+                && !permissionManager.hasPermission(faction.getId(), rank, FactionPermission.WAR)) {
+            player.sendMessage(formatMessage("&cRang insuffisant (Officier requis)."));
+            return;
+        }
+        if (args.length < 2) {
+            player.sendMessage(formatMessage("&cUsage : /f peace <faction>"));
+            return;
+        }
+        Faction target = resolveFactionByName(args[1]);
+        if (target == null) {
+            player.sendMessage(formatMessage("&cFaction introuvable."));
+            return;
+        }
+        var result = plugin.getDiplomatieManager().proposePeace(faction.getId(), target.getId());
+        switch (result) {
+            case PENDING -> player.sendMessage(formatMessage(
+                    "&eProposition de paix envoyée à &c" + target.getName()
+                            + "&e. En attente de sa réponse."));
+            case PEACE -> player.sendMessage(formatMessage(
+                    "&aLa paix est conclue avec &e" + target.getName() + "&a."));
+            case NOT_AT_WAR -> player.sendMessage(formatMessage(
+                    "&cVous n'êtes pas en guerre contre " + target.getName() + "."));
+            case ALREADY_PROPOSED -> player.sendMessage(formatMessage(
+                    "&cVotre proposition de paix est déjà en attente (réponse adverse requise)."));
+            case INVALID -> player.sendMessage(formatMessage("&cProposition impossible."));
+        }
+    }
+
+    /**
+     * /f surrender <faction> — capitulation unilatérale : fin immédiate de la guerre,
+     * annonce publique de défaite et réparations Cantox banque → banque (configurable).
+     */
+    private void handleSurrender(Player player, String[] args) {
+        Faction faction = factionManager.getPlayerFaction(player.getUniqueId());
+        if (faction == null) {
+            player.sendMessage(formatMessage("&cVous devez être dans une faction."));
+            return;
+        }
+        FactionRank rank = faction.getMemberRank(player.getUniqueId());
+        if (!faction.isLeader(player.getUniqueId())
+                && !permissionManager.hasPermission(faction.getId(), rank, FactionPermission.WAR)) {
+            player.sendMessage(formatMessage("&cRang insuffisant (Officier requis)."));
+            return;
+        }
+        if (args.length < 2) {
+            player.sendMessage(formatMessage("&cUsage : /f surrender <faction>"));
+            return;
+        }
+        Faction target = resolveFactionByName(args[1]);
+        if (target == null) {
+            player.sendMessage(formatMessage("&cFaction introuvable."));
+            return;
+        }
+        String error = plugin.getDiplomatieManager().surrender(faction.getId(), target.getId());
+        if (error != null) {
+            player.sendMessage(formatMessage("&c" + error));
+        } else {
+            player.sendMessage(formatMessage("&eVotre faction a capitulé face à &c" + target.getName() + "&e."));
+        }
+    }
+
+    /**
+     * /f warend <factionA> <factionB> — fin de guerre forcée (staff).
+     * Permission cantale.faction.bypass (même perm staff que /f bypass) ; log console d'audit.
+     */
+    private void handleWarEnd(Player player, String[] args) {
+        if (!player.hasPermission(AdminBypassManager.PERMISSION)) {
+            player.sendMessage(formatMessage("&cPermission refusée. (" + AdminBypassManager.PERMISSION + ")"));
+            return;
+        }
+        if (args.length < 3) {
+            player.sendMessage(formatMessage("&cUsage : /f warend <factionA> <factionB>"));
+            return;
+        }
+        Faction factionA = resolveFactionByName(args[1]);
+        Faction factionB = resolveFactionByName(args[2]);
+        if (factionA == null || factionB == null) {
+            player.sendMessage(formatMessage("&cFaction introuvable (" + args[1] + " ou " + args[2] + ")."));
+            return;
+        }
+        boolean ended = plugin.getDiplomatieManager()
+                .forceEndWar(factionA.getId(), factionB.getId(), player.getName());
+        if (ended) {
+            player.sendMessage(formatMessage("&aGuerre terminée entre &e" + factionA.getName()
+                    + " &aet &e" + factionB.getName() + "&a."));
+        } else {
+            player.sendMessage(formatMessage("&c" + factionA.getName() + " et " + factionB.getName()
+                    + " ne sont pas en guerre."));
+        }
+    }
+
+    private void handleAlly(Player player, String[] args) {
+        Faction faction = factionManager.getPlayerFaction(player.getUniqueId());
+        if (faction == null) {
+            player.sendMessage(formatMessage("&cVous devez être dans une faction."));
+            return;
+        }
+        FactionRank rank = faction.getMemberRank(player.getUniqueId());
+        if (!faction.isLeader(player.getUniqueId())
+                && !permissionManager.hasPermission(faction.getId(), rank, FactionPermission.WAR)) {
+            player.sendMessage(formatMessage("&cRang insuffisant (Officier requis)."));
+            return;
+        }
+        if (args.length < 2) {
+            player.sendMessage(formatMessage("&cUsage : /f ally <faction>"));
+            return;
+        }
+        Faction target = resolveFactionByName(args[1]);
+        if (target == null) {
+            player.sendMessage(formatMessage("&cFaction introuvable."));
+            return;
+        }
+        if (target.getId() == faction.getId()) {
+            player.sendMessage(formatMessage("&cTu ne peux pas être allié avec toi-même."));
+            return;
+        }
+        if (plugin.getDiplomatieManager().isAllied(faction.getId(), target.getId())) {
+            player.sendMessage(formatMessage("&cVous êtes déjà alliés avec " + target.getName() + "."));
+            return;
+        }
+        plugin.getDiplomatieManager().proposeAlliance(faction.getId(), target.getId());
+        Bukkit.broadcastMessage(formatMessage("&a[Alliance] &e" + faction.getName() + " &7s'allie avec &e" + target.getName() + "&7."));
+    }
+
+    private Faction resolveFactionByName(String input) {
+        if (input == null || input.isBlank()) return null;
+        String name = input.trim();
+        Faction byName = factionManager.getFaction(name);
+        if (byName != null) return byName;
+        for (Faction f : factionManager.getAllFactions()) {
+            if (f.getName().equalsIgnoreCase(name) || f.getTag().equalsIgnoreCase(name)) {
+                return f;
+            }
+        }
+        return null;
     }
 
     private void handlePerms(Player player, String[] args) {
@@ -1232,7 +1431,9 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
             case SECRET -> "Activer le mode secret";
             case CULTURES -> "Fermes publiques (récolte par non-membres)";
             case SET_PERMS -> "Gérer les permissions";
-            case FHOME -> "Créer des homes";
+            case RAID -> "Déclarer des raids";
+            case PASDIC -> "Gérer les PASDIC";
+            case WAR -> "Déclarer la guerre / la paix";
         };
     }
 
@@ -1245,11 +1446,17 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         if (args.length == 1) {
             String prefix = args[0].toLowerCase();
-            return Arrays.asList("create", "rename", "name", "renommer", "invite", "accept", "deny", "leave", "info", "list", "members",
+            List<String> subs = new ArrayList<>(Arrays.asList("create", "rename", "name", "renommer", "invite", "accept", "deny", "leave", "info", "list", "members",
                     "join", "kick", "ban", "promote", "demote", "claim", "unclaim", "autoclaim",
-                    "spawn", "go", "setspawn", "warp", "setwarp", "delwarp", "home", "sethome",
-                    "map", "bank", "power", "pouvoir", "secret", "perms", "help", "disband")
-                    .stream().filter(s -> s.startsWith(prefix)).collect(Collectors.toList());
+                    "spawn", "go", "setspawn", "warp", "setwarp", "delwarp",
+                    "map", "bank", "power", "pouvoir", "secret", "pasdic", "protect", "raid",
+                    "war", "enemy", "peace", "surrender", "ally", "perms", "help", "disband"));
+            // Sous-commandes staff : ne pas les suggérer aux joueurs sans la permission.
+            if (sender instanceof Player p && p.hasPermission(AdminBypassManager.PERMISSION)) {
+                subs.add("bypass");
+                subs.add("warend");
+            }
+            return subs.stream().filter(s -> s.startsWith(prefix)).collect(Collectors.toList());
         }
         if (args.length == 2) {
             String sub = args[0].toLowerCase();
@@ -1271,6 +1478,26 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
                         .filter(s -> s.startsWith(args[1].toLowerCase()))
                         .collect(Collectors.toList());
             }
+            if (sub.equals("pasdic") || sub.equals("protect")) {
+                return Arrays.asList("confirm").stream()
+                        .filter(s -> s.startsWith(args[1].toLowerCase()))
+                        .collect(Collectors.toList());
+            }
+            if (sub.equals("war") || sub.equals("enemy") || sub.equals("peace") || sub.equals("surrender")
+                    || sub.equals("ally") || sub.equals("warend")) {
+                String prefix = args[1].toLowerCase();
+                return factionManager.getAllFactions().stream()
+                        .map(Faction::getName)
+                        .filter(n -> n.toLowerCase().startsWith(prefix))
+                        .collect(Collectors.toList());
+            }
+        }
+        if (args.length == 3 && args[0].equalsIgnoreCase("warend")) {
+            String prefix = args[2].toLowerCase();
+            return factionManager.getAllFactions().stream()
+                    .map(Faction::getName)
+                    .filter(n -> n.toLowerCase().startsWith(prefix))
+                    .collect(Collectors.toList());
         }
         return Collections.emptyList();
     }

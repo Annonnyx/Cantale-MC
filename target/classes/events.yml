@@ -61,20 +61,18 @@ chat-reactions:
 # ── Événements de faction (récolte / minage / PVP) ──
 faction-events:
   enabled: true
-  # Nombre cible d'événements par semaine (aléatoire dans cet intervalle)
-  # Objectif : 3–4 events bien espacés, pas regroupés le même jour.
-  events-per-week-min: 3
-  events-per-week-max: 4
+  # 2–3 events / jour entre 10h et minuit → ~14–21 / semaine
+  events-per-week-min: 14
+  events-per-week-max: 21
   # Durée d'un événement (minutes)
   duration-minutes: 60
-  # Fenêtre de démarrage (Europe/Paris)
-  start-hour: 14
-  end-hour: 22
+  # Fenêtre de démarrage (Europe/Paris). 24 = jusqu'à minuit (créneaux 10h–23h).
+  start-hour: 10
+  end-hour: 24
   # Délai minimum entre la FIN d'un événement et le DÉBUT du suivant (heures).
-  # Empêche deux events à quelques minutes / heures d'intervalle.
-  min-hours-between-events: 8
-  # Nombre max d'événements par jour civil (0 = illimité). 1 = doser correctement.
-  max-events-per-day: 1
+  min-hours-between-events: 2
+  # Nombre max d'événements par jour civil (0 = illimité).
+  max-events-per-day: 3
   # Types possibles (pondération égale si tous listés)
   types:
     - HARVEST

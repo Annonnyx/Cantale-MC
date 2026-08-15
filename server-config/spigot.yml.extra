@@ -1,0 +1,65 @@
+# ─── spigot.yml — extraits optimisation (Paper 1.21.x) ──────────────────────
+# Fusionner dans spigot.yml (sous world-settings: default: sauf mention contraire).
+
+world-settings:
+  default:
+    # Laisser Paper piloter via server.properties (view-distance/simulation-distance).
+    view-distance: default
+
+    # Rayon (chunks) de spawn des mobs autour du joueur. Doit rester <= simulation-distance.
+    # Plus bas = mobs ressentis "plus nombreux" près du joueur. Défaut : 8.
+    mob-spawn-range: 3
+
+    # Distance à laquelle une entité est "réveillée" (IA active). Au-delà : entité quasi figée.
+    # Défauts : animals 32, monsters 32, raiders 64, misc 16, water 16, villagers 32,
+    #           flying-monsters 32, wake-up-inactive tous true.
+    entity-activation-range:
+      animals: 16
+      monsters: 24
+      raiders: 48
+      misc: 8
+      water: 8
+      villagers: 16
+      flying-monsters: 48
+      villagers-work-immunity-after: 100
+      villagers-work-immunity-for: 100
+
+    # Distance à laquelle les entités sont ENVOYÉES au client. Doit être >= activation-range.
+    # Défauts : players 48? (vanilla 64/128), ici valeurs resserrées pour factions.
+    entity-tracking-range:
+      players: 64
+      animals: 48
+      monsters: 48
+      misc: 32
+      display: 64
+      other: 64
+
+    # Fusion des items au sol / orbes d'XP proches : moins d'entités à ticker.
+    # Ne pas monter au-delà (items qui "traversent" les murs visuellement). Défauts : 2.5 / 3.0.
+    merge-radius:
+      item: 3.5
+      exp: 4.0
+
+    # Hoppers : le levier n°1 contre le lag des usines. Cantale limite déjà la pose
+    # (hopper-limit) ; ici on ralentit leur tick.
+    # hopper-transfer 8 = transfert toutes les 8 ticks (vanilla). hopper-check 8 = le hopper
+    # ne cherche un item au-dessus que toutes les 8 ticks. Défauts : 8 / 1.
+    ticks-per:
+      hopper-transfer: 8
+      hopper-check: 8
+    hopper-amount: 1
+    # cooldown quand le hopper est plein au lieu de retenter en boucle (Paper). Défaut : true.
+    hopper-can-load-chunks: false
+
+    # Villageois inactifs (hors activation range) non tickés. Peut affecter iron farms /
+    # restock — mesurer avant/après. Défaut : true.
+    tick-inactive-villagers: false
+
+    # OPTIONNEL — retire l'IA des mobs issus de spawners VANILLA (raison SPAWNER).
+    # Les spawners Cantale (SpawnReason.CUSTOM) ne sont PAS affectés.
+    # nerf-spawner-mobs: true
+
+    # Flèches plantées : durée de vie courte (les flèches de mobs ne sont pas ramassables).
+    # Défaut : 1200 (60 s).
+    arrow-despawn-rate: 300
+    trident-despawn-rate: 1200

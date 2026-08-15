@@ -34,7 +34,7 @@ public class CrateManager {
     public CrateManager(CantalePlugin plugin) {
         this.plugin = plugin;
         this.itemManager = plugin.getCustomItemManager();
-        this.rewardTable = new CrateRewardTable(itemManager);
+        this.rewardTable = new CrateRewardTable(plugin, itemManager);
         this.crateConfig = new CrateConfig(plugin);
         this.crateConfig.load();
     }
@@ -148,6 +148,9 @@ public class CrateManager {
         }
 
         if (type == CrateType.LEGENDARY || style == OpenStyle.TICKET) {
+            if (plugin.getCollectionManager() != null) {
+                plugin.getCollectionManager().onCrateOpened(player.getUniqueId());
+            }
             if (originalType == CrateType.VOTE) {
                 grantGoatRank(player);
             } else {
@@ -327,6 +330,9 @@ public class CrateManager {
     }
 
     public void deliverReward(Player player, CrateType type, CrateReward reward, Location loc) {
+        if (plugin.getCollectionManager() != null) {
+            plugin.getCollectionManager().onCrateOpened(player.getUniqueId());
+        }
         if (reward.cantox() > 0) {
             plugin.getEconomyManager().deposit(player, reward.cantox());
         }

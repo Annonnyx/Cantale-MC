@@ -11,10 +11,12 @@ public enum FactionPermission {
     BANK_ADD("bankadd", false),
     BANK_TAKE("banktake", false),
     CULTURES("cultures", true),
-    FHOME("fhome", 0),
     FWARP("fwarp", false),
     INFO_BANK("infobank", false),
-    SECRET("secret", false);
+    SECRET("secret", false),
+    RAID("raid", false),
+    PASDIC("pasdic", false),
+    WAR("war", false);
 
     private final String name;
     private final Object defaultValue;

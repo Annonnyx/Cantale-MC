@@ -20,6 +20,10 @@ public class Faction {
     private Double spawnZ;
     private String spawnWorld;
     private long secretUntil;
+    /** Timestamp (s) jusqu'où le secret est gratuit (nouvelle faction ou raid subi). */
+    private long secretFreeUntil;
+    /** Timestamp (s) du dernier raid subi (protection progressive). */
+    private long lastRaidAt;
     /** ID du rôle Discord dédié à cette faction (0 = pas encore créé). */
     private long discordRoleId;
     /** Nombre de points de pouvoir déjà achetés via la banque (courbe de prix). */
@@ -131,11 +135,6 @@ public class Faction {
         return Math.max(5, power / 10);
     }
 
-    // Fhomes pool = pouvoir / 20, minimum 1
-    public int getMaxFhomes() {
-        return Math.max(1, power / 20);
-    }
-
     // Warps : 1 à 60, puis +1 tous les +30
     public int getMaxWarps() {
         if (power < 60) return 1;
@@ -147,11 +146,6 @@ public class Faction {
         return (getMaxClaims() + 1) * 10;
     }
 
-    /** Pouvoir total requis pour le prochain f-home (par joueur). */
-    public int powerRequiredForNextFhome() {
-        return (getMaxFhomes() + 1) * 20;
-    }
-
     /** Pouvoir total requis pour le prochain warp de faction. */
     public int powerRequiredForNextWarp() {
         return 60 + getMaxWarps() * 30;
@@ -159,10 +153,6 @@ public class Faction {
 
     public int powerUntilNextClaimSlot() {
         return Math.max(0, powerRequiredForNextClaimSlot() - power);
-    }
-
-    public int powerUntilNextFhome() {
-        return Math.max(0, powerRequiredForNextFhome() - power);
     }
 
     public int powerUntilNextWarp() {
@@ -289,6 +279,24 @@ public class Faction {
         this.spawnWorld = spawnWorld;
     }
 
+    /** True if /f spawn (ou spawn à la création) a des coordonnées persistées. */
+    public boolean hasSpawn() {
+        return spawnWorld != null && spawnX != null && spawnZ != null;
+    }
+
+    /**
+     * True si ce chunk est celui du f-spawn (coordonnées {@code spawn_x/z} → chunk).
+     * Spawn non défini → false.
+     */
+    public boolean isSpawnInChunk(String world, int chunkX, int chunkZ) {
+        if (!hasSpawn() || world == null || !spawnWorld.equals(world)) {
+            return false;
+        }
+        int spawnChunkX = org.bukkit.Location.locToBlock(spawnX) >> 4;
+        int spawnChunkZ = org.bukkit.Location.locToBlock(spawnZ) >> 4;
+        return chunkX == spawnChunkX && chunkZ == spawnChunkZ;
+    }
+
     public long getSecretUntil() {
         return secretUntil;
     }
@@ -299,6 +307,22 @@ public class Faction {
 
     public boolean isSecret() {
         return System.currentTimeMillis() / 1000 < secretUntil;
+    }
+
+    public long getSecretFreeUntil() {
+        return secretFreeUntil;
+    }
+
+    public void setSecretFreeUntil(long secretFreeUntil) {
+        this.secretFreeUntil = Math.max(0, secretFreeUntil);
+    }
+
+    public long getLastRaidAt() {
+        return lastRaidAt;
+    }
+
+    public void setLastRaidAt(long lastRaidAt) {
+        this.lastRaidAt = Math.max(0, lastRaidAt);
     }
 
     public long getDiscordRoleId() {

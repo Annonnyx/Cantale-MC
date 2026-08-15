@@ -48,6 +48,7 @@ public class MovementListener implements Listener {
 
         // Récupérer ou créer les données du joueur
         PlayerData data = manager.getPlayerData(player.getUniqueId());
+        data.setLastMoveChangedPosition(event.hasChangedPosition());
 
         // Grâce post-TP / reset mouvement : ne pas checker, juste resync position
         if (data.isMovementExempt()) {
@@ -57,6 +58,12 @@ public class MovementListener implements Listener {
             if (player.isOnGround()) {
                 data.setLastGroundY(player.getLocation().getY());
             }
+            return;
+        }
+
+        // Porte anti-lag globale : sous min-tps ou au-delà du ping max, les mesures
+        // de mouvement ne sont pas fiables → on skippe tous les checks de mouvement.
+        if (manager.isLagCompromised(player)) {
             return;
         }
 

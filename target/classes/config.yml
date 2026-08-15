@@ -30,6 +30,15 @@ lives:
   ban-on-zero: true
   # Message affiché au ban
   ban-message: "&cVous n'avez plus de vies ! Achetez-en une ou attendez qu'un ami vous en donne une."
+  # Saturation (effet PotionEffectType.SATURATION, amplifier 0) après respawn.
+  # Amp 0 = régén faim utile sans être abusif ; durée rafraîchie à chaque respawn.
+  # Recommandé 120–180 s ; défaut 150 (~2,5 min).
+  respawn-saturation-seconds: 150
+
+# Durée du tag combat (secondes). Joueur tagué : pas de TP commandes,
+# pas d'entrée no-PvP (PASDIC / son claim), déco = −1 vie.
+# Si le fichier live a déjà une autre valeur, elle gagne (pas de merge forcé).
+combat-tag-seconds: 20
 
 # ─── Économie ────────────────────────────────────────────────
 economy:
@@ -37,11 +46,36 @@ economy:
   start-balance: 10000
 
 # ─── Téléportation ───────────────────────────────────────────
+# Warmup 3 s, cooldown global 30 s et RTP 5 min sont appliqués en dur
+# (TeleportDelayManager). Ces clés documentent le comportement ; une ancienne
+# valeur delay: 5 dans un config.yml live n'est PAS relue pour le warmup.
 teleport:
-  # Temps d'attente avant TP en secondes
-  delay: 5
-  # Nombre de homes personnels par défaut
-  max-homes: 3
+  # Warmup immobile avant TP (secondes). Exempt : cantale.admin + mode trace /moderation.
+  delay: 3
+  # Cooldown global entre deux téléportations (secondes)
+  global-cooldown: 30
+  # Cooldown RTP (secondes), en plus du global — le joueur attend le max des deux
+  rtp-cooldown: 300
+  # Norme de homes personnels : joueurs sans grade (NONE) et modos.
+  # Au-dessus de la norme : Aventurier 8, VIP 10, Chèvre ∞, Admin/Owner ∞ (PlayerRank).
+  max-homes: 5
+
+# ─── Anti-AFK ────────────────────────────────────────────────
+# Temps d'inactivité (secondes) avant kick. 0 = pas de limite pour ce grade.
+# Clés = PlayerRank.name() en minuscules (NONE, AVENTURIER, VIP, CHEVRE, MODERATOR).
+# ADMIN, OWNER, et permission Bukkit cantale.admin : jamais kick (pas de clé).
+# Les modos (grade MODERATOR / cantale.moderator seul) ont une limite.
+# Activité qui reset : déplacement, regard, chat, commande, interaction.
+# IMPORTANT : saveDefaultConfig() ne fusionne pas. Copier ce bloc dans
+# plugins/CantalePlugin/config.yml si le fichier live existe déjà.
+afk:
+  timeout-seconds:
+    none: 600          # 10 min — joueur sans grade
+    aventurier: 900    # 15 min
+    vip: 1800          # 30 min
+    chevre: 3600       # 60 min
+    moderator: 3600    # 60 min — modos (pas admin)
+
 
 # ─── Factions ────────────────────────────────────────────────
 factions:
@@ -52,7 +86,123 @@ factions:
   # Homes de départ par faction
   start-homes: 30
 
-  # ── Protection des claims ──
+  # Achat de pouvoir via /f bank power (officiers + chef)
+  # cost(i) = floor(base * growth^(i * 10)) où i = power_purchased (unités, pas le pouvoir)
+  # Chaque unité achetée → +power-per-unit pouvoir ; power_purchased += unités (échelle de prix)
+  power-buy:
+    base: 5000
+    growth: 1.18
+    max-per-purchase: 50
+    power-per-unit: 10
+
+  # Limite de hoppers posables (anti-lag). Craft désactivé ; achat /shop cher + cap quotidien.
+  # max = max(min, pouvoir / divisor) — division entière. Pose uniquement dans les claims de SA fac.
+  # Ex. pouvoir 65 → 3 hoppers ; 200 → 10 ; 500 → 25. Place-only (les déjà posés restent).
+  hopper-limit:
+    enabled: true
+    divisor: 20
+    min: 0
+
+  # ── PASDIC (claim renforcé) ──
+  pasdic:
+    # Coût pour convertir un claim normal en PASDIC (banque de faction)
+    cost: 50000
+    # Blocs interdits en pose dans un PASDIC (conteneurs de stockage).
+    # Fours, hauts fourneaux, fumoirs, hoppers, dropper et dispenser restent autorisés.
+    banned-container-blocks:
+      - CHEST
+      - TRAPPED_CHEST
+      - BARREL
+      - ENDER_CHEST
+      - WHITE_SHULKER_BOX
+      - ORANGE_SHULKER_BOX
+      - MAGENTA_SHULKER_BOX
+      - LIGHT_BLUE_SHULKER_BOX
+      - YELLOW_SHULKER_BOX
+      - LIME_SHULKER_BOX
+      - PINK_SHULKER_BOX
+      - GRAY_SHULKER_BOX
+      - LIGHT_GRAY_SHULKER_BOX
+      - CYAN_SHULKER_BOX
+      - PURPLE_SHULKER_BOX
+      - BLUE_SHULKER_BOX
+      - BROWN_SHULKER_BOX
+      - GREEN_SHULKER_BOX
+      - RED_SHULKER_BOX
+      - BLACK_SHULKER_BOX
+    # Dans un PASDIC, seuls ces types de spawn sont autorisés. Les spawners Cantale
+    # spawnent via spawnEntity → CUSTOM (le spawn vanilla du bloc est neutralisé) ;
+    # SPAWNER couvre d'éventuels spawners vanilla non gérés.
+    # Liste vide ([]) = limitation désactivée (tout passe). Clé absente = défauts Java.
+    # Autres valeurs possibles : BREEDING, DISPENSE_EGG, SPAWNER_EGG, BUILD_IRONGOLEM...
+    # Liste complète : https://jd.papermc.io/paper/1.21/org/bukkit/event/entity/CreatureSpawnEvent.SpawnReason.html
+    allowed-spawn-reasons: [SPAWNER, CUSTOM]
+
+  # ── Mode secret ──
+  secret:
+    # Coût par intervalle de facturation (Cantox). Ancien : 1 secret/jour pendant 1h.
+    # Nouveau : taxe récurrente tant que le mode secret est actif.
+    daily-cost: 1000
+    # Intervalle entre deux prélèvements (minutes). 20 min = 1 jour Minecraft environ.
+    charge-interval-minutes: 20
+    # Jours de secret gratuit pour une nouvelle faction
+    free-days-new-faction: 3
+    # Jours de secret gratuit après un raid subi
+    free-days-after-raid: 3
+    # Avertissement si la banque ne couvre pas le prochain prélèvement (minutes avant)
+    warning-minutes-before: 60
+
+  # ── Raids ──
+  raid:
+    # Durée du raid selon le pouvoir de la faction défenseur
+    duration-minutes-small: 15
+    duration-minutes-large: 60
+    power-small: 100
+    power-large: 500
+    # Cooldown de l'attaquant après avoir mené un raid (minutes).
+    # Une petite faction doit attendre plus longtemps avant de relancer un raid ;
+    # une grosse faction peut spammer un peu plus.
+    cooldown-minutes-small: 1440
+    cooldown-minutes-large: 30
+    # Nombre de raids simultanés autorisés sur la défenseur
+    max-concurrent-small: 1
+    max-concurrent-large: 3
+    # Protection progressive après un raid (heures)
+    protection-hours-small: 72
+    protection-hours-large: 2
+
+  # ── Guerre (déclaration mutuelle) ──
+  # Une guerre ne démarre que si les DEUX factions font /f war <faction> l'une envers
+  # l'autre : la 1re déclaration est « en attente » et expire sans réponse.
+  # La paix (/f peace) est également mutuelle ; /f surrender est unilatéral (réparations).
+  # Les raids (/f raid) NE nécessitent PAS la guerre.
+  #
+  # ┌────────────────────────────┬───────────────────────────────┬──────────────────────────────┐
+  # │ Situation                  │ Hors guerre                   │ En guerre (2 belligérants)   │
+  # ├────────────────────────────┼───────────────────────────────┼──────────────────────────────┤
+  # │ /f raid sur claim ennemi   │ autorisé                      │ autorisé                     │
+  # │ Casse/pose/TNT claims enn. │ raid actif uniquement         │ en permanence (sans /raid)   │
+  # │ Mort d'un membre           │ -5 power (PvP uniquement)     │ -5 × death-power-multiplier  │
+  # │ Kill sur l'ennemi          │ +5 power                      │ +5 × kill-power-multiplier   │
+  # │ PASDIC                     │ toujours protégé              │ toujours protégé             │
+  # └────────────────────────────┴───────────────────────────────┴──────────────────────────────┘
+  war:
+    # Minutes avant expiration d'une déclaration de guerre (ou d'une proposition de paix)
+    # sans réponse de l'autre faction
+    declaration-expiry-minutes: 15
+    # Perte de pouvoir à la mort d'un membre d'une faction en guerre : 5 × ce multiplicateur
+    death-power-multiplier: 2.0
+    # Gain de pouvoir pour un kill sur un membre de la faction ennemie : 5 × ce multiplicateur
+    kill-power-multiplier: 2.0
+    # false (défaut) : TOUTE mort d'un membre en guerre applique le multiplicateur de perte
+    # (PvP ou non) ; true : uniquement les morts PvP contre le belligérant
+    death-multiplier-pvp-only: false
+    # Réparations payées par la faction qui capitule (/f surrender) : transfert Cantox de
+    # banque à banque. Si la banque du perdant est insuffisante, le reste est transféré et
+    # l'annonce le signale. 0 = réparations désactivées.
+    surrender-reparations-cantox: 10000
+
+# ── Protection des claims ──
   claim-protection:
     # Blocs que les étrangers ne peuvent PAS casser dans un claim (sauf par explosion).
     # Tous les autres blocs sont cassables normalement par un étranger.
@@ -96,58 +246,126 @@ factions:
       - CHIPPED_ANVIL
       - DAMAGED_ANVIL
 
-    # Blocs que les étrangers peuvent poser dans un claim (utilisés pour créer des explosions).
-    # Tout autre bloc est refusé.
+    # Blocs que les étrangers peuvent poser dans un claim (raid / grief).
+    # Tout autre bloc est refusé. PASDIC : aucune pose.
+    # Java ajoute aussi lodestone, seaux, wither (saveDefaultConfig ne fusionne pas).
+    # Pas de lits : le wither est le seul moyen de casser l'obsidienne. Les lits
+    # encore listés dans un config.yml live sont ignorés (ConfigManager les retire).
     explosive-place-blocks:
       - TNT
+      - TNT_MINECART
       - OBSIDIAN
       - END_CRYSTAL
       - RESPAWN_ANCHOR
-      - BED
-      - WHITE_BED
-      - ORANGE_BED
-      - MAGENTA_BED
-      - LIGHT_BLUE_BED
-      - YELLOW_BED
-      - LIME_BED
-      - PINK_BED
-      - GRAY_BED
-      - LIGHT_GRAY_BED
-      - CYAN_BED
-      - PURPLE_BED
-      - BLUE_BED
-      - BROWN_BED
-      - GREEN_BED
-      - RED_BED
-      - BLACK_BED
+      - GLOWSTONE
+      - LODESTONE
+      - LAVA_BUCKET
+      - SOUL_SAND
+      - SOUL_SOIL
+      - WITHER_SKELETON_SKULL
       - WATER_BUCKET
 
 # ─── Messages ──────────────────────────────────────────────────
 messages:
   prefix: "&8[&6Cantale&8] &r"
 
+# ─── Clear-lag (items au sol) ──────────────────────────────────
+clearlag:
+  # Intervalle entre deux clears (secondes). Warnings à T-30/10/5/3/2/1.
+  interval: 180
+  # Ne jamais supprimer les items plus jeunes que ce délai (secondes).
+  # Protège le loot de mort : un joueur a plusieurs minutes pour revenir.
+  protect-recent-seconds: 300
+
 # ─── Optimisation serveur ──────────────────────────────────────
 optimization:
+  # Activation globale du module (persisté par /optimize on|off)
+  enabled: true
   # Intervalle d'auto-save en minutes
   autosave-interval: 5
   # Intervalle de nettoyage des entités en secondes
   entity-cleanup-interval: 60
-  # Maximum d'items au sol par chunk
+  # Maximum d'items au sol par chunk (les items récents / loot de mort sont exclus du cull)
   max-items-per-chunk: 20
-  # Maximum d'entités par chunk (hors joueurs/villageois)
-  max-entities-per-chunk: 30
-  # Supprimer les items au sol vieux de 2min
+  # Maximum d'entités par chunk (hostiles, armor stands, bateaux, etc.).
+  # Animals (passifs) exclus : empilés via mob-stacking. Exclus du compte / protégés :
+  # joueurs, villageois, items, Animals, entités nommées (hors stacks Cantale),
+  # Tameable apprivoisés, NPCs Cantale. Surplus = plus vieux d'abord.
+  # Appliqué par l'optimizer (~60s) et aussi à chaque cycle ClearLag.
+  max-entities-per-chunk: 15
+  # Empilement des animaux passifs de ferme (remplace le cull pour les Animals)
+  mob-stacking:
+    enabled: true
+    # Taille max d'un stack (une seule entité simulée)
+    max-stack: 64
+    # Rayon (blocs) pour merger le même type / même variante
+    radius: 8.0
+    # Intervalle de la passe de merge (secondes)
+    interval-seconds: 10
+    # Ne pas empiler les bébés (recommandé : évite les bugs d'âge / growth)
+    stack-babies: false
+    # Ne pas empiler les mobs nommés par un joueur (hors libellé ×N du stack)
+    stack-named: false
+    # Ne pas empiler les Tameable déjà apprivoisés
+    stack-tamed: false
+  # Fusion des items au sol (réduit les entités entre deux passages de ClearLag)
+  item-merge:
+    enabled: true
+    # Rayon de fusion (blocs) autour d'un item fraîchement droppé
+    radius: 4.5
+    # Balayage périodique des chunks chargés (secondes)
+    interval-seconds: 15
+    # Le balayage ne touche qu'un chunk dépassant ce seuil d'items au sol
+    min-items-per-chunk: 6
+    # Taille max d'un stack fusionné (le pickup remplit plusieurs stacks d'inventaire)
+    max-stack: 512
+  # Ne jamais clear/cull un item plus jeune que ce délai (secondes) — loot de mort
+  protect-recent-item-seconds: 300
+  # Cull items par chunk (max-items-per-chunk) hors grâce ; le clear périodique = ClearLag
   clear-ground-items: true
   # Supprimer les flèches vieilles de 30s
   clear-arrows: true
   # Supprimer l'expérience au sol
   clear-experience: false
-  # Décharger les chunks inutilisés
-  optimize-chunks: true
-  # Seuil d'alerte TPS (nettoyage d'urgence en dessous)
-  tps-warning-threshold: 15
   # Désactiver entièrement les villageois (CreatureSpawnEvent + EntityTransform)
   villagers-disabled: false
+  # Préchargement async de chunks : rayon autour des téléportations…
+  chunk-preload-radius: 2
+  # …et rayon de préchauffage du spawn au boot (0 = désactivé)
+  spawn-prewarm-radius: 6
+  # Gouverneur de performance adaptatif (TPS/MSPT → distances, spawners, cleanup)
+  governor:
+    enabled: true
+    # Fréquence d'échantillonnage (secondes)
+    check-interval-seconds: 5
+    # Anti-flapping : temps minimum dans un mode avant tout changement…
+    min-mode-seconds: 30
+    # …et durée saine continue exigée avant de remonter d'un cran
+    recovery-seconds: 60
+    degraded:
+      tps-below: 18.0
+      mspt-above: 40.0
+    critical:
+      tps-below: 15.0
+      mspt-above: 47.5
+    sim-distance:
+      # simulation-distance = base (boot) − drop, jamais sous min
+      degraded-drop: 2
+      critical-drop: 3
+      min: 3
+    view-distance:
+      # Laisser false par défaut : la view-distance ne bouge qu'en CRITICAL si activé
+      enabled: false
+      critical-drop: 1
+      min: 6
+    spawner-slowdown:
+      # Multiplicateur de l'intervalle de spawn des spawners Cantale
+      degraded: 1.5
+      critical: 2.0
+    # Cadence du mob-stacking en mode DEGRADED+ (secondes, min 5)
+    stack-interval-degraded-seconds: 5
+    # Alerte staff MC + embed Discord (salon mod-logs) à l'entrée en CRITICAL (max 1/5 min)
+    notify-on-critical: true
 
 # ─── Bot Discord CANTALE ────────────────────────────────────────
 discord:
@@ -159,6 +377,8 @@ discord:
   guild-id: "1271523439412252722"
   # ID du client OAuth2 (pour liens web)
   client-id: "1505203502811451443"
+  # Secret OAuth2 de l'application Discord (NE PAS PARTAGER — distinct du token bot)
+  client-secret: "_TuIvBq9Qkcq_asviSEWI8jHezB5j7-o"
 
   # ── Salons ──
   channels:
@@ -185,6 +405,8 @@ discord:
     events: "1504901579130798121"
     # Salon piège anti-bot : tout message → suppression + ban
     anti-bot: "1513931644963262544"
+    # Salon compteur (prev+1 ; sans chiffre = chat libre)
+    counting: "1537112048314491040"
 
   # ── Rôles ──
   roles:
@@ -313,6 +535,27 @@ resource-pack:
   url: ""
   sha1: ""
 
+# ─── Carte du monde interactive (/carte) + minimap ────────────
+# MODULE DORMANT (août 2026) : la visualisation carte est assurée par le mod
+# client Cantale (bridge cantale:map ci-dessous, toujours actif). La map in-game
+# (tuiles FILLED_MAP, /carte, minimap item) est conservée dans le code mais
+# désactivée : la commande /carte n'existe plus dans plugin.yml et le service
+# MapUI n'est pas démarré. Remettre enabled: true pour la réactiver un jour.
+map:
+  # Carte GUI + minimap (aucune entité : tuiles FILLED_MAP en inventaire)
+  enabled: false
+  # /carte mini : carte live tenue en main (terrain + claims + position)
+  minimap-enabled: true
+  # Zoom à l'ouverture (blocs par pixel : 1, 2, 4, 8 ou 16)
+  default-zoom: 4
+  # Le terrain est re-rendu si son cache est plus vieux que X jours
+  terrain-cache-days: 7
+  # Mod client Cantale (vraie carte façon JourneyMap, touche M / minimap N)
+  client-mod:
+    # Canal plugin cantale:map — les joueurs SANS le mod ne reçoivent rien.
+    # false = le serveur ignore les handshakes du mod (carte client = terrain seul)
+    enabled: true
+
 # ─── Système de Vote (Votifier) ────────────────────────────────
 vote:
   # Diffuser un message au serveur quand un joueur vote
@@ -328,13 +571,47 @@ vote:
     - "ServeurListe.com|https://www.serveurliste.com/fr/minecraft/cantale/vote|1|serveurliste,ServeurListe"
 
   # Tokens de vérification fournis par les sites de vote (optionnels).
-  # Peuvent servir pour les callbacks/API ou la validation des votes entrants.
+  # Serveur-Prive : token dashboard (onglet Paramètres) — polling API.
+  # ServeurListe : token_api du dashboard (FAQ GET /api/vote) — polling IP.
+  # Ce n'est PAS la clé publique / token NuVotifier.
   tokens:
     serveurliste.com: "a2466aea-e3a1-4837-8146-eca287ff9422"
     serveur-prive.net: "TMOJRJMZ"
 
-  # Anti-abuse : refuser un vote si la même IP a déjà voté sur ce site dans le délai (heures)
-  ip-cooldown-hours: 1
+  # API Serveur-Prive.net (site 2) — récompenses via polling, pas via Votifier.
+  # Docs : https://developers.serveur-prive.net/getting-started#/operations/serverVotesList
+  #        https://serveur-prive.net/documentation
+  # Auth : le token va DANS le chemin (GET {api-url}/v1/servers/{token}/votes), pas en header Bearer.
+  # Pas de webhook / claim documenté (l'endpoint votes n'accepte que GET).
+  # Aucun server-id séparé : le token dashboard identifie déjà le serveur.
+  serveur-prive:
+    enabled: true
+    api-url: "https://serveur-prive.net/api"
+    # Override optionnel. Vide = vote.tokens.serveur-prive.net
+    api-token: ""
+    poll-interval-seconds: 60
+    # Optionnel. GET /votes/{ip} n'est pas dans l'OpenAPI (serverVotesList) et 404 en live :
+    # au premier 404 Cantale désactive ce chemin pour la session et s'en tient à la liste.
+    check-online-ips: false
+    # Ignore les votes plus vieux (évite de rejouer l'historique au 1er poll)
+    max-age-minutes: 120
+
+  # API ServeurListe.com (site 3) — FAQ https://www.serveurliste.com/fr/faq
+  # GET {api-url}?ip_address={ip}&api_token={token_api}
+  # Pas d'endpoint liste de votes (GET /api/votes → 404). Polling des IPs publiques en ligne.
+  # token_api dashboard = vote.tokens.serveurliste.com (PAS le token / clé NuVotifier).
+  # Votifier « connexion impossible » n'empêche pas les récompenses si ce polling tourne.
+  serveur-liste:
+    enabled: true
+    api-url: "https://www.serveurliste.com/api/vote"
+    # Override optionnel. Vide = vote.tokens.serveurliste.com
+    api-token: ""
+    poll-interval-seconds: 60
+    # Ignore les votes plus vieux que l'intervalle site (FAQ : 1 h 30)
+    max-age-minutes: 120
+
+  # Pas de cooldown IP côté plugin : chaque site rate-limite déjà les votes.
+  # (Ancienne clé vote.ip-cooldown-hours supprimée — elle bloquait les foyers à IP partagée.)
 
   # Vote Party : récompense globale quand le serveur atteint X votes dans la journée
   vote-party:
@@ -401,105 +678,204 @@ anticheat:
     default: 100
     # Points récupérés par minute sans violation
     recovery-per-minute: 1
-    # Seuil d'avertissement
+    # Seuil d'avertissement (si auto-punish)
     warn-threshold: 50
-    # Seuil de kick
+    # Seuil de kick (si auto-punish)
     kick-threshold: 25
-    # Seuil de tempban
-    ban-threshold: 10
-    # Durée du tempban en minutes
+    # Durée du tempban en minutes (uniquement si punishments.ban-auto: true + récidive)
     ban-duration-minutes: 30
-    # Activer les punitions automatiques
-    auto-punish: false
+    # Activer warn/kick automatiques (trust 0 = alerte staff prioritaire + kick)
+    auto-punish: true
+
+  # ── Sanctions progressives (anti faux-bans) ──
+  punishments:
+    # Cooldown entre deux kicks automatiques du même joueur (minutes)
+    kick-cooldown-minutes: 5
+    # Perte de trust max par minute glissante (0 = illimité) — anti-cascade
+    max-trust-loss-per-minute: 10
+    # Tempban automatique sur récidive (kicks-for-tempban kicks en 24h à trust 0).
+    # false = les bans restent manuels (recommandé pendant le rodage)
+    ban-auto: false
+    # Nombre de kicks en 24h avant tempban auto (si ban-auto: true)
+    kicks-for-tempban: 3
+
+  # ── Compensation lag (les checks mouvement skippent si dépassés) ──
+  lag:
+    # Au-delà de ce ping (ms), les mesures de mouvement sont ignorées
+    max-ping-ms: 350
+    # Sous ce TPS, les checks sensibles au timing sont suspendus
+    min-tps: 18.5
+    # Durée d'exemption après un knockback / explosion / vélocité serveur (ms)
+    velocity-exempt-ms: 500
+
+  # ── Intégration Grim AC (moteur packet-based principal) ──
+  grim-integration:
+    # Remonter les flags Grim dans le trust/alertes Cantale
+    enabled: true
+    # Pénalité trust par défaut pour un flag Grim
+    default-trust-penalty: 2
+    # Pénalités par nom de check Grim (insensible à la casse)
+    trust-penalty-per-check:
+      simulation: 3
+      timer: 4
+      badpackets: 3
+      killaura: 5
+      reach: 4
+      scaffold: 3
   
   # ── Alertes ──
   alerts:
     # Cooldown entre alertes identiques (secondes)
     cooldown-seconds: 5
-    # Envoyer sur Discord
-    discord-enabled: false
+    # Envoyer sur Discord (salon mod-logs par défaut)
+    discord-enabled: true
     # ID du salon Discord (laisser vide = salon mod-logs)
     discord-channel-id: ""
   
   # ── Checks de mouvement ──
+  # Couverts par Grim (présent sur le serveur) : désactivés par défaut.
+  # Ils se RÉACTIVENT automatiquement à chaud si Grim est absent (fallback).
   movement:
     speed:
-      enabled: true
-      # Vitesse max horizontale (blocs/tick) — vanilla sprint = ~0.28
-      max-speed: 0.45
+      enabled: false
+      # Vitesse max horizontale (blocs/tick) — vanilla sprint ≈ 0.28 ; elytra/eau/bateau/TP exclus en code
+      max-speed: 0.50
       # Violations consécutives avant alerte
-      buffer: 3
+      buffer: 5
       # Points de trust retirés par violation
       trust-penalty: 3
     fly:
-      enabled: true
+      enabled: false
       # Ticks en l'air max sans support
       max-air-ticks: 40
       trust-penalty: 5
     nofall:
-      enabled: true
-      # Hauteur min de chute pour vérifier (blocs)
+      enabled: false
+      # Hauteur min de chute pour vérifier (blocs) — détection par dégât de chute attendu
       min-fall-distance: 3.0
       trust-penalty: 4
     step:
-      enabled: true
+      enabled: false
       # Hauteur max d'un step normal (blocs)
       max-step-height: 0.6
       trust-penalty: 3
     timer:
-      enabled: true
-      # Packets de mouvement max par seconde
-      max-packets-per-second: 28
+      enabled: false
+      # Packets de mouvement (position) max par seconde — compensé TPS/ping en code
+      max-packets-per-second: 25
       trust-penalty: 4
   
   # ── Checks de combat ──
+  # Reach/KillAura/Aim couverts par Grim → désactivés par défaut (fallback auto si Grim absent).
+  # AutoClicker natif conservé en complément (seuil haut, jitter humain toléré).
   combat:
     reach:
-      enabled: true
-      # Distance max d'attaque (blocs) — vanilla = 3.0
-      max-reach: 3.5
+      enabled: false
+      # Distance max œil→hitbox (blocs) — vanilla ≈ 3.0 ; ping compensé en code
+      max-reach: 3.15
       trust-penalty: 4
     killaura:
-      enabled: true
+      enabled: false
       # Ticks min entre changements de cible
       min-target-switch-ticks: 3
       trust-penalty: 5
     autoclicker:
       enabled: true
-      # CPS maximum autorisé
-      max-cps: 20
-      trust-penalty: 3
+      # CPS combat max (fenêtre cps-window-ms). Dig herbe/fleurs/neige exclu en code.
+      max-cps: 24
+      # Fenêtre de mesure CPS (ms) — plus longue = moins de pics faux positifs
+      cps-window-ms: 2000
+      # Violations consécutives avant pénalité trust (decay VL prioritaire)
+      buffer: 6
+      trust-penalty: 2
     aim:
-      enabled: true
-      # Ecart-type min des rotations (trop bas = aimbot)
-      min-rotation-deviation: 1.5
+      enabled: false
+      # Écart-type max « trop parfait » (plus bas = moins de faux positifs)
+      min-rotation-deviation: 0.25
       trust-penalty: 3
   
   # ── Checks de rotation ──
+  # Couverts par Grim → désactivé par défaut (fallback auto si Grim absent).
   rotation:
-    enabled: true
-    # Seuil de snap angle detection
+    enabled: false
+    # Seuil de snap angle detection (legacy, snaps 180° gérés en code)
     snap-angle-threshold: 5.0
     trust-penalty: 2
   
-  # ── Checks d'inventaire ──
+  # ── Checks d'inventaire (vanilla uniquement, GUIs Cantale exclues) ──
   inventory:
     autoarmor:
+      # Seuil corrigé : 4 équipements en < 500 ms (voir code) — activer après rodage
       enabled: false
-      # Ticks min entre chaque équipement d'armure
-      min-equip-ticks: 2
       trust-penalty: 2
     cheststealer:
+      # Seuil corrigé : 6 prises en < 500 ms sur contenants vanilla — activer après rodage
       enabled: false
-      # Ticks min entre chaque click dans un coffre
-      min-click-ticks: 1
       trust-penalty: 2
     fastuse:
+      # État par joueur corrigé — activer après rodage
       enabled: false
+      trust-penalty: 2
+
+  # ── Checks monde (casse de blocs) ──
+  world:
+    fastbreak:
+      enabled: true
+      # Max de casses de blocs SOLIDES sur la fenêtre (herbe/fleurs/instant exclus)
+      max-solid-breaks: 14
+      # Fenêtre de mesure (ms)
+      window-ms: 2000
+      # Buffer VL avant pénalité trust
+      buffer: 4
       trust-penalty: 2
   
   # ── Checks de packets (nécessite ProtocolLib) ──
   packets:
     enabled: false
+
+# ─── Spawners Cantale ────────────────────────────────────────
+# saveDefaultConfig() ne fusionne pas. Copier ce bloc dans
+# plugins/CantalePlugin/config.yml si le fichier live existe déjà.
+# Clés absentes = défauts Java (mêmes valeurs).
+spawners:
+  max-tier: 8
+  # Courbe linéaire : mobs/cycle = palier ; intervalle = base / palier.
+  # Nerf global (août 2026) : base 8 → 12 s ≈ −33 % de débit à tous les paliers.
+  # T1 reste plus rapide que vanilla (~1/20 s ≈ 3/min) : 1 mob / 12 s = 5/min.
+  # T8 cheat : 8 mobs / 1,5 s = 320/min (5,3/s).
+  # Palier | mobs | intervalle | débit
+  # 1 | 1 | 12 s    | 5/min
+  # 2 | 2 | 6 s     | 20/min
+  # 3 | 3 | 4 s     | 45/min
+  # 4 | 4 | 3 s     | 80/min
+  # 5 | 5 | 2,4 s   | 125/min
+  # 6 | 6 | 2 s     | 180/min
+  # 7 | 7 | ≈1,71 s | 245/min
+  # 8 | 8 | 1,5 s   | 320/min
+  # Lu à CHAQUE cycle (intervalMs) : pas de reboot nécessaire, la valeur live suffit.
+  base-interval-seconds: 12
+  # Golem de fer : intervalle × multiplier (défaut 2 → 50 % de cadence)
+  iron-golem-interval-multiplier: 2.0
+  # Rayon horizontal (blocs) — spawn clampé au chunk du spawner
+  spawn-range: 4
+  spawn-attempts-per-mob: 8
+  crate:
+    # Chance de tirer un spawner (puis un mob de la rareté, uniforme).
+    # Vote : 0. Rare only rares ; Épique : 70 % epic / 30 % rare ;
+    # Mythique/Légendaire : 60 % mythic / 25 % epic / 15 % rare.
+    rare-chance-percent: 5.0
+    epic-chance-percent: 3.0
+    mythic-chance-percent: 1.5
+    legendary-chance-percent: 1.5
+
+# Rune de Fortification — tirage extra à l'ouverture (comme les spawners, sans remplacer la table).
+runes:
+  crate:
+    # Les runes ne tombent plus des caisses Rare ; uniquement Épique, Mythique et Légendaire.
+    # Vote : 0. Légendaire : ticket Discord (pas de butin) dans la table, mais rune possible en extra.
+    rare-chance-percent: 0
+    epic-chance-percent: 2.0
+    mythic-chance-percent: 4.0
+    legendary-chance-percent: 6.5
 
 

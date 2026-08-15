@@ -1,2 +1,4 @@
+fr/cantale/plugin/vote/ServeurListeVotePollerTest.class
 fr/cantale/plugin/chatbot/faq/FaqCoreTest.class
 fr/cantale/plugin/performance/ChunkPreloadCacheTest.class
+fr/cantale/plugin/vote/ServeurPriveVotePollerTest.class

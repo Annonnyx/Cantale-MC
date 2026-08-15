@@ -1,5 +1,10 @@
 # Guide : Sites de Vote pour Serveur Minecraft CANTALE
 
+> **Guide Cantale à jour (sites FR Top-Serveurs / Serveur-Prive / ServeurListe, checklist panneau Votifier) :**
+> voir [`docs/Votes.md`](docs/Votes.md).
+>
+> Le reste de ce fichier est un brouillon générique (sites EN / VotingPlugin) — ne plus s’y fier en premier.
+
 > Comment lier ton serveur Paper 1.20.4 aux sites de vote et récompenser tes joueurs.
 
 ---
@@ -256,6 +261,44 @@ Envoyer toutes les 6h si le joueur n'a pas vote sur tous les sites.
 |------|-----------|-------------|
 | 25565 | TCP | Connexion Minecraft |
 | 8192 | TCP | NuVotifier (reception votes) |
+
+---
+
+## 7. Checklist admin — sites Cantale (Top-Serveurs / Serveur-Prive / ServeurListe)
+
+Les 3 sites configures dans `config.yml` → `vote.sites` :
+
+| # | Site | URL vote |
+|---|------|----------|
+| 1 | **Top-Serveurs.net** | `https://top-serveurs.net/minecraft/vote/cantale` |
+| 2 | **Serveur-Prive.net** | `https://serveur-prive.net/minecraft/cantale/vote` |
+| 3 | **ServeurListe.com** | `https://www.serveurliste.com/fr/minecraft/cantale/vote` |
+
+Si Cantale/NuVotifier ne loguent **rien** apres un vote sur le site 2 ou 3, le chemin **site → NuVotifier** est casse (pas un bug Cantale). Voir aussi `docs/Troubleshooting.md` § Votes.
+
+### Sur le serveur (a copier — pas les tokens Cantale)
+
+1. Dossier NuVotifier : souvent `plugins/NuVotifier/` ou `plugins/Votifier/`
+2. **Port** : dans `config.yml` NuVotifier (souvent `8192`) — pas le port Minecraft
+3. **Protocole v2 (token)** : fichier `tokens.yml` / `tokens.json` → token du service
+4. **Protocole classique (RSA)** : `rsa/public.key` (toute la cle `-----BEGIN PUBLIC KEY-----` …)
+5. **Ne pas** coller les valeurs de `plugins/Cantale/config.yml` → `vote.tokens` : ce sont des tokens **site/API**, pas NuVotifier
+
+### Sur le panneau admin du site (mots-cles a chercher)
+
+`Votifier` · `NuVotifier` · `serveur Minecraft` · `recompense automatique` · `callback` · `notification` · `cle publique` · `token`
+
+Champs typiques a remplir :
+
+- Activer Votifier / Enable vote rewards / Callback
+- Host / IP **publique** du serveur (jamais `localhost` / `127.0.0.1`)
+- Port Votifier (`8192` ou celui de NuVotifier)
+- Token **ou** cle publique RSA (selon ce que demande le site)
+- Service name / nom du serveur (doit matcher un alias `vote.sites`)
+
+### Verification
+
+Apres un vrai vote : console Cantale → `[Vote] VotifierEvent reçu`. Silence = site n’atteint pas NuVotifier.
 
 ---
 

@@ -99,7 +99,7 @@ public class MultiCantoolVisualAdapter implements Listener {
 
         VisualPacketUtil.sendVisualSlot(player, EquipmentSlot.HAND, createVisualItem(visualMat, hand));
         lastVisual.put(uuid, visualMat);
-        plugin.getLogger().info("[MultiCantool] " + player.getName() + " → " + visualMat.name());
+        plugin.getLogger().fine("[MultiCantool] " + player.getName() + " → " + visualMat.name());
     }
 
     private void restoreIfNeeded(Player player) {

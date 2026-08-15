@@ -9,9 +9,9 @@ import java.util.concurrent.ConcurrentHashMap;
  *
  * Règles :
  * - Score de départ = valeur configurée (défaut 100).
- * - Chaque violation retire des points selon la gravité du check.
+ * - Chaque violation retire des points selon la gravité du check
+ *   (plafonné par tick et par minute glissante dans AntiCheatManager).
  * - Si le joueur est calme, le score remonte lentement.
- * - Plus le score est bas, plus les vérifications sont strictes (seuils réduits).
  */
 public class TrustManager {
 
@@ -70,19 +70,6 @@ public class TrustManager {
      */
     public void removePlayer(UUID playerId) {
         trustScores.remove(playerId);
-    }
-
-    /**
-     * Calcule un multiplicateur de sévérité basé sur le trust.
-     * Trust bas = checks plus stricts.
-     *
-     * @return un multiplicateur entre 1.0 (trust plein) et 2.0 (trust 0)
-     */
-    public double getSeverityMultiplier(UUID playerId) {
-        int trust = getTrust(playerId);
-        if (trust >= defaultTrust) return 1.0;
-        // Linéaire : trust 0 → multiplicateur 2.0, trust max → multiplicateur 1.0
-        return 1.0 + (1.0 - ((double) trust / defaultTrust));
     }
 
     public int getDefaultTrust() {

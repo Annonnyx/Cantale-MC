@@ -24,6 +24,12 @@ public class FlyCheck extends Check {
 
     @Override
     public CheckResult check(Player player, PlayerData data) {
+        // Knockback / explosion récent : trajectoire non fiable
+        if (data.isVelocityExempt() || data.isMovementExempt()) {
+            data.setAirTicks(0);
+            return CheckResult.pass(type);
+        }
+
         // Ignorer si le joueur est autorisé à voler
         if (player.isFlying() || player.getAllowFlight()) {
             data.setAirTicks(0);

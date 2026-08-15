@@ -49,8 +49,10 @@ entries:
       - "je suis pas dans une faction"
     response: |
       Pour créer une faction : /f create <nom>
-      Il faut être au moins 8 joueurs pour fonder une faction.
-      Pour rejoindre une faction existante : demande une invitation au chef (/f invite), puis tape /f accept.
+      Nom : 3–16 caractères (lettres, chiffres, _ et -).
+      Effet : claim auto du chunk + spawn de faction à ta position (hors zone protégée / chunk déjà claim).
+      Renommer (chef) : /f rename <nouveau_nom> (met aussi à jour le tag).
+      Pour rejoindre une faction existante : demande une invitation (/f invite), puis /f accept.
 
   - id: faction_join
     triggers:
@@ -82,7 +84,28 @@ entries:
     response: |
       Pour claim le chunk où tu te trouves : /f claim
       Pour unclaim : /f unclaim
-      Le nombre de claims dépend du pouvoir de la faction.
+      Carte interactive : /f map (inventaire — clic gauche gris = claim, clic droit sur ta fac = unclaim). /f map chat = ancienne grille ASCII.
+      Quota claims : max(5, pouvoir / 10). Claims contigus obligatoires (touche N/S/E/O un claim existant, sauf le 1er du monde). Distance min 2 chunks avec les autres facs.
+      Pouvoir : 60 + 5/membre à la création (65 seul), +5 join / -5 leave-kick, PvP ±5, events top, /f power (GUI ; 1 unité achetée → +10 pouvoir).
+      Grief : il faut être en guerre avec la faction et lancer un raid avec /f raid (Officier+). Hors raid, les étrangers ne peuvent rien poser ni casser. PASDIC : aucun dégât.
+
+  - id: grief_claim
+    triggers:
+      - "grief"
+      - "comment grief"
+      - "tnt claim"
+      - "poser tnt"
+      - "tnt ennemi"
+      - "lodestone"
+      - "cristal end claim"
+      - "exploser un claim"
+      - "casser un claim"
+    response: |
+      Pour grief/exploser un claim ennemi, il faut être en guerre ET lancer un raid avec /f raid (Officier+).
+      Pendant le raid : casser, exploser, poser des blocs (TNT, cristaux, ancres, seaux, wither). Hors raid : les étrangers ne peuvent rien poser ni casser.
+      Les têtes de wither s'achètent au /shop (Guerre) 50 000 Cantox, cap 6/j.
+      Pas d'ouverture de coffres ennemis (sauf grade Chèvre). Zone PASDIC : aucun dégât, aucune pose.
+      Le claim du f-spawn n'a plus d'immunité explosion : il se comporte comme un claim normal.
 
   - id: faction_spawn
     triggers:
@@ -95,8 +118,10 @@ entries:
       - "aller au f spawn"
       - "f go spawn"
     response: |
-      Pour te téléporter au spawn de ta faction : /f spawn
+      Pour te téléporter au spawn de ta faction : /f spawn (ou /f go)
       Le chef peut le définir avec /f setspawn (dans un claim de la faction).
+      Le claim du f-spawn n'est plus immunisé aux explosions : il se comporte comme un claim normal.
+      Comme toute TP : 3 s immobile puis cooldown 30 s (sauf admin / mode trace).
 
   - id: faction_warp
     triggers:
@@ -108,8 +133,9 @@ entries:
       - "comment creer un warp faction"
       - "f setwarp"
     response: |
-      Les warps de faction se gèrent avec /f warp [nom] et /f setwarp <nom> (dans un claim).
-      Le chef ou un officier peut les créer selon les permissions.
+      Les warps de faction : /f warp [nom], /f setwarp <nom>, /f delwarp <nom> (dans un claim).
+      Permission FWARP (Membre+). Quota : 1 si pouvoir < 60, sinon 1 + (pouvoir − 60) / 30.
+      TP : 3 s immobile puis cooldown 30 s (sauf admin / mode trace).
 
   - id: faction_home
     triggers:
@@ -121,8 +147,9 @@ entries:
       - "f sethome"
       - "comment creer un home faction"
     response: |
-      Les homes de faction se gèrent avec /f home [nom] et /f sethome <nom> (dans un claim).
-      Le quota dépend du pouvoir de la faction.
+      Il n'y a plus de homes de faction.
+      Homes perso : /home (set/delete selon ton grade).
+      Pour la fac : /f spawn (ou /f go) et les warps /f warp.
 
   - id: faction_bank
     triggers:
@@ -134,8 +161,11 @@ entries:
       - "coffre argent faction"
       - "argent commun faction"
     response: |
-      La banque de faction s'ouvre avec /f bank.
-      Permet de gérer l'argent commun de la faction.
+      Banque : /f bank (GUI) | /f bank add|take <montant> | /f power | /f bank power [n]
+      /f bank → bouton Historique : dépôts, retraits, achats pouvoir (qui / montant / date).
+      /f power (ou /f bank power) : GUI quotas, paliers, achat 1/2/3/5/max unités. Avec n : achat chat.
+      Déposer : Recrue+. Retirer / acheter pouvoir : Officier ou chef.
+      Achat : 1 unité → +10 pouvoir (n → +10×n). Prix : floor(5000 × 1,18^(unités_achetées × 10)), max 50 unités/achat.
 
   - id: money
     triggers:
@@ -222,7 +252,7 @@ entries:
       - "recompense du jour"
       - "recompense journaliere"
       - "bonus du jour"
-      - "/daily"
+      - "daily"
     response: |
       Récupère ta récompense quotidienne avec /daily (ou /journalier).
       Le montant dépend de ton grade (AVENTURIER, VIP, CHEVRE, etc.).
@@ -244,6 +274,7 @@ entries:
       Pour en créer un : /home set <nom>
       Pour en supprimer un : /home delete <nom>
       Le nombre max de homes dépend de ton grade.
+      Toute TP : 3 s immobile puis cooldown 30 s (sauf admin / mode trace).
 
   - id: teleport_warp
     triggers:
@@ -258,6 +289,7 @@ entries:
     response: |
       Les warps publics sont accessibles avec /warp <nom>.
       Les admins peuvent en créer avec /warp set <nom>.
+      Toute TP : 3 s immobile puis cooldown 30 s (sauf admin / mode trace).
 
   - id: teleport_spawn
     triggers:
@@ -273,6 +305,7 @@ entries:
       - "retour spawn"
     response: |
       Pour retourner au spawn : /spawn
+      Toute TP : 3 s immobile puis cooldown 30 s (sauf admin / mode trace).
 
   - id: teleport_rtp
     triggers:
@@ -286,6 +319,8 @@ entries:
       - "comment trouver un endroit"
     response: |
       Pour te téléporter aléatoirement dans le monde : /rtp
+      Cooldown RTP : 5 min, plus 30 s entre toute TP. Warmup 3 s immobile.
+      Admin et mode trace /moderation : instantané.
 
   - id: teleport_tpa
     triggers:
@@ -311,6 +346,7 @@ entries:
       Pour téléporter un joueur à toi : /tpahere <pseudo>
       Pour accepter une demande : /tpyes
       Pour refuser : /tpno
+      Celui qui se tp : 3 s immobile puis cooldown 30 s (sauf admin / mode trace).
 
   - id: pickantaxe
     triggers:
@@ -327,8 +363,9 @@ entries:
       - "pickantaxe diamant"
     response: |
       La Pickantaxe est une pioche custom avec une zone de minage (1x1, 3x3, 5x5 ou 7x7).
-      Elle existe en Fer, Diamant et Netherite. Plus le tier est haut, plus les enchantements sont forts (Efficiency/Unbreaking, jusqu'à 10 en Netherite avec durabilité infinie).
-      Elle est enchantable avec Fortune, Silk Touch et Unbreaking, et n'est pas craftable.
+      Elle existe en Fer, Diamant et Netherite (Efficacité V en Fer, VII en Diamant, X en Netherite).
+      Elle fonctionne avec un compteur d'utilisations : 1000 coups en Fer, 2000 en Diamant, 4000 en Netherite. 1 coup = 1 utilisation, peu importe la taille de la zone minée. La barre de durabilité reste toujours pleine : c'est le compteur affiché dans la description qui fait foi. À 0, l'outil se brise après son dernier coup.
+      Enchantements fixes : enclume et meule bloquées, et elle n'est pas craftable.
       On l'obtient dans les caisses, giveaways et classements.
 
   - id: cantaxe
@@ -344,8 +381,9 @@ entries:
       - "cantaxe diamant"
     response: |
       La Cantaxe est une hache custom qui one-shot tous les arbres et mine comme une efficacité max.
-      Elle existe en Fer, Diamant et Netherite (efficacité 10 en Netherite).
-      Elle est enchantable avec Silk Touch et Unbreaking, et n'est pas craftable.
+      Elle existe en Fer, Diamant et Netherite (Efficacité V en Fer, VII en Diamant, X en Netherite).
+      Elle fonctionne avec un compteur d'utilisations : 1000 coups en Fer, 2000 en Diamant, 4000 en Netherite. 1 arbre abattu = 1 utilisation, quel que soit le nombre de bûches. La barre de durabilité reste toujours pleine : c'est le compteur affiché dans la description qui fait foi. À 0, la hache se brise après son dernier coup.
+      Enchantements fixes : enclume et meule bloquées, et elle n'est pas craftable.
       On l'obtient dans les caisses, giveaways et classements.
 
   - id: multi_cantool
@@ -353,13 +391,13 @@ entries:
       - "multi cantool"
       - "cantool"
       - "outil multifonction"
-      - "outil 3x3"
       - "outil custom"
       - "comment avoir un multi cantool"
       - "multi cantool netherite"
     response: |
       Le Multi-Cantool est un outil multifonction 1x1 qui s'adapte au bloc : il fait office de pioche, hache, pelle et cisailles.
-      Disponible en Fer, Diamant et Netherite (efficacité 10 en Netherite).
+      Disponible en Fer, Diamant et Netherite (Efficacité V en Fer, VII en Diamant, X en Netherite).
+      Il fonctionne avec un compteur d'utilisations : 1000 coups en Fer, 2000 en Diamant, 4000 en Netherite (1 bloc cassé = 1 utilisation). La barre de durabilité reste toujours pleine : c'est le compteur affiché dans la description qui fait foi. À 0, l'outil se brise après son dernier coup.
       On l'obtient dans les caisses, giveaways et classements.
 
   - id: cantalame
@@ -401,6 +439,7 @@ entries:
     response: |
       Les items custom Cantale sont : Pickantaxe, Cantaxe, Multi-Cantool, Cantalame et Vie.
       On les obtient principalement dans les caisses de vote (/vote), les giveaways Discord et les classements.
+      Ils ne peuvent pas être désenchantés à la table de désenchantement ni modifiés à l'enclume.
       Demande-moi par exemple "c'est quoi la Pickantaxe" ou "comment marche la Cantalame" pour avoir le détail d'un item.
 
   - id: crates
@@ -422,6 +461,7 @@ entries:
       Les caisses existantes sont : vote, rare, épique, mythique, légendaire.
       Tu gagnes des caisses en votant (/vote), puis tu les récupères avec /vote claim.
       Seuls les admins peuvent en donner avec /crate give.
+      Butin possible : Mending, Silk Touch et autres enchantements. Bonus extra : spawners Rare 5 %, Épique 3 %, Mythique 1,5 % ; Rune de Fortification Épique 4 %, Mythique 6,5 %, Légendaire 6,5 % (pas de rune en Vote/Rare).
 
   - id: vote
     triggers:
@@ -461,8 +501,21 @@ entries:
       - "mort definitive"
     response: |
       Cantale est en mode hardcore : tu as 3 vies au départ.
-      Si tu tombes à 0 vie, tu es banni (IP) jusqu'à ce que tu en récupères une.
+      Si tu perds ta dernière vie, ton stuff (inventaire + armure + offhand) est dropé au sol et ton inventaire est vidé avant le bannissement (IP). EC et PC ne sont pas touchés.
       Tu peux gagner une vie avec l'item Vie (clic-droit), ou un ami peut t'en donner avec /givevie.
+      Si quelqu'un t'a invité : /parrain <joueur> (une seule fois) — ton parrain gagne +1 vie.
+
+  - id: parrain
+    triggers:
+      - "parrain"
+      - "parrainage"
+      - "comment parrainer"
+      - "remercier parrain"
+      - "qui m a invite"
+      - "invitation joueur"
+    response: |
+      Pour remercier le joueur qui t'a invité : /parrain <joueur>
+      Une seule fois par compte. Ton parrain gagne +1 vie (même hors ligne s'il est connu en BDD).
 
   - id: ranks
     triggers:
@@ -482,7 +535,11 @@ entries:
       - "comment acheter un grade"
     response: |
       Les grades sont : AVENTURIER, VIP, CHEVRE, MODERATOR, ADMIN, OWNER.
-      Ils offrent des bonus (Cantox/jour, vies/mois, homes, slots /pc, etc.).
+      Vol en claim (Chèvre uniquement, pas modos/staff) :
+      - vol créatif (double-tap) dans les claims de TA faction ;
+      - fouiller les coffres/conteneurs des claims ÉTRANGERS (alliés ou ennemis).
+      Les membres d'une fac ouvrent toujours leurs propres coffres.
+      Ils offrent aussi des bonus (Cantox/jour, vies/mois, homes, slots /pc, etc.).
       Utilise /rank info <pseudo> pour voir les avantages.
 
   - id: events
@@ -496,8 +553,9 @@ entries:
       - "event en cours"
       - "y a t il un event"
     response: |
-      Les événements actifs sont listés avec /events.
-      Tu peux t'y téléporter si un event est en cours.
+      Les events de faction (récolte / minage / PvP) tournent 2 à 3 fois par jour entre 10 h et minuit (Europe/Paris), 1 h chacun.
+      Annonce serveur + bossbar. /events liste seulement les warps staff, pas ce calendrier auto.
+      Quêtes : /quetes — collections : /collections.
 
   - id: link
     triggers:
@@ -515,6 +573,22 @@ entries:
     response: |
       Pour lier ton compte Minecraft à Discord : tape /link en jeu pour obtenir un code, puis /link <code> <pseudo> sur Discord.
       Cela débloque les commandes liées comme /balance, /daily et /pay.
+      Pour délier : /unlink confirm en jeu (ou /unlink sur Discord avec confirmer = Vrai).
+      Un admin peut forcer la déliaison avec /forceunlink <joueur>.
+
+  - id: unlink
+    triggers:
+      - "delier"
+      - "unlink"
+      - "forceunlink"
+      - "changer de discord"
+      - "delier discord"
+      - "changer compte discord"
+      - "enlever le lien discord"
+    response: |
+      Pour délier ton Discord : tape /unlink en jeu, puis /unlink confirm.
+      Un admin peut délier un autre joueur avec /forceunlink <joueur> (permission cantale.admin).
+      Ensuite tu peux relier un autre compte avec /link.
 
   - id: web
     triggers:
@@ -522,8 +596,12 @@ entries:
       - "web"
       - "lien site"
       - "comment lier le site"
+      - "connexion site"
+      - "cantale world"
     response: |
-      Pour lier ton compte au site Cantale : /web link <code>
+      Pour te connecter au site Cantale : va sur https://www.cantale.world/connexion et connecte-toi avec Discord.
+      Si ton Discord n'est pas encore lié à Minecraft : tape /link en jeu, puis /link sur Discord.
+
 
   - id: discord
     triggers:
@@ -538,6 +616,21 @@ entries:
     response: |
       Rejoins le Discord de Cantale avec /discord en jeu.
       C'est utile pour lier ton compte, participer aux giveaways et contacter le staff.
+
+  - id: counting
+    triggers:
+      - "salon compteur"
+      - "compteur discord"
+      - "counting"
+      - "comment compter discord"
+      - "regle compteur"
+      - "regles compteur"
+      - "comment marche le compteur"
+    response: |
+      Salon compteur Discord (regles strictes) :
+      - Envoie uniquement le nombre suivant (ex. 42), sans lettres ni texte.
+      - Exactement precedent + 1 ; pas deux messages d affilee par la meme personne.
+      - Message invalide : supprime + court avertissement.
 
   - id: support
     triggers:
@@ -609,11 +702,11 @@ entries:
     response: |
       Pour souhaiter la bienvenue à un nouveau joueur : /bvn <pseudo>
       Tu gagnes 100 Cantox si c'est fait dans les 5 minutes après sa première connexion.
+      Si tu as été invité, remercie ton parrain avec /parrain <joueur> (une fois) — il gagne +1 vie.
 
   - id: private_chest
     triggers:
       - "coffre prive"
-      - "coffre privé"
       - "pc"
       - "ec"
       - "ender chest"
@@ -673,3 +766,287 @@ entries:
     response: |
       Le système de primes se gère avec /wanted.
       Tu peux ajouter une prime sur la tête d'un joueur ou consulter la liste.
+
+  - id: spawners
+    triggers:
+      - "spawner"
+      - "spawners"
+      - "comment avoir un spawner"
+      - "farm spawner"
+      - "spawner cochon"
+      - "spawner a cochon"
+      - "ou trouver un spawner"
+      - "silk touch spawner"
+      - "touche de soie spawner"
+      - "comment farm les mobs"
+    response: |
+      Les spawners Cantale viennent des caisses Rare (5 %), Épique (3 %) et Mythique/Légendaire (1,5 %) — pas des votes.
+      Pose uniquement dans tes claims (interdit en PASDIC). Clic droit pour empiler jusqu'à x8 (même animal).
+      Récupération : n'importe quelle pioche avec Touché de soie (bois ok) = 1 item du palier. Sans soie : rien.
+      Vendables à l'/ah, pas au /shop. Hologramme au-dessus du bloc (Cochon ×3).
+      Cadence linéaire : palier N = N mobs toutes les (8/N) s. T1 : 1/8 s ; T8 = 8 mobs / 1 s. Golem de fer : intervalle ×2.
+      Staff : /spawner give <joueur> <mob> [tier].
+
+  - id: quetes
+    triggers:
+      - "quetes"
+      - "quete"
+      - "quest"
+      - "quests"
+      - "comment faire les quetes"
+      - "comment marchent les quetes"
+      - "quete journaliere"
+      - "quete hebdo"
+      - "quete saison"
+      - "quete faction"
+      - "quetes fac"
+      - "course faction"
+      - "comment gagner des quetes"
+    response: |
+      Quêtes solo : /quetes (alias /quests). Une quête à la fois par période (jour + semaine + saison en parallèle OK).
+      Reset minuit Paris (jour), lundi 00h (hebdo), début de saison (saison).
+      Les quêtes sont plus difficiles (objectifs quotidiens ×2,5). Types : récolte, minerais sans soie, cuisson, kills joueurs/mobs, distance depuis l'accept.
+      La distance est comptée en marchant/volant : les téléportations ne comptent pas (TP, home, warp, spawn, rtp, /f spawn, /f warp).
+      Récompenses : clef rare / épique / mythique. Terminer tout le pool donne une clef bonus (épique / mythique / ticket légendaire).
+      Quêtes de faction : /quetes fac. Courses partagées — la première fac qui finit gagne le pouvoir (+1 / +7 / +200).
+      Saison : /saison (durée 75 jours par défaut). Staff : /saison start.
+
+  - id: collections
+    triggers:
+      - "collections"
+      - "collection"
+      - "paliers collection"
+      - "comment marchent les collections"
+      - "collection ble"
+      - "collection minage"
+    response: |
+      /collections ouvre tes collections long terme (jamais reset).
+      Catégories : cultures, minage (sans soie), mobs spawner, réactions chat, clefs ouvertes, votes, quêtes complétées, pic /bal, temps de jeu.
+      Chaque sous-catégorie a des paliers exponentiels. Clique un palier atteint pour réclamer Cantox / clef / vie / spawner.
+      Le pic d'argent est le plus haut /bal jamais atteint.
+
+  - id: saison
+    triggers:
+      - "saison"
+      - "nouvelle saison"
+      - "quand finit la saison"
+      - "duree saison"
+      - "reset saison"
+    response: |
+      Une saison dure 75 jours (Europe/Paris) et se relance toute seule.
+      /saison affiche le numéro et la date de fin.
+      Les quêtes saisonnières sont tirées au début de saison. Les collections ne reset jamais.
+      Staff : /saison start pour forcer une nouvelle saison.
+
+  - id: faction_pasdic
+    triggers:
+      - "comment mettre un pasdic"
+      - "pasdic comment"
+      - "convertir claim pasdic"
+      - "claim renforce"
+      - "mode pasdic"
+      - "protection pasdic"
+      - "pasdic c est quoi"
+    response: |
+      PASDIC = claim renforce de ta faction. Seuls les membres peuvent y poser ou casser.
+      Conversion : /f pasdic dans un claim de ta faction (Officier+), confirmation, puis paiement de 50 000 Cantox via la banque. Shift + clic gauche sur /f map declenche aussi la commande.
+      Interdictions : coffres, trapped chest, barrel, ender chest, shulkers (conteneurs de stockage). Fours, hauts-fourneaux, fumoirs, hoppers, droppers, dispensers et spawners sont autorises.
+      Les runes de fortification ne peuvent pas etre appliquees dans un PASDIC.
+
+  - id: faction_raid
+    triggers:
+      - "comment lancer un raid"
+      - "raid faction"
+      - "f raid"
+      - "comment raider"
+      - "attaquer un claim"
+      - "grief raid"
+    response: |
+      Pour raider un claim ennemi : declare d abord la guerre avec /f war <faction>, puis /f raid dans le claim ennemi (Officier+).
+      Pendant le raid : casser, exploser, poser des blocs (TNT, cristaux, ancres, seaux, wither).
+      Hors raid : aucune pose ou casse etrangere dans un claim ennemi.
+      Duree, protection progressive et raids simultanes subis selon le pouvoir de la defenseur ; cooldown et raids simultanes menes selon le pouvoir de l attaquant.
+
+  - id: faction_war
+    triggers:
+      - "comment declarer la guerre"
+      - "f war"
+      - "guerre faction"
+      - "peace faction"
+      - "alliance faction"
+      - "f ally"
+      - "f peace"
+      - "declarer guerre"
+    response: |
+      Declarer la guerre : /f war <faction> (alias /f enemy). Met fin a une alliance existante.
+      Faire la paix : /f peace <faction> (Officier+).
+      S allier : /f ally <faction> (annule la guerre si elle existait).
+      Toutes les commandes de diplomatie necessitent le grade Officier ou Chef.
+
+  - id: faction_secret
+    triggers:
+      - "mode secret"
+      - "f secret"
+      - "secret faction"
+      - "taxe secret"
+      - "cacher faction"
+      - "secret gratuit"
+      - "avertissement banque secret"
+    response: |
+      /f secret active ou desactive le masquage de ta faction sur la carte.
+      Cout : taxe journaliere de 1 000 Cantox par intervalle de 20 minutes, prelevee sur la banque de faction.
+      3 jours gratuits pour les nouvelles factions et apres chaque raid subi.
+      Les officiers recoivent un avertissement (en jeu + MP Discord si lie) si la banque ne couvre pas le prochain prelevement.
+
+  - id: rune_fortification
+    triggers:
+      - "rune de fortification"
+      - "comment obtenir une rune"
+      - "runes fortification"
+      - "protection rune"
+      - "rune anti explosion"
+    response: |
+      La Rune de fortification immunise un chunk contre toutes les explosions (TNT, cristaux, wither, lits, ancres, etc.).
+      Tres rare : obtenue uniquement en bonus des caisses Epique (4 %), Mythique (6,5 %) et Legendaire (6,5 %). Vote et Rare ne donnent pas de rune.
+      Interdiction : ne peut pas etre appliquee dans un claim PASDIC.
+
+  - id: custom_item_disenchant
+    triggers:
+      - "desenchanter item custom"
+      - "table de desenchantement custom"
+      - "enclume item custom"
+      - "modifier item custom"
+      - "item custom enclume"
+    response: |
+      Les items custom (Pickantaxe, Cantaxe, Multi-Cantool, Cantalame, Vie, etc.) ne peuvent pas etre desenchantes a la table de desenchantement ni modifies a l enclume.
+      Cela protege leurs enchantements et leurs caracteristiques speciales.
+
+  - id: last_life_ban
+    triggers:
+      - "derniere vie stuff"
+      - "stuff drop ban"
+      - "perdre derniere vie"
+      - "0 vie stuff"
+      - "ban stuff"
+    response: |
+      A la perte de ta derniere vie, ton stuff (inventaire + armure + offhand) est drope au sol et ton inventaire est vide avant le bannissement IP.
+      Ton Ender Chest et ton Coffre Prive ne sont pas touches.
+
+  - id: quests_harder
+    triggers:
+      - "quetes difficiles"
+      - "distance quete"
+      - "teleportation quete"
+      - "quete distance sans tp"
+      - "quetes plus difficiles"
+    response: |
+      Les quetes sont plus difficiles (objectifs quotidiens ×2,5). Types : recolte, minerais sans soie, cuisson, kills joueurs/mobs, distance depuis l accept.
+      La distance est comptee en marchant ou volant : les teleportations ne comptent pas (TP, home, warp, spawn, rtp, /f spawn, /f warp). Il faut marcher ou voler pour progresser.
+
+  - id: crate_mending_silk
+    triggers:
+      - "mending caisse"
+      - "silk touch caisse"
+      - "toucher de soie caisse"
+      - "reparation caisse"
+      - "enchantement caisse"
+    response: |
+      Les caisses peuvent donner des enchantements comme Mending (Reparation) et Silk Touch (Touche de soie).
+      Les chances dependent du type de caisse : les caisses Epique, Mythique et Legendaire ont les meilleures tables de butin.
+
+  - id: mc_crafting_table
+    triggers:
+      - "comment craft une table de craft"
+      - "crafting table"
+      - "table de craft"
+      - "comment faire une table de craft"
+      - "comment on craft une table de craft"
+    response: |
+      Pour crafter une table de craft : place 4 planches de bois (n importe quel type) dans les 4 cases de l inventaire de craft 2×2. Cela donne une Crafting Table.
+
+  - id: mc_bed
+    triggers:
+      - "comment faire un lit"
+      - "bed"
+      - "lit minecraft"
+      - "comment craft un lit"
+      - "comment on fait un lit"
+    response: |
+      Pour crafter un lit : 3 laines de la meme couleur en haut + 3 planches de bois en bas dans une table de craft 3×3. Le lit permet de dormir la nuit et de definir un point de reapparition.
+
+  - id: mc_furnace
+    triggers:
+      - "comment faire un four"
+      - "furnace"
+      - "four minecraft"
+      - "comment craft un four"
+    response: |
+      Pour crafter un four : entoure la case centrale de 8 blocs de pierre lisse (cobblestone cuite) dans une table de craft 3×3. Il permet de cuire des minerais et de la nourriture.
+
+  - id: mc_iron
+    triggers:
+      - "comment obtenir du fer"
+      - "iron"
+      - "minerai de fer"
+      - "trouver du fer"
+    response: |
+      Le fer s obtient en minant du minerai de fer (fer brut) dans la pierre, surtout entre les couches 0 et 64 de l Overworld. Fais-le cuire dans un four pour obtenir des lingots de fer.
+
+  - id: mc_pickaxe
+    triggers:
+      - "comment faire une pioche"
+      - "pickaxe"
+      - "pioche minecraft"
+      - "comment craft une pioche"
+    response: |
+      Pour crafter une pioche : 3 matériaux (bois/pierre/fer/or/diamant) en haut + 2 batons au centre (cases 4 et 7) dans une table de craft 3×3. Le materiau determine la vitesse et la durabilite.
+
+  - id: mc_nether_portal
+    triggers:
+      - "comment faire un portail du nether"
+      - "nether portal"
+      - "portail nether"
+      - "aller dans le nether"
+      - "comment craft un portail"
+    response: |
+      Pour faire un portail du Nether : construis un cadre de 4×5 blocs (minimum 4×5, coins optionnels) avec de l obsidienne, puis allume-le avec un briquet en fer et silex. Il relie l Overworld au Nether.
+
+  - id: mc_diamonds
+    triggers:
+      - "comment trouver des diamants"
+      - "diamonds"
+      - "diamants minecraft"
+      - "miner des diamants"
+    response: |
+      Les diamants se trouvent entre les couches -64 et 16 de l Overworld, surtout autour de la couche -59. Mine du diamant brut avec une pioche en fer ou mieux, puis fais-le fondre dans un four pour obtenir un diamant.
+
+  - id: mc_ender_dragon
+    triggers:
+      - "comment tuer un dragon"
+      - "ender dragon"
+      - "dragon end"
+      - "battre le dragon"
+      - "comment battre le dragon"
+    response: |
+      Pour battre l Ender Dragon : detruis les cristaux sur les obsidiennes du sommet de l End, puis attaque le dragon avec un arc, une epee ou des lits/bed explosions. Attention aux shulkers sur le chemin des villes de l End.
+
+  - id: mc_server
+    triggers:
+      - "comment faire un serveur"
+      - "creer un serveur minecraft"
+      - "serveur public"
+      - "heberger un serveur"
+    response: |
+      Cantale n est pas un serveur public a recreer. Pour jouer, connecte-toi avec l IP Java : play.cantale.fun en Minecraft 1.21.11.
+      Pour creer ton propre serveur, cherche des tutoriels en ligne ; ce n est pas le support Cantale.
+
+  - id: mc_mods
+    triggers:
+      - "comment installer un mod"
+      - "mods"
+      - "mod minecraft"
+      - "faut un mod"
+      - "besoin d un mod"
+    response: |
+      Cantale est un serveur Paper 1.21.11 avec des plugins. Tu n as pas besoin de mod cote client pour jouer.
+      Installe simplement Minecraft Java Edition 1.21.11 et connecte-toi avec play.cantale.fun. Les mods sont a tes risques et perils.

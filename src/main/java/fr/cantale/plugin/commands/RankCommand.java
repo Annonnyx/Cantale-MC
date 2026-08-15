@@ -57,6 +57,8 @@ public class RankCommand implements CommandExecutor, TabCompleter {
                     sender.sendMessage("§8[§6Cantale§8] §aGrade de §e" + target.getName() + " §adéfini sur §e" + rank.getDisplayName());
                     target.sendMessage("§8[§6Cantale§8] §aVotre grade est maintenant : §e" + rank.getDisplayName());
                     plugin.getTagManager().updatePlayerNametag(target);
+                    // Ré-applique immédiatement les perms Bukkit du nouveau grade (staff non-op).
+                    plugin.getRankPermissionBridge().refresh(target);
                     if (rank == PlayerRank.CHEVRE) {
                         target.sendMessage("§8[§6Cantale§8] §6Avantages Chèvre : Vol illimité, 100k Cantox/jour, /pc+/pc2, 3 Vies/mois, pas de cooldown TP");
                     } else if (rank == PlayerRank.VIP) {
@@ -78,6 +80,8 @@ public class RankCommand implements CommandExecutor, TabCompleter {
                 if (rankManager.removeRank(target.getUniqueId())) {
                     sender.sendMessage("§8[§6Cantale§8] §aGrade de §e" + target.getName() + " §aretiré.");
                     target.sendMessage("§8[§6Cantale§8] §cVotre grade a été retiré.");
+                    // Retire immédiatement les perms Bukkit du grade (sinon actives jusqu'à la déco).
+                    plugin.getRankPermissionBridge().refresh(target);
                 } else {
                     sender.sendMessage("§8[§6Cantale§8] §cErreur lors du retrait du grade.");
                 }

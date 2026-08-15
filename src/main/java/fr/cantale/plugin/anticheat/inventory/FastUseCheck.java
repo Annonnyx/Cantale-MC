@@ -8,18 +8,16 @@ import fr.cantale.plugin.anticheat.data.PlayerData;
 import org.bukkit.entity.Player;
 
 /**
- * Détection de FastUse (FastEat / FastPlace).
+ * Détection de FastUse (FastEat).
  *
- * Vérifie si le joueur consomme de la nourriture ou utilise des items
- * plus rapidement que la vitesse normale. La consommation vanilla
- * prend environ 32 ticks (1.6 secondes).
+ * La consommation vanilla prend 32 ticks (1,6 s). Le début de consommation est
+ * tracké par joueur dans {@link PlayerData} (via PlayerInteractEvent) — l'état
+ * partagé historique entre joueurs a été supprimé (faux positifs croisés).
  */
 public class FastUseCheck extends Check {
 
     /** Temps minimum de consommation en millisecondes (32 ticks = 1600ms, avec marge) */
     private static final long MIN_CONSUME_TIME_MS = 1400;
-
-    private long lastConsumeStart;
 
     public FastUseCheck(AntiCheatConfig config) {
         super(CheckType.FAST_USE, config);
@@ -31,26 +29,16 @@ public class FastUseCheck extends Check {
     }
 
     /**
-     * Appelé quand un joueur commence à consommer un item.
+     * Vérifie la durée de consommation à la réception du PlayerItemConsumeEvent.
      */
-    public void onConsumeStart() {
-        this.lastConsumeStart = System.currentTimeMillis();
-    }
-
-    /**
-     * Vérifie la vitesse de consommation.
-     *
-     * @param player le joueur
-     * @return le résultat du check
-     */
-    public CheckResult checkConsume(Player player) {
-        if (lastConsumeStart == 0) {
+    public CheckResult checkConsume(Player player, PlayerData data) {
+        long start = data.getConsumeStartTime();
+        if (start == 0) {
             return CheckResult.pass(type);
         }
+        data.setConsumeStartTime(0);
 
-        long elapsed = System.currentTimeMillis() - lastConsumeStart;
-        lastConsumeStart = 0;
-
+        long elapsed = System.currentTimeMillis() - start;
         if (elapsed < MIN_CONSUME_TIME_MS) {
             String details = String.format("consumeTime=%dms min=%dms", elapsed, MIN_CONSUME_TIME_MS);
             return CheckResult.violation(type, 1.0, details);

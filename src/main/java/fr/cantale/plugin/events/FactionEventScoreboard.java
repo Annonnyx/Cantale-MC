@@ -11,50 +11,70 @@ import org.bukkit.scoreboard.Scoreboard;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.Set;
 
 /**
- * Sidebar scoreboard pour les événements faction.
- * Utilise un scoreboard par joueur pendant l'événement, puis restaure le main scoreboard.
+ * Sidebar événement faction sur le <strong>scoreboard principal</strong>.
+ * Un scoreboard par joueur masquait les préfixes TAB / nametag (équipes du main).
  */
 public class FactionEventScoreboard {
 
     private static final String OBJECTIVE_NAME = "cantale_fevt";
 
     private final CantalePlugin plugin;
-    private final Map<UUID, Scoreboard> previous = new ConcurrentHashMap<>();
+    private final Set<String> sidebarEntries = new HashSet<>();
 
     public FactionEventScoreboard(CantalePlugin plugin) {
         this.plugin = plugin;
     }
 
     public void showForAll(FactionEventManager manager) {
-        for (Player player : Bukkit.getOnlinePlayers()) {
-            show(player, manager);
+        Scoreboard main = Bukkit.getScoreboardManager().getMainScoreboard();
+        Objective existing = main.getObjective(OBJECTIVE_NAME);
+        if (existing != null) {
+            existing.unregister();
         }
+        sidebarEntries.clear();
+        Objective objective = main.registerNewObjective(OBJECTIVE_NAME, Criteria.DUMMY,
+                ChatColor.translateAlternateColorCodes('&', "&6&lEvent Faction"));
+        objective.setDisplaySlot(DisplaySlot.SIDEBAR);
+        ensurePlayersOnMain(main);
+        render(main, manager);
     }
 
     public void updateAll(FactionEventManager manager) {
-        for (Player player : Bukkit.getOnlinePlayers()) {
-            if (!previous.containsKey(player.getUniqueId())) {
-                show(player, manager);
-            } else {
-                render(player.getScoreboard(), manager);
-            }
+        Scoreboard main = Bukkit.getScoreboardManager().getMainScoreboard();
+        if (main.getObjective(OBJECTIVE_NAME) == null) {
+            showForAll(manager);
+            return;
         }
+        ensurePlayersOnMain(main);
+        render(main, manager);
     }
 
     public void show(Player player, FactionEventManager manager) {
-        previous.putIfAbsent(player.getUniqueId(), player.getScoreboard());
-        Scoreboard board = Bukkit.getScoreboardManager().getNewScoreboard();
-        Objective objective = board.registerNewObjective(OBJECTIVE_NAME, Criteria.DUMMY,
-                ChatColor.translateAlternateColorCodes('&', "&6&lEvent Faction"));
-        objective.setDisplaySlot(DisplaySlot.SIDEBAR);
-        player.setScoreboard(board);
-        render(board, manager);
+        Scoreboard main = Bukkit.getScoreboardManager().getMainScoreboard();
+        if (main.getObjective(OBJECTIVE_NAME) == null) {
+            showForAll(manager);
+            return;
+        }
+        if (player.getScoreboard() != main) {
+            player.setScoreboard(main);
+        }
+        if (plugin.getTagManager() != null) {
+            plugin.getTagManager().updatePlayerNametag(player);
+        }
+    }
+
+    private void ensurePlayersOnMain(Scoreboard main) {
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            if (player.getScoreboard() != main) {
+                player.setScoreboard(main);
+            }
+        }
     }
 
     private void render(Scoreboard board, FactionEventManager manager) {
@@ -62,14 +82,13 @@ public class FactionEventScoreboard {
         Objective objective = board.getObjective(OBJECTIVE_NAME);
         if (objective == null) return;
 
-        // Clear previous scores
-        for (String entry : board.getEntries()) {
+        for (String entry : sidebarEntries) {
             board.resetScores(entry);
         }
+        sidebarEntries.clear();
 
         String typeLine = manager.getEventTitle();
         if (typeLine == null || typeLine.isBlank()) typeLine = "?";
-        // Sidebar entries are capped (~40 chars); keep title short
         if (typeLine.length() > 22) {
             typeLine = typeLine.substring(0, 22);
         }
@@ -99,32 +118,34 @@ public class FactionEventScoreboard {
             lines.add(ChatColor.DARK_GRAY + "Aucun point…");
         }
 
-        // Scores must be unique descending for display order
         int score = lines.size();
         for (String line : lines) {
-            // Ensure unique entry keys
             String entry = line;
             int suffix = 0;
-            while (board.getEntries().contains(entry)) {
+            while (board.getEntries().contains(entry) && !sidebarEntries.contains(entry)) {
                 entry = line + ChatColor.values()[suffix++ % ChatColor.values().length];
             }
             objective.getScore(entry).setScore(score--);
+            sidebarEntries.add(entry);
         }
     }
 
     public void clearAll() {
-        for (Player player : Bukkit.getOnlinePlayers()) {
-            restore(player);
-        }
-        previous.clear();
-    }
-
-    private void restore(Player player) {
-        Scoreboard prev = previous.remove(player.getUniqueId());
         Scoreboard main = Bukkit.getScoreboardManager().getMainScoreboard();
-        player.setScoreboard(prev != null ? prev : main);
+        Objective objective = main.getObjective(OBJECTIVE_NAME);
+        if (objective != null) {
+            objective.unregister();
+        }
+        for (String entry : sidebarEntries) {
+            main.resetScores(entry);
+        }
+        sidebarEntries.clear();
+
+        ensurePlayersOnMain(main);
         if (plugin.getTagManager() != null) {
-            plugin.getTagManager().updatePlayerNametag(player);
+            for (Player player : Bukkit.getOnlinePlayers()) {
+                plugin.getTagManager().updatePlayerNametag(player);
+            }
         }
     }
 }

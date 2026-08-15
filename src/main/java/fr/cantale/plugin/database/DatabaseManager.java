@@ -85,6 +85,15 @@ public class DatabaseManager {
         return newConnection;
     }
 
+    /**
+     * « Colonne déjà présente » = migration déjà appliquée. MySQL écrit « Duplicate column
+     * name 'x' » (D majuscule), SQLite « duplicate column name » — comparaison en minuscules.
+     */
+    private static boolean isDuplicateColumn(SQLException e) {
+        String msg = e.getMessage();
+        return msg != null && msg.toLowerCase(java.util.Locale.ROOT).contains("duplicate column name");
+    }
+
     private void createTables() {
         if (this.connection == null) {
             plugin.getLogger().severe("Impossible de créer les tables car la connexion est nulle.");
@@ -106,6 +115,7 @@ public class DatabaseManager {
                     last_death_x REAL,
                     last_death_y REAL,
                     last_death_z REAL,
+                    last_death_inventory TEXT,
                     tutorial_progress INTEGER DEFAULT 0,
                     created_at INTEGER DEFAULT 0
                 )
@@ -132,7 +142,7 @@ public class DatabaseManager {
                 stmt.execute("ALTER TABLE factions ADD COLUMN power INTEGER DEFAULT 0");
             } catch (SQLException e) {
                 // La colonne existe probablement déjà
-                if (!e.getMessage().contains("duplicate column name")) {
+                if (!isDuplicateColumn(e)) {
                     plugin.getLogger().warning("Erreur lors de la migration power : " + e.getMessage());
                 }
             }
@@ -142,7 +152,7 @@ public class DatabaseManager {
                 stmt.execute("ALTER TABLE factions ADD COLUMN type TEXT DEFAULT 'normal'");
             } catch (SQLException e) {
                 // La colonne existe probablement déjà
-                if (!e.getMessage().contains("duplicate column name")) {
+                if (!isDuplicateColumn(e)) {
                     plugin.getLogger().warning("Erreur lors de la migration type : " + e.getMessage());
                 }
             }
@@ -151,21 +161,21 @@ public class DatabaseManager {
             try {
                 stmt.execute("ALTER TABLE factions ADD COLUMN spawn_x REAL");
             } catch (SQLException e) {
-                if (!e.getMessage().contains("duplicate column name")) {
+                if (!isDuplicateColumn(e)) {
                     plugin.getLogger().warning("Erreur lors de la migration spawn_x : " + e.getMessage());
                 }
             }
             try {
                 stmt.execute("ALTER TABLE factions ADD COLUMN spawn_y REAL");
             } catch (SQLException e) {
-                if (!e.getMessage().contains("duplicate column name")) {
+                if (!isDuplicateColumn(e)) {
                     plugin.getLogger().warning("Erreur lors de la migration spawn_y : " + e.getMessage());
                 }
             }
             try {
                 stmt.execute("ALTER TABLE factions ADD COLUMN spawn_z REAL");
             } catch (SQLException e) {
-                if (!e.getMessage().contains("duplicate column name")) {
+                if (!isDuplicateColumn(e)) {
                     plugin.getLogger().warning("Erreur lors de la migration spawn_z : " + e.getMessage());
                 }
             }
@@ -174,7 +184,7 @@ public class DatabaseManager {
             try {
                 stmt.execute("ALTER TABLE factions ADD COLUMN discord_role_id BIGINT DEFAULT 0");
             } catch (SQLException e) {
-                if (!e.getMessage().contains("duplicate column name")) {
+                if (!isDuplicateColumn(e)) {
                     plugin.getLogger().warning("Erreur lors de la migration discord_role_id : " + e.getMessage());
                 }
             }
@@ -310,13 +320,40 @@ public class DatabaseManager {
                 )
                 """);
 
-            // Cooldowns commande secret
+            // Cooldowns commande secret (legacy — remplacé par la taxe journalière)
             stmt.execute("""
                 CREATE TABLE IF NOT EXISTS secret_cooldowns (
                     player_uuid VARCHAR(36) NOT NULL PRIMARY KEY,
                     last_used INTEGER DEFAULT 0
                 )
                 """);
+
+            // Raids actifs et historique
+            stmt.execute("""
+                CREATE TABLE IF NOT EXISTS faction_raids (
+                    id INTEGER PRIMARY KEY AUTO_INCREMENT,
+                    attacker_faction_id INTEGER NOT NULL,
+                    defender_faction_id INTEGER NOT NULL,
+                    world VARCHAR(255) NOT NULL,
+                    chunk_x INTEGER NOT NULL,
+                    chunk_z INTEGER NOT NULL,
+                    started_at INTEGER DEFAULT 0,
+                    ends_at INTEGER DEFAULT 0,
+                    active INTEGER DEFAULT 1,
+                    FOREIGN KEY (attacker_faction_id) REFERENCES factions(id) ON DELETE CASCADE,
+                    FOREIGN KEY (defender_faction_id) REFERENCES factions(id) ON DELETE CASCADE,
+                    INDEX idx_faction_raids_defender (defender_faction_id, active),
+                    INDEX idx_faction_raids_attacker (attacker_faction_id, active)
+                )
+                """);
+
+            // Migrations : mode secret (gratuité) et dernière date de raid
+            try {
+                stmt.execute("ALTER TABLE factions ADD COLUMN secret_free_until INTEGER DEFAULT 0");
+            } catch (java.sql.SQLException ignored) {}
+            try {
+                stmt.execute("ALTER TABLE factions ADD COLUMN last_raid_at INTEGER DEFAULT 0");
+            } catch (java.sql.SQLException ignored) {}
 
             // Diplomatie
             stmt.execute("""
@@ -326,10 +363,16 @@ public class DatabaseManager {
                     target_faction_id INTEGER NOT NULL,
                     type VARCHAR(50) NOT NULL,
                     created_at INTEGER DEFAULT 0,
+                    expires_at INTEGER DEFAULT 0,
                     FOREIGN KEY (faction_id) REFERENCES factions(id) ON DELETE CASCADE,
                     FOREIGN KEY (target_faction_id) REFERENCES factions(id) ON DELETE CASCADE
                 )
                 """);
+            // Migration : expiration des déclarations de guerre / propositions de paix en attente
+            // (0 = permanent : alliances et guerres actives)
+            try {
+                stmt.execute("ALTER TABLE diplomacy ADD COLUMN expires_at INTEGER DEFAULT 0");
+            } catch (java.sql.SQLException ignored) {}
 
             // Hôtel des ventes
             stmt.execute("""
@@ -522,14 +565,14 @@ public class DatabaseManager {
             try {
                 stmt.execute("ALTER TABLE vote_stats ADD COLUMN monthly_votes INTEGER DEFAULT 0");
             } catch (SQLException e) {
-                if (!e.getMessage().contains("duplicate column name")) {
+                if (!isDuplicateColumn(e)) {
                     plugin.getLogger().warning("Erreur migration vote_stats.monthly_votes : " + e.getMessage());
                 }
             }
             try {
                 stmt.execute("ALTER TABLE vote_stats ADD COLUMN last_month INTEGER DEFAULT 0");
             } catch (SQLException e) {
-                if (!e.getMessage().contains("duplicate column name")) {
+                if (!isDuplicateColumn(e)) {
                     plugin.getLogger().warning("Erreur migration vote_stats.last_month : " + e.getMessage());
                 }
             }
@@ -560,6 +603,17 @@ public class DatabaseManager {
                     created_at INTEGER DEFAULT 0,
                     expires_at INTEGER DEFAULT 0,
                     used INTEGER DEFAULT 0
+                )
+                """);
+
+            // Votes API externes déjà récompensés (Serveur-Prive polling, etc.)
+            stmt.execute("""
+                CREATE TABLE IF NOT EXISTS vote_external_ids (
+                    site VARCHAR(64) NOT NULL,
+                    external_id VARCHAR(191) NOT NULL,
+                    player_name VARCHAR(255),
+                    claimed_at INTEGER DEFAULT 0,
+                    PRIMARY KEY (site, external_id)
                 )
                 """);
 
@@ -658,6 +712,81 @@ public class DatabaseManager {
             } catch (java.sql.SQLException ignored) {}
             try {
                 stmt.execute("ALTER TABLE players ADD COLUMN last_death_z REAL");
+            } catch (java.sql.SQLException ignored) {}
+            // Migration : inventaire sérialisé à la mort (vue staff /lastdeath)
+            try {
+                stmt.execute("ALTER TABLE players ADD COLUMN last_death_inventory TEXT");
+            } catch (java.sql.SQLException ignored) {}
+            try {
+                stmt.execute("ALTER TABLE players ADD COLUMN balance_peak REAL DEFAULT 0");
+            } catch (java.sql.SQLException ignored) {}
+
+            stmt.execute("""
+                CREATE TABLE IF NOT EXISTS seasons (
+                    id INTEGER PRIMARY KEY %s,
+                    started_at INTEGER NOT NULL,
+                    ends_at INTEGER NOT NULL,
+                    reason VARCHAR(64)
+                )
+                """.formatted(isSQLite() ? "AUTOINCREMENT" : "AUTO_INCREMENT"));
+            stmt.execute("""
+                CREATE TABLE IF NOT EXISTS quest_pools (
+                    pool_key VARCHAR(128) PRIMARY KEY,
+                    payload TEXT
+                )
+                """);
+            stmt.execute("""
+                CREATE TABLE IF NOT EXISTS quest_progress (
+                    owner_id VARCHAR(64) NOT NULL,
+                    instance_id VARCHAR(191) NOT NULL,
+                    amount INTEGER DEFAULT 0,
+                    accepted INTEGER DEFAULT 0,
+                    completed INTEGER DEFAULT 0,
+                    PRIMARY KEY (owner_id, instance_id)
+                )
+                """);
+            stmt.execute("""
+                CREATE TABLE IF NOT EXISTS quest_contributions (
+                    instance_id VARCHAR(191) NOT NULL,
+                    player_uuid VARCHAR(36) NOT NULL,
+                    amount INTEGER DEFAULT 0,
+                    PRIMARY KEY (instance_id, player_uuid)
+                )
+                """);
+            stmt.execute("""
+                CREATE TABLE IF NOT EXISTS quest_winners (
+                    instance_id VARCHAR(191) PRIMARY KEY,
+                    faction_id INTEGER NOT NULL
+                )
+                """);
+            stmt.execute("""
+                CREATE TABLE IF NOT EXISTS collection_progress (
+                    player_uuid VARCHAR(36) NOT NULL,
+                    category VARCHAR(32) NOT NULL,
+                    progress_key VARCHAR(64) NOT NULL,
+                    amount BIGINT DEFAULT 0,
+                    PRIMARY KEY (player_uuid, category, progress_key)
+                )
+                """);
+            stmt.execute("""
+                CREATE TABLE IF NOT EXISTS collection_claimed (
+                    player_uuid VARCHAR(36) NOT NULL,
+                    category VARCHAR(32) NOT NULL,
+                    progress_key VARCHAR(64) NOT NULL,
+                    tier INTEGER NOT NULL,
+                    PRIMARY KEY (player_uuid, category, progress_key, tier)
+                )
+                """);
+
+            // Migration : /parrain (une fois par joueur invité)
+            try {
+                stmt.execute("ALTER TABLE players ADD COLUMN referral_used INTEGER DEFAULT 0");
+            } catch (java.sql.SQLException ignored) {}
+            try {
+                stmt.execute("ALTER TABLE players ADD COLUMN referred_by VARCHAR(36)");
+            } catch (java.sql.SQLException ignored) {}
+            try {
+                stmt.execute("ALTER TABLE players ADD COLUMN referral_at INTEGER DEFAULT 0");
             } catch (java.sql.SQLException ignored) {}
 
             // Migration : points de pouvoir achetés via banque (courbe de prix)
@@ -796,21 +925,35 @@ public class DatabaseManager {
             }
 
             // File d'actions admin déposées par le site (ADMIN_DISCORD_ID).
-            // type : set_money | add_money | set_lives | add_lives | give_item | ban | unban | msg | discord_dm | inspect_player
+            // type : set_money | add_money | set_lives | add_lives | give_item | ban | unban | msg | discord_dm | inspect_player | set_pasdic
             stmt.execute("""
                 CREATE TABLE IF NOT EXISTS web_admin_actions (
                     id INTEGER PRIMARY KEY %s,
                     type VARCHAR(32) NOT NULL,
                     target_uuid VARCHAR(36),
                     target_name VARCHAR(64),
-                    payload VARCHAR(1024),
+                    payload TEXT,
                     actor_discord_id VARCHAR(32) NOT NULL,
                     status VARCHAR(16) DEFAULT 'pending',
-                    result VARCHAR(255),
+                    result TEXT,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     processed_at TIMESTAMP NULL DEFAULT NULL
                 )
                 """.formatted(isSQLite() ? "AUTOINCREMENT" : "AUTO_INCREMENT"));
+
+            // Lots PASDIC (carte site) : payload JSON + résultat avec liste de chunks.
+            if (!isSQLite()) {
+                try {
+                    stmt.execute("ALTER TABLE web_admin_actions MODIFY COLUMN payload TEXT");
+                } catch (SQLException e) {
+                    plugin.getLogger().warning("Migration web_admin_actions.payload TEXT : " + e.getMessage());
+                }
+                try {
+                    stmt.execute("ALTER TABLE web_admin_actions MODIFY COLUMN result TEXT");
+                } catch (SQLException e) {
+                    plugin.getLogger().warning("Migration web_admin_actions.result TEXT : " + e.getMessage());
+                }
+            }
 
             // Snapshots d'inspection (inventaire / PC / EC / effets) — payload trop gros pour result VARCHAR(255).
             stmt.execute("""
@@ -823,6 +966,55 @@ public class DatabaseManager {
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
                 """.formatted(isSQLite() ? "AUTOINCREMENT" : "AUTO_INCREMENT"));
+
+            stmt.execute("""
+                CREATE TABLE IF NOT EXISTS spawners (
+                    world VARCHAR(255) NOT NULL,
+                    x INTEGER NOT NULL,
+                    y INTEGER NOT NULL,
+                    z INTEGER NOT NULL,
+                    mob_type VARCHAR(32) NOT NULL,
+                    tier INTEGER NOT NULL,
+                    faction_id INTEGER NOT NULL,
+                    PRIMARY KEY (world, x, y, z)
+                )
+                """);
+
+            // Preuves anti-cheat : chaque violation (native ou Grim) est persistée
+            stmt.execute("""
+                CREATE TABLE IF NOT EXISTS anticheat_violations (
+                    id INTEGER PRIMARY KEY %s,
+                    player_uuid VARCHAR(36) NOT NULL,
+                    player_name VARCHAR(255) NOT NULL,
+                    source VARCHAR(16) NOT NULL DEFAULT 'NATIVE',
+                    check_name VARCHAR(64) NOT NULL,
+                    vl INTEGER DEFAULT 1,
+                    trust_after INTEGER DEFAULT 100,
+                    ping INTEGER DEFAULT 0,
+                    tps REAL DEFAULT 20.0,
+                    details TEXT,
+                    created_at INTEGER DEFAULT 0
+                )
+                """.formatted(isSQLite() ? "AUTOINCREMENT" : "AUTO_INCREMENT"));
+            try {
+                stmt.execute("CREATE INDEX IF NOT EXISTS idx_ac_violations_player ON anticheat_violations (player_uuid, created_at)");
+            } catch (SQLException e) {
+                plugin.getLogger().warning("Index anticheat_violations : " + e.getMessage());
+            }
+            // Migration données : le code insérait historiquement des MILLIS dans des colonnes
+            // INTEGER prévues pour des SECONDES epoch (rejetées en MySQL strict, stockées en SQLite).
+            // Toute valeur > 99 999 999 999 (année 5138 en secondes) est nécessairement en millis.
+            // Idempotent et portable (MySQL + SQLite) ; ne touche aucune valeur déjà en secondes.
+            try {
+                stmt.execute("UPDATE anticheat_violations SET created_at = created_at / 1000 WHERE created_at > 99999999999");
+            } catch (SQLException e) {
+                plugin.getLogger().warning("Migration anticheat_violations.created_at (millis→s) : " + e.getMessage());
+            }
+            try {
+                stmt.execute("UPDATE players SET referral_at = referral_at / 1000 WHERE referral_at > 99999999999");
+            } catch (SQLException e) {
+                plugin.getLogger().warning("Migration players.referral_at (millis→s) : " + e.getMessage());
+            }
 
             plugin.getLogger().info("Tables créées / vérifiées avec succès.");
         } catch (SQLException e) {
@@ -1047,6 +1239,29 @@ public class DatabaseManager {
     }
 
     /**
+     * MariaDB / MySQL (même dialecte pour les upserts). Le config utilise {@code mysql}
+     * même si le serveur réel est MariaDB.
+     */
+    public boolean isMariaDB() {
+        return !isSQLite();
+    }
+
+    /**
+     * Upsert portable : SQLite {@code INSERT OR REPLACE}, MariaDB/MySQL
+     * {@code INSERT ... ON DUPLICATE KEY UPDATE}.
+     *
+     * @param intoClause table et colonnes, ex. {@code secret_cooldowns (player_uuid, last_used)}
+     * @param valuesPlaceholders placeholders, ex. {@code ?, ?}
+     * @param duplicateUpdates clause SET MariaDB, ex. {@code last_used = VALUES(last_used)}
+     */
+    public String upsertSql(String intoClause, String valuesPlaceholders, String duplicateUpdates) {
+        if (isSQLite()) {
+            return "INSERT OR REPLACE INTO " + intoClause + " VALUES (" + valuesPlaceholders + ")";
+        }
+        return "INSERT INTO " + intoClause + " VALUES (" + valuesPlaceholders + ") ON DUPLICATE KEY UPDATE " + duplicateUpdates;
+    }
+
+    /**
      * Supprime toutes les données de toutes les tables du plugin.
      * Les tables elles-mêmes sont conservées (TRUNCATE / DELETE).
      */
@@ -1058,7 +1273,9 @@ public class DatabaseManager {
             "auction_listings", "homes", "warps", "player_warps", "mutes", "wanted",
             "private_chests", "player_permissions", "custom_tags", "player_unlocked_tags",
             "votes", "vote_stats", "vote_party", "link_codes", "vote_milestones",
-            "discord_links", "pending_rewards", "legendary_tickets", "shop_daily_limits"
+            "discord_links", "pending_rewards", "legendary_tickets", "shop_daily_limits",
+            "spawners", "seasons", "quest_pools", "quest_progress",
+            "quest_contributions", "quest_winners", "collection_progress", "collection_claimed"
         };
 
         try (Connection conn = getConnection()) {

@@ -185,5 +185,8 @@ items:
   # ── Guerre & PvP (cœur économique du sink de guerre) ──
   TNT: {category: GUERRE, buy: 1320, sell-enabled: false}
   OBSIDIAN: {category: GUERRE, buy: 5040, sell: 40, daily-sell-cap: 128}
+  # Tête de Wither : plus de drop vanilla. Seul moyen de raid obsidienne (plus de lits).
+  # 3 têtes = 150 000 Cantox / wither. Cap 6/j = 2 withers shop. Pas de revente.
+  WITHER_SKELETON_SKULL: {category: GUERRE, buy: 50000, sell-enabled: false, daily-buy-cap: 6}
   ARROW: {category: GUERRE, buy: 60, sell-enabled: false}
   SHIELD: {category: GUERRE, buy: 3480, sell-enabled: false}

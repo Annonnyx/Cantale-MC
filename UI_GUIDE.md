@@ -108,6 +108,8 @@ plugin.getUIManager().goBack(player); // retour
 | 32 | NETHER_STAR | Ranks (info) |
 | 33 | REPEATER | Permissions (`/perm list`) |
 | 34 | COMPASS | Web / Link (`/link`) |
+| 38 | WRITABLE_BOOK | **Quêtes** (`QuestMainUI` / `/quetes`) |
+| 40 | ITEM_FRAME | **Collections** (`CollectionMainUI` / `/collections`) |
 | 49 | BARRIER | Fermer |
 
 ### FactionMainUI — `/f`
@@ -347,10 +349,9 @@ Types logués : `DEPOSIT`, `WITHDRAW`, `POWER_BUY`, `ADMIN_ADD`, `ADMIN_REMOVE` 
 
 - Top 10 de la catégorie
 
-### FactionHomesUI — `/f homes`
+### FactionHomesUI — retiré
 
-**Titre :** `§7Homes — {faction}`  
-**Taille :** 5 lignes
+Les homes de faction n'existent plus. Homes perso : `/home`. Mobilité fac : `/f spawn`, `/f warp`. Fichier Java conservé (stub).
 
 ### FactionWarpsUI — `/f warps`
 

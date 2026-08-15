@@ -7,6 +7,7 @@ import org.bukkit.Material;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
+import org.bukkit.command.ConsoleCommandSender;
 import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
@@ -25,8 +26,13 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
+        if (args.length > 0 && args[0].equalsIgnoreCase("reload")) {
+            handleReload(sender);
+            return true;
+        }
+
         if (!(sender instanceof Player player)) {
-            sender.sendMessage("§cCette commande est réservée aux joueurs.");
+            sender.sendMessage("Cette commande est réservée aux joueurs. Depuis la console : /shop reload");
             return true;
         }
 
@@ -39,8 +45,7 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
         switch (args[0].toLowerCase()) {
             case "buy" -> handleBuy(player, args);
             case "sell" -> handleSell(player, args);
-            case "reload" -> handleReload(player);
-            default -> player.sendMessage(formatMessage("&cUsage : /shop [buy|sell] <item> <quantité>"));
+            default -> player.sendMessage(formatMessage("&cUsage : /shop [buy|sell] <item> <quantité> | /shop reload"));
         }
 
         return true;
@@ -99,13 +104,26 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
         report(player, result, material, false);
     }
 
-    private void handleReload(Player player) {
-        if (!player.hasPermission("cantale.admin")) {
-            player.sendMessage(formatMessage("&cPermission refusée."));
+    private void handleReload(CommandSender sender) {
+        if (!(sender instanceof ConsoleCommandSender) && !sender.hasPermission("cantale.admin")) {
+            sender.sendMessage(plainOrPrefixed(sender, "&cPermission refusée."));
             return;
         }
-        plugin.getShopManager().reload();
-        player.sendMessage(formatMessage("&aCatalogue du shop rechargé depuis shop.yml."));
+        try {
+            plugin.getShopManager().reload();
+            sender.sendMessage(plainOrPrefixed(sender, "&aCatalogue du shop rechargé depuis shop.yml."));
+        } catch (Exception e) {
+            sender.sendMessage(plainOrPrefixed(sender, "&cÉchec du rechargement du shop : " + e.getMessage()));
+            plugin.getLogger().warning("[Shop] Échec /shop reload : " + e.getMessage());
+        }
+    }
+
+    /** Préfixe + couleurs en jeu ; texte français brut en console (pas de MiniMessage). */
+    private String plainOrPrefixed(CommandSender sender, String msg) {
+        if (sender instanceof ConsoleCommandSender) {
+            return ChatColor.stripColor(ChatColor.translateAlternateColorCodes('&', msg));
+        }
+        return formatMessage(msg);
     }
 
     private void report(Player player, ShopManager.ShopResult result, Material material, boolean buying) {
@@ -155,7 +173,9 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         if (args.length == 1) {
             List<String> options = new ArrayList<>(Arrays.asList("buy", "sell"));
-            if (sender.hasPermission("cantale.admin")) options.add("reload");
+            if (sender instanceof ConsoleCommandSender || sender.hasPermission("cantale.admin")) {
+                options.add("reload");
+            }
             return options;
         }
         if (args.length == 2 && args[0].equalsIgnoreCase("sell")) {

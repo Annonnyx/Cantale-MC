@@ -1,7 +1,6 @@
 package fr.cantale.plugin.commands;
 
 import fr.cantale.plugin.CantalePlugin;
-import fr.cantale.plugin.cooldown.CooldownManager;
 import fr.cantale.plugin.teleport.Warp;
 import fr.cantale.plugin.teleport.WarpManager;
 import org.bukkit.command.Command;
@@ -17,15 +16,10 @@ import java.util.stream.Collectors;
 
 public class WarpCommand implements CommandExecutor, TabCompleter {
 
-    private final CantalePlugin plugin;
     private final WarpManager warpManager;
-    private final CooldownManager cooldownManager;
-    private static final long COOLDOWN_MS = 20000; // 20 secondes
 
     public WarpCommand(CantalePlugin plugin) {
-        this.plugin = plugin;
         this.warpManager = plugin.getWarpManager();
-        this.cooldownManager = plugin.getCooldownManager();
     }
 
     @Override
@@ -87,13 +81,6 @@ public class WarpCommand implements CommandExecutor, TabCompleter {
             return true;
         }
 
-        // Téléportation
-        // Vérifier le cooldown
-        if (cooldownManager.hasCooldown(player, "warp", COOLDOWN_MS)) {
-            long remaining = cooldownManager.getRemainingCooldown(player, "warp", COOLDOWN_MS);
-            player.sendMessage("§cCooldown ! Attendez encore " + (remaining / 1000) + " secondes.");
-            return true;
-        }
         warpManager.teleportWarp(player, args[0]);
         return true;
     }

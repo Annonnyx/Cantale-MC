@@ -70,8 +70,8 @@ public class AuctionCommand implements CommandExecutor, TabCompleter {
         }
 
         ItemStack hand = player.getInventory().getItemInMainHand();
-        if (hand == null || hand.getType() == Material.AIR) {
-            player.sendMessage("§8[§6Cantale§8] §cTenez un item dans votre main.");
+        if (hand == null || hand.getType().isAir() || hand.getAmount() <= 0) {
+            player.sendMessage("§8[§6Cantale§8] §cTenez un item dans votre main principale.");
             return;
         }
 

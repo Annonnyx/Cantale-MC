@@ -405,6 +405,12 @@ public class AdminCommand implements CommandExecutor, TabCompleter {
             "  &a/admin kickmember <faction> <joueur> &7- Virer un membre d'une faction"));
         sender.sendMessage(ChatColor.translateAlternateColorCodes('&',
             "  &a/admin f rename <faction> <nouveau_nom> &7- Renommer une faction (+ tag)"));
+        sender.sendMessage(ChatColor.translateAlternateColorCodes('&',
+            "  &a/spawner give <joueur> <mob> [tier] &7- Donner un spawner Cantale"));
+        sender.sendMessage(ChatColor.translateAlternateColorCodes('&',
+            "  &a/linkforce <Pseudo MC> <ID Discord> &7- Forcer la liaison Discord"));
+        sender.sendMessage(ChatColor.translateAlternateColorCodes('&',
+            "  &a/forceunlink <joueur> &7- Délier Discord d'un joueur"));
         sender.sendMessage("");
         
         sender.sendMessage(ChatColor.translateAlternateColorCodes('&', 

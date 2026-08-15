@@ -2,11 +2,14 @@ package fr.cantale.plugin.optimization;
 
 import fr.cantale.plugin.CantalePlugin;
 import org.bukkit.Bukkit;
+import org.bukkit.Chunk;
 import org.bukkit.World;
 import org.bukkit.entity.*;
 import org.bukkit.entity.minecart.HopperMinecart;
 import org.bukkit.entity.minecart.StorageMinecart;
 
+import java.lang.management.GarbageCollectorMXBean;
+import java.lang.management.ManagementFactory;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -22,12 +25,11 @@ public class ServerOptimizer {
     private boolean clearGroundItems;
     private boolean clearArrows;
     private boolean clearExperience;
-    private boolean optimizeChunks;
-    private int tpsWarningThreshold;
     private boolean villagersDisabled;
-    private long lastSaveTime;
     /** Ne jamais supprimer / cull un item plus jeune que ce délai (loot de mort). */
     private int protectRecentItemSeconds;
+    /** Anti-boucle : un TPS bas persistant ne doit pas relancer urgence + scan en boucle. */
+    private long lastEmergencyCleanupAt;
 
     public ServerOptimizer(CantalePlugin plugin) {
         this.plugin = plugin;
@@ -37,6 +39,7 @@ public class ServerOptimizer {
     }
 
     public void loadConfig() {
+        this.enabled = plugin.getConfig().getBoolean("optimization.enabled", true);
         this.autoSaveIntervalMinutes = plugin.getConfig().getInt("optimization.autosave-interval", 5);
         this.entityCleanupIntervalSeconds = plugin.getConfig().getInt("optimization.entity-cleanup-interval", 60);
         this.maxItemsPerChunk = plugin.getConfig().getInt("optimization.max-items-per-chunk", 20);
@@ -44,8 +47,6 @@ public class ServerOptimizer {
         this.clearGroundItems = plugin.getConfig().getBoolean("optimization.clear-ground-items", true);
         this.clearArrows = plugin.getConfig().getBoolean("optimization.clear-arrows", true);
         this.clearExperience = plugin.getConfig().getBoolean("optimization.clear-experience", false);
-        this.optimizeChunks = plugin.getConfig().getBoolean("optimization.optimize-chunks", true);
-        this.tpsWarningThreshold = plugin.getConfig().getInt("optimization.tps-warning-threshold", 15);
         this.villagersDisabled = plugin.getConfig().getBoolean("optimization.villagers-disabled", false);
         // Défaut 5 min : une mort + retour spawn/home ne doit jamais perdre le loot au nettoyage
         this.protectRecentItemSeconds = Math.max(60,
@@ -114,23 +115,16 @@ public class ServerOptimizer {
     }
 
     private boolean shouldKeep(Entity e, boolean includeNamed) {
-        // Toujours préserver : joueurs
         if (e instanceof Player) return true;
-
-        // Bêtes apprivoisées (Wolf, Cat, Parrot, Horse domestiqué, etc.)
         if (e instanceof Tameable t && t.isTamed()) return true;
-
-        // Marqueurs Cantale (NPCs, armor stand-keep, etc.)
         if (e.hasMetadata("cantale_npc")) return true;
         if (e.hasMetadata("cantale_keep")) return true;
-
-        // Stockage en mouvement (minecart à coffre / hopper) — préserver par sécurité
+        var spawners = plugin.getSpawnerManager();
+        if (spawners != null && spawners.isSpawnerHologram(e)) return true;
         if (e instanceof StorageMinecart || e instanceof HopperMinecart) return true;
-
         // Entités nommées : conservées par défaut sauf si includeNamed.
         // Les stacks Cantale (PDC mob_stack + libellé ×N) ne comptent pas comme « nom joueur ».
         if (!includeNamed && e.customName() != null && !isCantaleMobStack(e)) return true;
-
         return false;
     }
 
@@ -140,27 +134,24 @@ public class ServerOptimizer {
     }
 
     public void startTasks() {
-        // Nettoyage des entités
         Bukkit.getScheduler().runTaskTimer(plugin, this::cleanupEntities,
                 entityCleanupIntervalSeconds * 20L,
                 entityCleanupIntervalSeconds * 20L);
 
-        // Auto-save
         Bukkit.getScheduler().runTaskTimer(plugin, this::autoSave,
                 autoSaveIntervalMinutes * 20L * 60L,
                 autoSaveIntervalMinutes * 20L * 60L);
 
-        // Monitoring TPS
-        Bukkit.getScheduler().runTaskTimer(plugin, this::monitorTPS, 20L, 20L * 30);
-
-        // Optimisation des chunks
-        if (optimizeChunks) {
-            Bukkit.getScheduler().runTaskTimer(plugin, this::optimizeChunks, 20L * 60 * 5, 20L * 60 * 5);
-        }
-
-        plugin.getLogger().info("[Optimizer] Auto-save: " + autoSaveIntervalMinutes + "min, Cleanup: " + entityCleanupIntervalSeconds + "s");
+        plugin.getLogger().info("[Optimizer] enabled=" + enabled
+                + ", auto-save=" + autoSaveIntervalMinutes + "min, cleanup=" + entityCleanupIntervalSeconds + "s");
     }
 
+    /**
+     * Nettoyage périodique : UNE seule itération des entités par monde.
+     * Classification dans la boucle (flèches / XP / items / autres), puis cull par chunk.
+     * L'âge des items au sol reste géré par ClearLagTask (annonces joueurs) : un clear
+     * silencieux ici vidait les items éligibles avant le countdown → ClearLag annonçait « 0 ».
+     */
     public void cleanupEntities() {
         if (!enabled) return;
 
@@ -170,83 +161,69 @@ public class ServerOptimizer {
         int removedExcess = 0;
 
         for (World world : Bukkit.getWorlds()) {
-            // Âge des items au sol : géré uniquement par ClearLagTask (annonces joueurs).
-            // Un clear silencieux ici (toutes les ~60s, même seuil 5 min) vidait les
-            // items éligibles avant le countdown → ClearLag annonçait toujours « 0 ».
+            Map<Long, List<Item>> chunkItems = clearGroundItems ? new HashMap<>() : null;
+            Map<Long, List<Entity>> chunkEntities = new HashMap<>();
 
-            // Nettoyer les flèches
-            if (clearArrows) {
-                for (Entity entity : world.getEntities()) {
-                    if (entity instanceof Arrow arrow) {
-                        if (arrow.getTicksLived() > 20 * 30) {
-                            arrow.remove();
-                            removedArrows++;
-                        }
+            for (Entity entity : world.getEntities()) {
+                if (clearArrows && entity instanceof Arrow arrow) {
+                    if (arrow.getTicksLived() > 20 * 30) {
+                        arrow.remove();
+                        removedArrows++;
                     }
+                    continue;
                 }
+                if (clearExperience && entity instanceof ExperienceOrb) {
+                    entity.remove();
+                    removedExp++;
+                    continue;
+                }
+                if (entity instanceof Item item) {
+                    if (chunkItems != null && !isProtectedRecentItem(item)) {
+                        long key = getChunkKey(entity.getLocation().getChunk().getX(), entity.getLocation().getChunk().getZ());
+                        chunkItems.computeIfAbsent(key, k -> new ArrayList<>()).add(item);
+                    }
+                    continue;
+                }
+                if (shouldSkipEntityCap(entity)) continue;
+                long key = getChunkKey(entity.getLocation().getChunk().getX(), entity.getLocation().getChunk().getZ());
+                chunkEntities.computeIfAbsent(key, k -> new ArrayList<>()).add(entity);
             }
 
-            // Nettoyer l'expérience au sol
-            if (clearExperience) {
-                for (Entity entity : world.getEntities()) {
-                    if (entity instanceof ExperienceOrb) {
-                        entity.remove();
-                        removedExp++;
-                    }
-                }
+            if (chunkItems != null) {
+                removedItems += cullItemsPerChunk(chunkItems);
             }
-
-            // Plafond max-entities-per-chunk (Animals exclus — empilés via MobStack)
-            removedExcess += cullExcessEntitiesInWorld(world);
-
-            // Limiter les items par chunk — ne cull jamais les items récents (loot de mort)
-            if (clearGroundItems) {
-                Map<Long, List<Item>> chunkItems = new HashMap<>();
-                for (Entity entity : world.getEntities()) {
-                    if (entity instanceof Item item) {
-                        long chunkKey = getChunkKey(entity.getLocation().getChunk().getX(), entity.getLocation().getChunk().getZ());
-                        chunkItems.computeIfAbsent(chunkKey, k -> new ArrayList<>()).add(item);
-                    }
-                }
-
-                for (Map.Entry<Long, List<Item>> entry : chunkItems.entrySet()) {
-                    List<Item> items = entry.getValue();
-                    if (items.size() <= maxItemsPerChunk) continue;
-
-                    // Cull uniquement les items hors grâce, plus vieux d'abord
-                    List<Item> cullable = new ArrayList<>();
-                    for (Item item : items) {
-                        if (!isProtectedRecentItem(item)) {
-                            cullable.add(item);
-                        }
-                    }
-                    cullable.sort((a, b) -> Long.compare(b.getTicksLived(), a.getTicksLived()));
-
-                    int over = items.size() - maxItemsPerChunk;
-                    for (int i = 0; i < over && i < cullable.size(); i++) {
-                        cullable.get(i).remove();
-                        removedItems++;
-                    }
-                }
-            }
+            removedExcess += cullExcessFromMap(chunkEntities);
         }
 
-        int total = removedItems + removedArrows + removedExcess;
+        int total = removedItems + removedArrows + removedExp + removedExcess;
         if (total > 0) {
             plugin.getLogger().info("[Optimizer] Nettoyé " + total + " entités");
         }
 
         stats.put("last_cleanup_items", removedItems);
         stats.put("last_cleanup_arrows", removedArrows);
+        stats.put("last_cleanup_exp", removedExp);
         stats.put("last_cleanup_excess", removedExcess);
+    }
+
+    /** Cull les items hors grâce au-delà de max-items-per-chunk, plus vieux d'abord. */
+    private int cullItemsPerChunk(Map<Long, List<Item>> chunkItems) {
+        int removed = 0;
+        for (List<Item> items : chunkItems.values()) {
+            if (items.size() <= maxItemsPerChunk) continue;
+            items.sort((a, b) -> Long.compare(b.getTicksLived(), a.getTicksLived()));
+            int over = items.size() - maxItemsPerChunk;
+            for (int i = 0; i < over; i++) {
+                items.get(i).remove();
+                removed++;
+            }
+        }
+        return removed;
     }
 
     /**
      * Applique le plafond {@code max-entities-per-chunk} sur tous les mondes.
-     * Animals exclus (stacking passif). Protège joueurs, villageois, items,
-     * entités nommées (hors stacks Cantale), pets apprivoisés ({@link Tameable#isTamed()}),
-     * NPCs Cantale. Surplus retiré plus vieux d'abord. Appelé par l'optimizer (~60s)
-     * et le ClearLag.
+     * Appelé par le ClearLag (l'optimizer passe par {@link #cleanupEntities()}).
      *
      * @return nombre d'entités retirées
      */
@@ -254,7 +231,13 @@ public class ServerOptimizer {
         if (!enabled) return 0;
         int removed = 0;
         for (World world : Bukkit.getWorlds()) {
-            removed += cullExcessEntitiesInWorld(world);
+            Map<Long, List<Entity>> chunkEntities = new HashMap<>();
+            for (Entity entity : world.getEntities()) {
+                if (shouldSkipEntityCap(entity)) continue;
+                long key = getChunkKey(entity.getLocation().getChunk().getX(), entity.getLocation().getChunk().getZ());
+                chunkEntities.computeIfAbsent(key, k -> new ArrayList<>()).add(entity);
+            }
+            removed += cullExcessFromMap(chunkEntities);
         }
         if (removed > 0) {
             plugin.getLogger().info("[Optimizer] Plafond chunk: " + removed + " entités en surplus retirées");
@@ -263,23 +246,11 @@ public class ServerOptimizer {
         return removed;
     }
 
-    /**
-     * Cull entités d'un monde au-delà de {@link #maxEntitiesPerChunk} par chunk.
-     * Animals exclus (mob stacking) ; items / joueurs / villageois / nommés / tamed / NPCs exclus.
-     */
-    private int cullExcessEntitiesInWorld(World world) {
-        Map<Long, List<Entity>> chunkEntities = new HashMap<>();
-        for (Entity entity : world.getEntities()) {
-            if (shouldSkipEntityCap(entity)) continue;
-
-            long chunkKey = getChunkKey(entity.getLocation().getChunk().getX(), entity.getLocation().getChunk().getZ());
-            chunkEntities.computeIfAbsent(chunkKey, k -> new ArrayList<>()).add(entity);
-        }
-
+    /** Retire le surplus au-delà de {@link #maxEntitiesPerChunk} par chunk, plus vieux d'abord. */
+    private int cullExcessFromMap(Map<Long, List<Entity>> chunkEntities) {
         int removed = 0;
         for (List<Entity> entities : chunkEntities.values()) {
             if (entities.size() <= maxEntitiesPerChunk) continue;
-            // Plus vieux d'abord → on retire le surplus le plus ancien
             entities.sort((a, b) -> Integer.compare(b.getTicksLived(), a.getTicksLived()));
             int toRemove = entities.size() - maxEntitiesPerChunk;
             for (int i = 0; i < toRemove; i++) {
@@ -297,8 +268,11 @@ public class ServerOptimizer {
         // Passifs : empilés via MobStackManager (plus de cull moutons/vaches/…)
         if (entity instanceof Animals) return true;
         if (entity instanceof Tameable t && t.isTamed()) return true;
+        var spawners = plugin.getSpawnerManager();
+        if (spawners != null) {
+            if (spawners.isSpawnerMob(entity) || spawners.isSpawnerHologram(entity)) return true;
+        }
         // Mobs nommés joueur — les stacks Cantale ont un customName mais restent cullables
-        // s'ils n'étaient pas Animals (ne devrait pas arriver pour les types stackables).
         if (entity.customName() != null && !isCantaleMobStack(entity)) return true;
         if (entity.hasMetadata("cantale_npc") || entity.hasMetadata("cantale_keep")) return true;
         return false;
@@ -306,50 +280,26 @@ public class ServerOptimizer {
 
     public void autoSave() {
         if (!enabled) return;
-        
-        // DÉSACTIVÉ - Paper gère déjà l'auto-save nativement
-        // L'appel à world.save() cause des freezes de 40+ secondes
-        // Paper sauvegarde automatiquement les chunks toutes les 5 minutes
-        // On garde juste la sauvegarde des données joueurs (rapide)
+        // Paper gère l'auto-save des mondes nativement (incremental, étalé) — world.save()
+        // provoquerait des freezes. On sauvegarde seulement les données joueurs (rapide).
         for (Player player : Bukkit.getOnlinePlayers()) {
             player.saveData();
         }
     }
 
-    public void monitorTPS() {
-        if (!enabled) return;
+    /**
+     * Nettoyage d'urgence (items hors grâce, flèches > 10 s, toutes les orbes XP).
+     * Déclenché par le PerformanceGovernor en mode CRITICAL. Cooldown 2 min interne.
+     *
+     * @return true si le nettoyage a été exécuté (false si encore en cooldown)
+     */
+    public boolean emergencyCleanup() {
+        long now = System.currentTimeMillis();
+        if (now - lastEmergencyCleanupAt < 120_000L) return false;
+        lastEmergencyCleanupAt = now;
 
-        double tps = getTPS();
-        stats.put("current_tps", tps);
-
-        if (tps < tpsWarningThreshold) {
-            plugin.getLogger().warning("[Optimizer] TPS bas détecté: " + String.format("%.1f", tps) + " - Nettoyage d'urgence activé");
-            emergencyCleanup();
-        }
-    }
-
-    public void optimizeChunks() {
-        if (!enabled) return;
-        
-        // DÉSACTIVÉ - Cette méthode cause des freezes en interrogeant SQLite pour chaque chunk
-        // Paper gère déjà le déchargement des chunks efficacement
-        // La vérification isChunkClaimed() est trop coûteuse en base de données
-        
-        // int unloaded = 0;
-        // for (World world : Bukkit.getWorlds()) {
-        //     for (org.bukkit.Chunk chunk : world.getLoadedChunks()) {
-        //         if (chunk.getEntities().length == 0 && !isChunkClaimed(world.getName(), chunk.getX(), chunk.getZ())) {
-        //             if (world.unloadChunk(chunk.getX(), chunk.getZ())) {
-        //                 unloaded++;
-        //             }
-        //         }
-        //     }
-        // }
-    }
-
-    private void emergencyCleanup() {
         int removed = 0;
-        // Même en urgence TPS : ne pas toucher au loot de mort récent
+        // Même en urgence : ne pas toucher au loot de mort récent
         int itemMinAgeTicks = protectRecentItemSeconds * 20;
         for (World world : Bukkit.getWorlds()) {
             for (Entity entity : world.getEntities()) {
@@ -370,20 +320,10 @@ public class ServerOptimizer {
             }
         }
 
-        // Forcer le GC
-        System.gc();
-
         if (removed > 0) {
             plugin.getLogger().info("[Optimizer] Urgence: " + removed + " entités nettoyées");
         }
-    }
-
-    private boolean isChunkClaimed(String world, int chunkX, int chunkZ) {
-        try {
-            return plugin.getFactionManager().getClaimAt(world, chunkX, chunkZ) != null;
-        } catch (Exception e) {
-            return false;
-        }
+        return true;
     }
 
     private long getChunkKey(int x, int z) {
@@ -392,11 +332,27 @@ public class ServerOptimizer {
 
     public double getTPS() {
         try {
-            // Paper API fournit getTPS()
-            double[] tps = Bukkit.getTPS();
-            return tps[0]; // TPS sur 1 minute
+            return Bukkit.getTPS()[0]; // TPS sur 1 minute
         } catch (NoSuchMethodError e) {
-            return 20.0; // Fallback pour les anciennes versions
+            return 20.0;
+        }
+    }
+
+    /** TPS Paper [1m, 5m, 15m], fallback {20, 20, 20}. */
+    public double[] getTPSAll() {
+        try {
+            return Bukkit.getTPS();
+        } catch (NoSuchMethodError e) {
+            return new double[]{20.0, 20.0, 20.0};
+        }
+    }
+
+    /** MSPT moyen (Paper getAverageTickTime), -1 si indisponible. */
+    public double getAverageTickTime() {
+        try {
+            return Bukkit.getServer().getAverageTickTime();
+        } catch (NoSuchMethodError e) {
+            return -1;
         }
     }
 
@@ -413,30 +369,50 @@ public class ServerOptimizer {
     }
 
     private Map<String, Object> buildStats() {
-        stats.put("loaded_chunks", getLoadedChunkCount());
-        stats.put("total_entities", getTotalEntityCount());
+        double[] tps = getTPSAll();
+        stats.put("tps", tps[0]);
+        stats.put("tps_5m", tps.length > 1 ? tps[1] : tps[0]);
+        stats.put("tps_15m", tps.length > 2 ? tps[2] : tps[0]);
+        stats.put("mspt", getAverageTickTime());
         stats.put("online_players", Bukkit.getOnlinePlayers().size());
         stats.put("max_players", Bukkit.getMaxPlayers());
         stats.put("used_memory_mb", getUsedMemoryMB());
         stats.put("max_memory_mb", getMaxMemoryMB());
-        stats.put("tps", getTPS());
+
+        int totalChunks = 0;
+        int totalEntities = 0;
+        Map<String, Map<String, Integer>> worlds = new LinkedHashMap<>();
+        for (World world : Bukkit.getWorlds()) {
+            int chunks = world.getLoadedChunks().length;
+            int entities = world.getEntityCount();
+            int tiles = 0;
+            for (Chunk chunk : world.getLoadedChunks()) {
+                tiles += chunk.getTileEntities().length;
+            }
+            totalChunks += chunks;
+            totalEntities += entities;
+            Map<String, Integer> w = new LinkedHashMap<>();
+            w.put("chunks", chunks);
+            w.put("entities", entities);
+            w.put("tile_entities", tiles);
+            w.put("sim_distance", world.getSimulationDistance());
+            w.put("view_distance", world.getViewDistance());
+            worlds.put(world.getName(), w);
+        }
+        stats.put("loaded_chunks", totalChunks);
+        stats.put("total_entities", totalEntities);
+        stats.put("worlds", worlds);
+
+        long gcCount = 0;
+        long gcTimeMs = 0;
+        for (GarbageCollectorMXBean gc : ManagementFactory.getGarbageCollectorMXBeans()) {
+            if (gc.getCollectionCount() > 0) gcCount += gc.getCollectionCount();
+            if (gc.getCollectionTime() > 0) gcTimeMs += gc.getCollectionTime();
+        }
+        stats.put("gc_count", gcCount);
+        stats.put("gc_time_ms", gcTimeMs);
+
         return new HashMap<>(stats);
-    }
-
-    private int getLoadedChunkCount() {
-        int total = 0;
-        for (World world : Bukkit.getWorlds()) {
-            total += world.getLoadedChunks().length;
-        }
-        return total;
-    }
-
-    private int getTotalEntityCount() {
-        int total = 0;
-        for (World world : Bukkit.getWorlds()) {
-            total += world.getEntityCount();
-        }
-        return total;
     }
 
     private long getUsedMemoryMB() {
@@ -450,6 +426,8 @@ public class ServerOptimizer {
 
     public void setEnabled(boolean enabled) {
         this.enabled = enabled;
+        plugin.getConfig().set("optimization.enabled", enabled);
+        plugin.saveConfig();
     }
 
     public boolean isEnabled() {

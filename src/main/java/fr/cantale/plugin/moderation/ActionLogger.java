@@ -1,32 +1,38 @@
 package fr.cantale.plugin.moderation;
 
 import fr.cantale.plugin.CantalePlugin;
+import org.bukkit.Bukkit;
+import org.bukkit.scheduler.BukkitTask;
 
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.text.SimpleDateFormat;
-import java.util.Date;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.logging.Level;
 
 public class ActionLogger {
 
+    private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+    private static final long FLUSH_PERIOD_TICKS = 20L;
+
     private final CantalePlugin plugin;
     private final File logFile;
-    private final SimpleDateFormat dateFormat;
+    private final ConcurrentLinkedQueue<String> queue = new ConcurrentLinkedQueue<>();
+    private final Object flushLock = new Object();
+    private final BukkitTask flushTask;
 
     public ActionLogger(CantalePlugin plugin) {
         this.plugin = plugin;
-        
-        // Créer le dossier du plugin s'il n'existe pas
+
         if (!plugin.getDataFolder().exists()) {
             plugin.getDataFolder().mkdirs();
         }
-        
+
         this.logFile = new File(plugin.getDataFolder(), "actionlog.txt");
-        this.dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-        
+
         if (!logFile.exists()) {
             try {
                 logFile.createNewFile();
@@ -34,19 +40,39 @@ public class ActionLogger {
                 plugin.getLogger().severe("Impossible de créer le fichier de log : " + e.getMessage());
             }
         }
+
+        this.flushTask = Bukkit.getScheduler().runTaskTimerAsynchronously(
+                plugin, this::flush, FLUSH_PERIOD_TICKS, FLUSH_PERIOD_TICKS);
     }
 
     public void logAction(String actionType, String player, String details) {
-        String timestamp = dateFormat.format(new Date());
+        String timestamp = DATE_FORMAT.format(LocalDateTime.now());
         String logEntry = String.format("[%s] [%s] %s: %s", timestamp, actionType, player, details);
-        
-        // Log dans le fichier uniquement (pas de console)
-        try (BufferedWriter writer = new BufferedWriter(new FileWriter(logFile, true))) {
-            writer.write(logEntry);
-            writer.newLine();
-        } catch (IOException e) {
-            plugin.getLogger().log(Level.SEVERE, "Erreur lors de l'écriture dans le fichier de log", e);
+        queue.offer(logEntry);
+    }
+
+    /** Écrit la file sur disque. Appelé périodiquement et au shutdown. */
+    public void flush() {
+        if (queue.isEmpty()) return;
+        synchronized (flushLock) {
+            if (queue.isEmpty()) return;
+            try (BufferedWriter writer = new BufferedWriter(new FileWriter(logFile, true))) {
+                String entry;
+                while ((entry = queue.poll()) != null) {
+                    writer.write(entry);
+                    writer.newLine();
+                }
+            } catch (IOException e) {
+                plugin.getLogger().log(Level.SEVERE, "Erreur lors de l'écriture dans le fichier de log", e);
+            }
         }
+    }
+
+    public void shutdown() {
+        if (flushTask != null) {
+            flushTask.cancel();
+        }
+        flush();
     }
 
     public void logBlockBreak(String player, String blockType, String location) {

@@ -5,11 +5,15 @@ import org.bukkit.entity.Player;
 
 import java.sql.*;
 import java.time.LocalDate;
+import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class RankManager {
 
     private final CantalePlugin plugin;
+    /** NONE est un grade valide : on le cache aussi (pas de SQL à chaque PlayerMoveEvent). */
+    private final Map<UUID, PlayerRank> rankCache = new ConcurrentHashMap<>();
 
     public RankManager(CantalePlugin plugin) {
         this.plugin = plugin;
@@ -20,17 +24,25 @@ public class RankManager {
     }
 
     public PlayerRank getRank(UUID uuid) {
+        PlayerRank cached = rankCache.get(uuid);
+        if (cached != null) {
+            return cached;
+        }
         String sql = "SELECT role FROM player_permissions WHERE uuid = ?";
         try (Connection conn = plugin.getDatabaseManager().getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setString(1, uuid.toString());
             ResultSet rs = stmt.executeQuery();
             if (rs.next()) {
-                return PlayerRank.fromString(rs.getString("role"));
+                PlayerRank rank = PlayerRank.fromString(rs.getString("role"));
+                rankCache.put(uuid, rank);
+                return rank;
             }
         } catch (SQLException e) {
             plugin.getLogger().severe("Erreur getRank: " + e.getMessage());
+            return PlayerRank.NONE;
         }
+        rankCache.put(uuid, PlayerRank.NONE);
         return PlayerRank.NONE;
     }
 
@@ -45,6 +57,7 @@ public class RankManager {
             stmt.setString(2, rank.name());
             stmt.setInt(3, (int) (System.currentTimeMillis() / 1000));
             stmt.executeUpdate();
+            rankCache.put(uuid, rank);
             return true;
         } catch (SQLException e) {
             plugin.getLogger().severe("Erreur setRank: " + e.getMessage());
@@ -58,11 +71,17 @@ public class RankManager {
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setString(1, uuid.toString());
             stmt.executeUpdate();
+            rankCache.put(uuid, PlayerRank.NONE);
             return true;
         } catch (SQLException e) {
             plugin.getLogger().severe("Erreur removeRank: " + e.getMessage());
             return false;
         }
+    }
+
+    /** Relit le SQL au prochain getRank (join : grade éventuellement changé hors-ligne). */
+    public void invalidate(UUID uuid) {
+        rankCache.remove(uuid);
     }
 
     /**

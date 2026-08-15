@@ -10,11 +10,19 @@ import org.bukkit.entity.Player;
 /**
  * Détection d'AutoArmor.
  *
- * Vérifie si le joueur s'équipe d'armure trop rapidement (moins de X ticks
- * entre chaque pièce). Un joueur normal met au moins 2-3 ticks entre
- * chaque shift-click pour équiper une pièce.
+ * Compte les équipements d'armure dans une fenêtre glissante. Un humain shift-click
+ * au mieux ~1 pièce par 150-200 ms ; un auto-armor équipe tout en 1-2 ticks.
+ * Seuil : {@value #ACTIONS_NEEDED} équipements en moins de {@value #WINDOW_MS} ms.
+ *
+ * Ne se déclenche que sur les inventaires vanilla (voir InventoryListener) —
+ * les GUIs Cantale sont exclues.
  */
 public class AutoArmorCheck extends Check {
+
+    /** Fenêtre glissante de comptage des équipements (ms) */
+    private static final int WINDOW_MS = 500;
+    /** Nombre d'équipements distincts dans la fenêtre pour flag */
+    private static final int ACTIONS_NEEDED = 4;
 
     public AutoArmorCheck(AntiCheatConfig config) {
         super(CheckType.AUTO_ARMOR, config);
@@ -26,27 +34,15 @@ public class AutoArmorCheck extends Check {
     }
 
     /**
-     * Vérifie la vitesse d'équipement d'armure.
-     *
-     * @param player le joueur
-     * @param data   les données du joueur
-     * @return le résultat du check
+     * Vérifie la cadence d'équipement d'armure.
      */
     public CheckResult checkEquip(Player player, PlayerData data) {
         long now = System.currentTimeMillis();
-        long lastEquip = data.getLastArmorEquip();
-        data.setLastArmorEquip(now);
+        int count = data.addArmorEquip(now, WINDOW_MS);
 
-        if (lastEquip == 0) {
-            return CheckResult.pass(type);
-        }
-
-        long elapsed = now - lastEquip;
-        long minTime = (long) config.getMinEquipTicks() * 50; // ticks → ms
-
-        if (elapsed < minTime) {
-            String details = String.format("elapsed=%dms min=%dms", elapsed, minTime);
-            return CheckResult.violation(type, 1.0, details);
+        if (count >= ACTIONS_NEEDED) {
+            String details = String.format("equips=%d window=%dms", count, WINDOW_MS);
+            return CheckResult.violation(type, count, details);
         }
 
         return CheckResult.pass(type);

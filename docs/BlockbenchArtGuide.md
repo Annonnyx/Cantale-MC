@@ -218,7 +218,7 @@ Ils utilisent surtout des items vanilla + vitres. L’art « UI » passe par :
 | `FactionMembersUI` | Membres | 54 | — |
 | `MemberActionUI` | Actions joueur | 27 | — |
 | `FactionClaimsUI` | Claims | 54 | — |
-| `FactionHomesUI` | Homes | 54 | — |
+| `FactionHomesUI` | Homes (retiré) | 27 | stub — f-homes supprimés |
 | `FactionWarpsUI` | Warps | 54 | — |
 | `FactionBankUI` | Banque | 45 | — |
 | `CrateOpenUI` | Trésor Public | 27 | Anim ouverture rare |

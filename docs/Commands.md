@@ -7,8 +7,9 @@ Catégories de commandes
 1. Utilitaires
 - /cantale — affiche les infos du serveur et les commandes utiles.
 - /profile — affiche le profil du joueur.
-- /day — affiche le jour et l’heure Minecraft.
+- /day — affiche le jour et l’heure Minecraft de l’overworld (`fullTime / 24000`, persisté dans le monde).
 - /daily — réclame la récompense quotidienne.
+- /parrain <joueur> — remercie le joueur qui t’a invité (une seule fois) ; le parrain gagne +1 vie.
 
 2. Téléportation
 - /home [set|delete|del] [nom] — gère les homes personnels.
@@ -24,6 +25,9 @@ Catégories de commandes
 - /ah — hôtel des ventes.
 - /trade <joueur|accept|decline> — échange avec un joueur.
 - /vote [claim|stats|top|help] — consulter les sites de vote et récompenses.
+- /quetes [fac] — quêtes solo (jour / semaine / saison) ou courses de faction.
+- /collections — collections long terme (paliers à réclamer).
+- /saison — infos de la saison en cours (`/saison start` : admin).
 
 4. Contenu custom et inventaires
 - /customitem <type> — donne un item custom (admin).
@@ -39,19 +43,25 @@ Catégories de commandes
 - /modhelp — aide rapide pour les modérateurs.
 - /wanted [add|list] — gérer les primes.
 - /link — lier son compte Discord.
+- /unlink confirm — délier son propre compte Discord (et ancien lien site).
+- /linkforce <Pseudo MC> <ID Discord> — (admin) forcer la liaison Discord.
+- /forceunlink <joueur> — (admin) délier Discord d'un joueur.
 
 6. Administration
 - /admin — liste les commandes admin/modération.
 - /perm <set|remove|check|list> — gérer les permissions.
 - /rank <set|remove|info> <joueur> [grade] — gérer les grades.
 - /optimize [stats|cleanup|clearall|save|chunks|villagers|gc|on|off|reload> — optimiser le serveur.
-- /pasdic set <true|false> — gérer le mode PASDIC sur un chunk.
+- /pasdic set <true|false> — gérer le mode PASDIC sur un chunk (échoue s'il y a des spawners ou du stockage).
+- /spawner give <joueur> <mob> [tier] — donner un spawner Cantale (admin).
 
 Exemples d’usage courants
 - /warp spawn — téléporte au warp public spawn.
 - /home base — téléporte au home nommé base.
 - /pc2 — ouvre le coffre privé secondaire.
 - /link — génère un code de liaison Discord.
+- /unlink confirm — délie son propre Discord.
+- /forceunlink <joueur> — (admin) délie le Discord d'un joueur.
 - /vanish — active ou désactive le vanish.
 
 Permissions et mapping
@@ -66,7 +76,7 @@ Mapping simple par rôle
 - Joueur standard : permissions de base uniquement
 
 Notes d’implémentation
-- Les commandes qui accèdent à la base de données (link, pc2, vote, tags, ranks) sont exécutées de manière asynchrone lorsque c’est possible pour éviter de bloquer le thread principal.
+- Les commandes qui accèdent à la base de données (link, unlink, forceunlink, pc2, vote, tags, ranks) sont exécutées de manière asynchrone lorsque c’est possible pour éviter de bloquer le thread principal.
 - Les téléportations préchargent le chunk cible peu avant l’arrivée afin de limiter les latences et les échecs de chargement.
 - Si la base de données est indisponible, certaines commandes renvoient un message explicite ou sont différées jusqu’à la reconnexion.
 

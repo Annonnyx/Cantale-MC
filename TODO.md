@@ -1,5 +1,503 @@
 # TODO Cantale
 
+## Factions secrètes sur le site (août 2026)
+- [x] **Cause** : le site excluait la faction secrète ENTIÈRE (annuaire, page publique,
+     roster, profils joueurs) via le filtre SQL `secret_until` dans
+     `Site-Cantale/web/src/server/repo/factions.ts` (4 requêtes), alors que le comportement
+     voulu = celui du jeu (/f list, /f info : faction visible, claims cachés).
+- [x] **Fix site Next.js** : la faction `/f secret` reste visible partout (annuaire
+     /factions, page, roster, profils, classements) ; seuls ses claims sont exclus de la
+     carte web — filtre conservé dans `web/src/server/repo/map.ts` (/carte +
+     /api/map/claims). Bonus : le leader d'une faction secrète peut à nouveau la gérer
+     via le site (faction-guard la retrouve). Typecheck `tsc --noEmit` vert.
+- [x] **Fix backend legacy Express** (`Site-Cantale/backend`) : `listFactions` + classement
+     factions n'excluent plus les secrètes ; `GET /api/factions/:id` ne renvoie plus les
+     coordonnées de claims d'une faction secrète (fuite de position corrigée, filtre SQL
+     dans `getFactionClaims`). Typecheck vert.
+- [x] **En jeu : inchangé** (déjà correct — /f map chat `FactionCommand`, map GUI
+     `MapImageBuilder`, bridge mod `ClientMapBridge` filtraient déjà les claims pour les
+     non-membres ; revérifié). Plugin Java non modifié → pas de rebuild nécessaire.
+- [x] **Doc contrat** : `docs/SiteIntegration.md` (pipeline, sémantique secret, SQL de
+     référence). Propagation : `/f secret` écrit `secret_until` immédiatement en BDD →
+     visible côté site sous ~30 s (cache), sans reboot.
+- [ ] **Vérif déploiement (utilisateur)** : redéployer le site Vercel (et
+     `pm2 restart cantale-api` si le backend legacy tourne encore), puis vérifier qu'une
+     faction secrète réapparaît dans /factions et sa page, que ses claims restent absents
+     de /carte, et que la bascule `/f secret` se répercute sous ~30 s.
+
+## Retrait map in-game + outils custom en utilisations (août 2026)
+- [x] **Map in-game (tuiles FILLED_MAP) retirée du jeu, code conservé dormant** :
+      commande `carte` (+ aliases `map`/`worldmap`) supprimée du `plugin.yml` et plus
+      enregistrée dans `CantalePlugin` ; `MapUI` n'est instancié/démarré que si
+      `map.enabled: true` (défaut passé à **false** dans `config.yml` ET dans le code) ;
+      `MinimapHotkeyListener` (clic droit / F) n'est enregistré que si le module est actif ;
+      log boot sobre `[Map] Module in-game désactivé (carte fournie par le mod client).` ;
+      `onDisable` déjà null-safe. Intouchés : `ui/map/*` (dormant), `/f map` (carte chat
+      faction, feature distincte), le bridge mod client `cantale:map` (toujours actif).
+      `COMMANDS.md` nettoyé (`/carte`, `/carte mini`, raccourci minimap retirés).
+- [x] **Outils custom en utilisations (Pickantaxe / Cantaxe / Multi-Cantool)** : compteur
+      PDC `uses_left` (Fer 1000 / Diamant 2000 / Netherite 4000) posé à la création ;
+      1 utilisation = 1 coup (BlockBreakEvent), quelle que soit la zone 3×3/5×5/7×7 ou
+      l'arbre entier ; durabilité vanilla neutralisée (`PlayerItemDamageEvent` annulé,
+      barre toujours pleine) ; lore vivante « Utilisations restantes : N » maj à chaque
+      coup (Solidité/Unbreaking retiré des nouveaux outils) ; à 0 l'outil mine son dernier
+      coup PUIS se brise (son `ITEM_BREAK` + particules + message). Migration douce : un
+      outil legacy sans compteur démarre à son max à la 1re utilisation (lore nettoyée).
+      Cantalame (incassable) et armure du Garde (durabilité combat vanilla) hors scope.
+      `faq.yml` mis à jour (plus de mention Solidité/durabilité pour ces outils).
+- [ ] **Déploiement** : redeploy le JAR. Note : les outils déjà distribués passent
+      automatiquement en utilisations à leur 1re utilisation (compteur initialisé au max,
+      aucune perte pour les joueurs).
+
+## Mod client Cantale (vraie carte) — août 2026
+- [x] **Bridge serveur** (`fr.cantale.plugin.map.ClientMapBridge`) : canal plugin `cantale:map`
+      (out + in pour le handshake), handshake `HELLO <version>` → envoi de l'état initial
+      (welcome + claims paginés + markers) uniquement aux clients moddés ; vanilla ignoré.
+      Claims filtrés par joueur (factions secrètes exclues sauf membres — même logique que la
+      map in-game), relation OWN/ALLY/ENEMY/WAR/OTHER/PASDIC calculée pour le viewer.
+      Messages JSON UTF-8 < 32 Ko (`"v":1` partout, pagination 500 chunks/page).
+      Deltas `claim_add`/`claim_remove` + renvoi complet (`claims_reset` + pages) aux
+      changements de monde/diplomatie/secret/membre ; markers warps publics + homes perso +
+      f spawn. Hooks : `FactionManager`, `PasdicService`, `DiplomacyManager`,
+      `SecretTaxManager`, `WarpManager`, `HomeManager`, `FactionCommand` (setspawn).
+      Config `map.client-mod.enabled` (défaut true). Log boot : canal enregistré.
+- [x] **Mod Fabric** (`ClientMod/`, MC 1.21.11, Java 21) : touche **M** = carte plein écran
+      (terrain top-down échantillonné depuis le ClientWorld avec teintes biome + ombrage
+      relief, drag souris, molette zoom 1→16 blocs/px, centrée joueur à l'ouverture) ;
+      touche **N** = minimap HUD haut-droite (zoom fixe 4 blocs/px, centrée joueur).
+      Overlays : claims colorés par relation (vert OWN, bleu ALLY, orange WAR, rouge ENEMY,
+      violet PASDIC, gris OTHER), warps (cyan, or si event), homes (vert), f spawn (orange),
+      flèche joueur 8 directions. Réseau : handshake + réception `cantale:map` thread-safe
+      (file → tick client), JSON Gson, tout le parsing en try/catch, version protocole vérifiée.
+      Sans serveur Cantale : terrain seul, aucune erreur. `gradle build` vert
+      (`ClientMod/build/libs/cantale-client-1.0.0.jar`). Voir `ClientMod/README.md`.
+- [ ] **Distribution** : build release + distribution launcher/modpack aux joueurs.
+- [ ] **Tests en jeu** : handshake (log client « Serveur Cantale détecté »), M/N, pan/zoom,
+      claims colorés par relation (dont WAR orange et PASDIC violet), secret invisible pour
+      non-membre, deltas claim/unclaim live, changement de monde, warps/homes/f spawn,
+      comportement sur serveur sans bridge (terrain seul) et avec client vanilla.
+
+## Fix persistance violations anti-cheat + audit timestamps (août 2026)
+- [x] **Cause racine** : `anticheat_violations.created_at` est `INTEGER` (secondes epoch,
+      convention de TOUTES les tables du plugin) mais `ViolationLogger` insérait
+      `System.currentTimeMillis()` (millis ≈ 1,7×10¹² > INT max 2,1×10⁹) → MySQL rejetait
+      chaque insertion (« Out of range value »), aucune violation persistée.
+- [x] **Direction retenue : secondes** (alignement sur la convention dominante : factions,
+      bank_log, diplomacy, votes, mutes, auctions... toutes en secondes/INTEGER).
+      `ViolationLogger` insère désormais `/1000` ; `/ac info` reconvertit en millis pour
+      l'affichage (`Date`).
+- [x] **Même bug corrigé** sur `players.referral_at` (`PlayerDAO.tryMarkReferralUsed`
+      écrivait des millis → l'UPDATE /parrain échouait en prod MySQL).
+- [x] **Migration tolérante au boot** (`DatabaseManager`) : conversion millis→secondes des
+      éventuelles valeurs historiques (> 99 999 999 999) sur `anticheat_violations.created_at`
+      et `players.referral_at` — idempotent, portable MySQL/SQLite, aucune perte.
+- [x] **Audit global des colonnes epoch** : factions (`created_at`, `secret_until`,
+      `secret_free_until`, `last_raid_at`), `faction_members.joined_at`, `claims.created_at`,
+      `faction_bank_log.created_at` (dont `WAR_REPARATION`), `diplomacy.created_at`/`expires_at`,
+      `auction_listings`, `homes`, `warps`, `mutes`, `wanted`, `private_chests`,
+      `secret_cooldowns`, `faction_raids`, `votes`, `vote_stats`, `link_codes`,
+      `discord_links`, `pending_rewards`, `legendary_tickets`, `seasons` → **toutes OK**
+      (secondes). Tables `web_*`/`server_status` : vrais `TIMESTAMP` (par design, lus par le site).
+- [ ] **Déployer le JAR** (redeploy ; la migration s'applique au boot).
+
+## Pont grade → permissions Bukkit (août 2026)
+- [x] **`RankPermissionBridge`** : sans plugin de permissions (pas de LuckPerms sur le serveur),
+      `hasPermission("cantale.admin")` ne passait que pour les ops vanilla → le grade Owner/Admin
+      Cantale ne donnait rien (`/f bypass` refusé, protections non contournables). Désormais un
+      attachment Bukkit est posé au join selon le grade (Modo → `cantale.moderator`,
+      Admin/Owner → `cantale.admin` + tous ses enfants plugin.yml dont `cantale.faction.bypass`),
+      retiré à la déco, rafraîchi instantanément par `/rank set|remove`.
+- [x] Warnings de migration « Duplicate column » au boot : filtre désormais insensible à la
+      casse (MySQL écrit « Duplicate », SQLite « duplicate ») — logs de boot propres.
+- [ ] Déployer le JAR. Vérifier : Owner non-op fait `/f bypass` → poser un spawner dans un
+      claim étranger fonctionne ; `/optimize`, `/rank`, alertes AC accessibles au staff non-op.
+
+## Audit durabilité items custom (août 2026)
+- [x] **Durabilité minage à zone réparée** (`CustomItemListener`) : les blocs extra étaient
+      GRATUITS (aucune durabilité) et le Multi-Cantool prenait un double dégât brut sans
+      Solidité → chaque bloc coûte désormais 1 via l'API Paper (Unbreaking respecté),
+      arrêt propre de la zone si l'outil casse. C'était la vraie cause du « ça dure trop ».
+- [x] **Nerf Unbreaking** : 10→7, 7→5, 5→4 (3 inchangé) ; lores régénérées depuis les
+      niveaux réels, `faq.yml` du bot alignée.
+- [x] **Bug Cantalame** : celle des caisses n'évoluait jamais (mauvaise factory) et
+      échappait aux protections → corrigé.
+- [x] **Décisions validées** : Cantalame garde `setUnbreakable(true)` (argument premium) ;
+      les outils Netherite restent FINIS (la « durabilité infinie » de la FAQ n'a jamais
+      existé — doc alignée sur la réalité).
+- [ ] Déployer le JAR.
+
+## Limites de homes par grade + alias /f protect (août 2026)
+- [x] **Norme = 5** (`teleport.max-homes`, défaut Java 5) suivie par NONE **et les modos**
+      (`HomeManager.maxHomesFor`) — les modos n'ont **plus** 999 homes.
+      Échelle : NONE 5, Aventurier 8 (était 5, doit rester > norme), VIP 10, Chèvre ∞,
+      Admin/Owner ∞. Les homes existants au-delà de la limite sont conservés (la limite
+      ne bloque que les NOUVEAUX sethome).
+- [x] `/f protect` = alias de `/f pasdic` (même handler, tab-complete inclus).
+- [ ] Déployer le JAR. Merger `teleport.max-homes: 5` dans le config live si la clé y
+      existe encore avec l'ancienne valeur 3 (sinon défaut Java 5).
+
+## Refonte guerre/raid — août 2026
+- [x] **Raid sans guerre** : retrait du gate `isAtWar` dans `RaidManager.canStartRaid` —
+      `/f raid` ne requiert plus la guerre (rang Officier+ toujours exigé, règles de
+      cooldown/protection/concurrence inchangées).
+- [x] **Guerre mutuelle** (`DiplomacyManager.declareWar`) : la 1re déclaration est
+      `war_pending` (persistée, expiration `factions.war.declaration-expiry-minutes`, défaut
+      15 min) ; la guerre ne démarre qu'à la déclaration réciproque (l'alliance est rompue
+      au démarrage). Messages clairs aux deux factions à chaque étape.
+- [x] **Pénétration sans /raid en guerre** : `RaidManager.isAttackingInRaid` accepte les
+      belligérants (guerre mutuelle, tout chunk, dans les deux sens) et `isRaidActive`
+      couvre les claims des factions en guerre pour les explosions — même chemin de code
+      que le raid dans `ClaimListener` (casse, pose, conteneurs, TNT, seaux, cristaux).
+      PASDIC toujours exclus (le raid ne les contourne pas non plus) ; bypass admin intact.
+- [x] **Morts/kills amplifiés** (`PlayerListener.onPlayerDeath`) : perte victime
+      5 × `factions.war.death-power-multiplier` (défaut 2.0 — toutes les morts en guerre,
+      `death-multiplier-pvp-only: true` pour restreindre au PvP contre le belligérant) ;
+      gain tueur 5 × `factions.war.kill-power-multiplier` (défaut 2.0) sur l'ennemi en guerre.
+- [x] **Fin de guerre, 3 chemins** : `/f peace` mutuel (`peace_pending`, même expiration) ;
+      `/f surrender` unilatéral (annonce « X capitule face à Y » + réparations banque→banque
+      `surrender-reparations-cantox`, défaut 10 000, 0 = off, transfert partiel signalé si
+      banque insuffisante, log `faction_bank_log` action `WAR_REPARATION`) ; `/f warend
+      <facA> <facB>` staff (permission `cantale.faction.bypass`, log console d'audit).
+- [x] **Annonces** : broadcast MC au début/fin de guerre + embeds Discord sur le salon
+      factions (`mc-factions` de la config Discord) via `DiscordBot.sendEmbedToChannel`.
+- [x] **Persistance** : colonne `diplomacy.expires_at` (migration ALTER tolérante) ; types
+      `alliance`/`war` permanents (0), `war_pending`/`peace_pending` directionnels avec
+      expiration ; purge des en-attente expirées au chargement. Les guerres actives
+      persistées par l'ancien système restent valides (type `war` inchangé).
+- [x] **UX** : erreurs claires (`/f war` déjà en guerre / déjà déclarée, `/f peace` sans
+      guerre), `/f help` et tab-complete (`war`, `peace`, `surrender`, `warend` staff-only).
+- [x] **Config** : section `factions.war:` (5 clés, commentaires FR + table de comportement)
+      dans `config.yml` ; défauts Java identiques dans `ConfigManager`.
+- [ ] **Déploiement** : déployer le JAR + merger la section `factions.war:` dans le
+      `config.yml` live (sans merge, les défauts Java s'appliquent). Vérifier en jeu :
+      déclaration → expiration, guerre mutuelle, pénétration claims en guerre, mort ×2,
+      capitulation avec réparations partielles, `/f warend`.
+
+## Spawners : cage vide + hologramme + spawn air/eau (août 2026)
+- [x] **Cage vide** — cause : `SpawnerManager.applyBlockState` mettait `setRequiredPlayerRange(0)` →
+      le client n'anime/rend le mob de la cage que si le spawner est « actif » (joueur dans ce rayon) ;
+      0 = cage figée/vide. De plus l'état était appliqué pendant `BlockPlaceEvent` (le `BlockStateMeta`
+      de l'item, appliqué après l'event, pouvait l'écraser) avec `update(true, false)` (paquet client
+      non garanti). Fix : `RequiredPlayerRange = spawners.cage-activation-range` (défaut Java 16),
+      `update(true, true)` (paquet block-entity émis → SpawnData reçu), et réapplication complète de
+      l'état au tick suivant la pose. Spawn vanilla toujours impossible (delay MAX_VALUE, spawnCount 0,
+      maxNearby 0 + `SpawnerSpawnEvent` annulé) ; réordonnancement max-avant-min delay conservé.
+- [x] **Hologramme** — mécanisme TextDisplay conservé (tag PDC `spawner_holo`, spawn 1 tick après pose,
+      restore restart/chunk-load/entities-load, suppression à la casse, anti-cull `cantale_keep`,
+      non ramassable/collisionnable). Bug d'adjacence corrigé : `findHologram`/`removeOrphanHolograms`
+      acceptaient TOUT TextDisplay taggé dans ±1,25/±1,75 → des spawners côte à côte (farms) se
+      volaient/supprimaient leurs hologrammes. Appartenance désormais par position exacte attendue
+      (rayon 0,75 — position déterministe x+0,5 / y+1,35 / z+0,5).
+- [x] **Spawn air/eau** — cause : `findSpawnLocation` exigeait un sol solide et rejetait tout liquide.
+      Fix : aucune exigence de sol ; position valide si pieds/tête (et y+2 pour les mobs hauts) ne sont
+      PAS solides (suffocation) — air et eau acceptés. Pas de logique lumière dans ce spawn custom
+      (rien à préserver). `spawnMob` : `SpawnReason.CUSTOM` → `SPAWNER` (allow-list PASDIC
+      `ClaimListener` ; `MobStackListener` MONITOR ne filtre pas la reason — stacking inchangé,
+      comptage cull `isSpawnerMob` inchangé).
+- [ ] Déployer le JAR (`target/cantale-plugin-1.0.0-SNAPSHOT.jar`). Sans merge config live,
+      `spawners.cage-activation-range` = 16 par défaut.
+
+## Bypass admin (/f bypass) — août 2026
+- [x] **`AdminBypassManager`** (`factions/AdminBypassManager.java`) : `Set<UUID>` en mémoire,
+      `isBypassing` / `toggle` / `disable`. Session uniquement (jamais persisté) : `PlayerQuitEvent`
+      retire l'entrée. Log console d'audit à chaque bascule (`[Bypass] X a activé/désactivé…`).
+      Initialisé dans `CantalePlugin` + getter `getAdminBypassManager()` ; enregistré comme listener.
+- [x] **`/f bypass`** (`FactionCommand.handleBypass`) : toggle, permission `cantale.faction.bypass`
+      (ajoutée au `plugin.yml`, `default: op`, enfant de `cantale.admin`). Messages FR dédiés avec
+      rappel « coupé à la déco » ; tab-complete + `/f help` n'affichent la commande qu'avec la permission.
+- [x] **Câblage exhaustif des protections de territoire** : `ClaimListener` (casse/pose via
+      `canInteractFor`, conteneurs interdits PASDIC, restriction stockage, PvP claim `onEntityDamage`,
+      conteneurs étrangers `canAccessClaimStorage`, explosions sourcées joueur `shouldCancelExplosion`),
+      `SpawnerManager.canPlayerPlace` + rattachement du spawner à la faction du claim en bypass
+      (`SpawnerListener.onPlaceCommit`), `HopperLimitListener.onHopperPlace`,
+      `RuneFortificationListener.onBlockBreak`, `CustomItemListener.canBreakExtraBlock`.
+      Sans effet sur : pouvoir max, économie, cooldowns de téléportation, anti-cheat.
+- [ ] Déployer le JAR + vérifier en jeu : `/f bypass` on → poser un spawner dans un claim étranger,
+      ouvrir un coffre étranger, casser en PASDIC ; déco/reco → bypass bien coupé ; logs console présents.
+
+## Spawns limités aux spawners dans les PASDIC (août 2026)
+- [x] **Listener** : `ClaimListener.onCreatureSpawn` (NORMAL, ignoreCancelled) — si le chunk est un
+      PASDIC (`FactionManager.getClaimAt` + `Claim.isPasdic`, cache O(1)) et que le `SpawnReason`
+      n'est pas dans l'allow-list, le spawn est annulé. Sortie rapide avant tout lookup :
+      feature désactivée ou reason autorisée → return immédiat (aucun coût hors PASDIC).
+- [x] **Config** : `factions.pasdic.allowed-spawn-reasons` (défaut `[SPAWNER, CUSTOM]` — les
+      spawners Cantale spawnent via `spawnEntity` = CUSTOM, le spawn vanilla du bloc étant
+      neutralisé). Parsing robuste (uppercase/trim, warning sur valeur inconnue) ; liste vide
+      = limitation désactivée avec log au boot. Lecture au boot (pas de reload faction existant).
+- [ ] Déployer le JAR + merger `pasdic.allowed-spawn-reasons` dans le `config.yml` live
+      (sans merge, les défauts Java s'appliquent : `[SPAWNER, CUSTOM]`).
+
+## Stacking items au sol + raccourci carte (août 2026)
+- [x] **ItemMergeManager** (`optimization.item-merge.*`) : fusion des items au sol similaires
+      (`ItemStack#isSimilar`) — au drop (3 ticks après spawn pour laisser la fusion vanilla,
+      rayon 4,5 blocs) + balayage des chunks chargés ≥ 6 items toutes les 15 s. Hôte = entité
+      la plus ancienne, plafond 512/stack (l'excédent reste sur une entité séparée ; un Item
+      de count > 64 est vanilla-safe, le pickup remplit plusieurs stacks d'inventaire).
+      Jamais de fusion sur items non ramassables / pickup infini (32767) / invulnérables /
+      nommés — protège hologrammes et décoratifs. Reload via `/optimize reload`.
+- [x] **Raccourci carte** : clic droit ou touche F avec la minimap en main → ouvre la grande
+      carte (la touche M est impossible côté serveur : le client vanilla n'envoie pas les
+      touches lettres). `MapUI#isMinimap` expose le tag PDC `minimap` ; `MinimapHotkeyListener`
+      (anti-spam 500 ms, ignoré si la carte est déjà ouverte, respecte `map.enabled`) ;
+      lore de la minimap mise à jour.
+- [ ] Déployer le JAR + merger `optimization.item-merge` dans le `config.yml` live
+      (sans merge, les défauts Java s'appliquent : activé, rayon 4,5, sweep 15 s, max 512).
+
+## Carte du monde interactive + minimap (août 2026)
+- [x] **`/carte`** (aliases `map`, `worldmap`) : GUI 7×4 tuiles `FILLED_MAP` (aucune entité).
+      Terrain réel rendu depuis les chunks (async + cache disque `plugins/CantalePlugin/mapcache/`,
+      expiration `map.terrain-cache-days`). Claims colorés par relation (vert=toi, bleu=allié,
+      rouge=guerre, orange=autre, violet=PASDIC) — **f secret masquée sauf pour ses membres**.
+      Marqueurs : warps (cyan/or event), homes perso (vert), f spawn (orange), position joueur (live).
+- [x] **Interactions** : clic gauche = téléportation au centre de la tuile (cooldown RTP 5 min +
+      warmup 3 s + combat-tag via TeleportDelayManager) ; clic droit = claim (règles /f claim) ou
+      menu PASDIC (Officier+, taxe banque + scan conteneurs du chunk, ConfirmDialogUI) ou infos faction ;
+      Shift+clic droit = unclaim ; clic molette = recentrer. Zoom 1→16 blocs/px, toggles
+      claims/marqueurs/terrain, légende intégrée, infos chunk cliqué.
+- [x] **`/carte mini`** : minimap live (2 blocs/px, centrée joueur) tenue en main/secondaire.
+      Vue MapView unique partagée + renderer contextuel (contenu par joueur, pas de fuite d'IDs :
+      IDs persistés dans `map-views.yml`). Terrain+claims+filtre secret identiques à la carte.
+- [x] Technique : `ui/map/` réécrit (ancien stub MapUI remplacé) — `MapUI` (service/sessions/vues/
+      refresh 10 ticks via `Player#sendMap`), `TerrainCache`, `MapImageBuilder`, `WorldMapRenderer`,
+      `MapSession`, `WorldMapUI`, `MapCommand`. Config `map.*`, onDisable flush cache.
+- [ ] Déployer le JAR. Merger `config.yml` live (section `map:` — défauts Java sinon).
+      Vérifier : ouvrir `/carte`, TP (respect cooldown RTP), claim/unclaim/PASDIC depuis la carte,
+      minimap en main secondaire, secret bien invisible pour un compte non-membre.
+
+## Votes — cooldown IP supprimé + fix site 3 · Collections densifiées (août 2026)
+- [x] **Cooldown IP plugin supprimé** : chaque site rate-limite déjà ses votes — le filtre IP Cantale
+      (`vote.ip-cooldown-hours`) bloquait les foyers à IP partagée et avalait des votes légitimes.
+      Retiré de `VoteListener.handleVote`, `VoteDAO.hasRecentVoteFromIp` supprimé, clé retirée du `config.yml`.
+      Reste : anti-doublon par site (cooldown `vote.sites`) + dédup atomique `vote_external_ids`.
+- [x] **Fix site 3 (ServeurListe)** : le poller avait un pré-check cooldown de 2 h > intervalle réel du site
+      (1 h 30) → tout vote entre 1 h 30 et 2 h était ignoré puis marqué « trop vieux » (définitivement perdu).
+      Pré-check supprimé : la dédup par `external_id` + le cooldown site de `handleVote` (1 h) suffisent.
+- [ ] **Ops site 3** : la vérif API est par IP → un vote en 4G / VPN / box différente n'est jamais détecté.
+      Solution durable = configurer **Votifier dans le dashboard ServeurListe** (IP publique + port NuVotifier
+      ouvert en TCP + clé publique/token) : votes instantanés sans condition d'IP, polling API en fallback.
+      Procédure : `docs/Votes.md` §3.3. Sans ça, le site 3 restera partiellement muet.
+- [x] **Collections densifiées** : paliers par défaut 7 → 12 (500 → 20 000 000) ; chat/votes/quêtes/argent/
+      temps de jeu 7 → 10 paliers. **Spawners beaucoup plus tôt** : 1er spawner RARE au palier 6 par défaut
+      (60 000, ex. cultures), EPIC en fin, MYTHIC au tout dernier palier. Vies conservées en haut de tableau.
+      `spawner:` accepte désormais `true` (= RARE) ou une rareté exacte `RARE|EPIC|MYTHIC`
+      (`CollectionReward` stocke la rareté ; `SpawnerManager.rollSpawnerOfRarity`).
+      Note : claims stockés par index → les paliers déjà claimés ne sont pas re-claimables, les nouveaux
+      paliers intermédiaires deviennent claimables dès que le seuil est atteint (pas de double récompense).
+- [ ] Déployer le JAR + **recopier `collections.yml` live** (saveResource ne fusionne pas) + retirer
+      `vote.ip-cooldown-hours` du `config.yml` live (sans effet si laissé).
+
+## Refonte faction — PASDIC / Secret / Raids / Protections (août 2026)
+- [x] **PASDIC revu** : plus de mode Adventure. Claim renforcé où seuls les membres peuvent poser/casser.
+  Conteneurs de stockage interdits (coffres, trapped chest, barrel, ender chest, shulkers) ; fours, fumoirs, hauts fourneaux, hoppers, droppers, dispensers autorisés. Spawners autorisés pour les membres.
+  Conversion via `/f pasdic` (confirmation + taxe banque de faction, Officier+) ou shift + clic gauche sur `/f map`.
+- [x] **Mode secret** : `/f secret` devient une taxe journalière de 1 000 Cantox par intervalle (20 min par défaut) sur la banque de faction. Avertissement aux officiers (MC + MP Discord) si la banque ne couvre pas le prochain prélèvement. 3 jours gratuits pour les nouvelles factions et après chaque raid subi.
+- [x] **Runes de fortification** : ne peuvent plus être appliquées dans un PASDIC. Rareté revue : uniquement caisses Épique, Mythique et Légendaire (Vote/Rare = 0). Config `runes.crate.*-chance-percent`.
+- [x] **Claim principal** : `/f setspawn` n’a plus d’immunité explosion spéciale (`FactionManager#isExplosionImmune` = rune uniquement).
+- [x] **Système de raids** : `/f raid` dans un claim ennemi démarre un raid (Officier+, en guerre). Pendant le raid : casser, exploser, poser blocs, seaux d’eau/lave autorisés. Hors raid : aucune pose/casse étrangère dans un claim ennemi. Durée, protection progressive et raids simultanés subis selon le pouvoir défenseur ; cooldown et raids simultanés menés selon le pouvoir attaquant (config.yml). Table `faction_raids` (index défenseur + attaquant) + `factions.last_raid_at`/`secret_free_until`. Exception Wither : explosions autorisées hors raid pour casser l’obsidienne (PASDIC et runes restent protégés).
+- [x] **Protections progressives** : nouvelles factions et factions après raid bénéficient de 3 jours de secret gratuit. Protection post-raid et max raids simultanés selon le pouvoir.
+- [x] **Guerre / alliances** : `/f war <faction>`, `/f peace <faction>`, `/f ally <faction>` (Officier+).
+- [x] **Quêtes plus difficiles** : objectifs `daily` multipliés par 2,5 dans `quests.yml` ; distance `walk` passée à 5 000. Collections augmentées de 50 % (`default-tiers` + tiers spécifiques).
+- [x] **Distance & téléportation** : le tracker de distance ignore les sauts de position dus aux téléportations (`PlayerTeleportEvent` → `QuestTrackListener`).
+- [x] **Items custom** : blocage total à l’enclume et à la table de désenchantement (`PrepareAnvilEvent`, `PrepareGrindstoneEvent`, `InventoryClickEvent` grindstone).
+- [x] **Dernière vie** : avant bannissement, l’inventaire (hors EC/PC) est dropé au sol puis vidé.
+- [ ] Déployer le JAR Paper (`target/cantale-plugin-1.0.0-SNAPSHOT.jar`).
+- [ ] Copier le nouveau bloc `factions.pasdic`, `factions.secret`, `factions.raid` dans le `config.yml` live (ou laisser les défauts Java si absent, mais les valeurs de config sont recommandées).
+- [ ] Recopier `quests.yml` et `collections.yml` live (saveDefaultConfig ne fusionne pas les nouvelles valeurs).
+- [x] Mettre à jour le wiki/FAQ : retrait du mode Adventure PASDIC, nouveau `/f secret`, `/f raid`, `/f war`, claim principal normal, runes Épique+.
+- [x] FAQ bot : `src/main/resources/faq.yml` mis à jour (refonte faction + mécaniques + questions Minecraft de base). Rechargement via `/faq reload`.
+
+## Claim f-spawn immunisé aux explosions (août 2026)
+- [ ] Déployer le JAR (`target/cantale-plugin-1.0.0-SNAPSHOT.jar`). Redeploy site wiki + `faq.yml` live.
+**Note :** l’immunité f-spawn a été supprimée dans la refonte ci-dessus. Le claim principal est désormais normal.
+- [x] Le chunk du `/f spawn` a la même immunité explosions qu'une Rune de fortification
+      (`FactionManager#isExplosionImmune` : rune **ou** spawn claim). TNT ne s'allume pas,
+      explosions annulées, blocs immunisés depuis l'extérieur, dégâts d'explosion aux
+      entités annulés. Casse/pose des membres inchangées ; PASDIC distinct. Suit `/f setspawn`.
+- [ ] Déployer le JAR (`target/cantale-plugin-1.0.0-SNAPSHOT.jar`). Redeploy site wiki + `faq.yml` live.
+
+## Fix hologrammes spawners (août 2026)
+- [x] Pose / chunk load / restart : le nom FR + palier s'affichent au-dessus du bloc
+      (ex. `Spawner à Cochon x3`). TextDisplay full-bright, fond lisible, restore 1 tick
+      après ChunkLoad (getBlock AIR), réutilisation PDC, stacking inchangé.
+- [ ] Déployer le JAR (`target/cantale-plugin-1.0.0-SNAPSHOT.jar`).
+
+## Cooldowns / warmup téléportation (août 2026)
+- [x] 30 s entre toute TP (home, warp, spawn, rtp, tpa, f spawn/go/warp, events, claims GUI).
+      RTP : 5 min en plus (max des deux). Warmup 3 s immobile + preload chunk pour tous.
+      Exempt : `cantale.admin` et mode trace `/moderation`. VIP / Chèvre non exemptés.
+- [ ] Déployer le JAR (`target/cantale-plugin-1.0.0-SNAPSHOT.jar`). Pas de merge config live (valeurs en dur).
+
+
+## Rune / spawners ghast / PvP claims / lits / têtes wither (août 2026)
+- [x] Rune de fortification : aucune explosion dans le chunk (TNT, cristaux, wither, lits, ancres, minecarts TNT, creepers, fireballs…). Origine fortifiée = event annulé ; blocs fortifiés immunisés même depuis l'extérieur ; dégâts d'explosion aux entités annulés.
+- [x] Rune de fortification dans les caisses : tirage extra (`CrateRewardTable#tryRollRune`) Rare 2 %, Épique 4 %, Mythique 6,5 % — config `runes.crate.*-chance-percent` (défauts Java si absent). Vote / Légendaire : 0. Wiki + faq.yml mis à jour. `saveResource` ne merge pas : ajouter la section `runes:` au `config.yml` live.
+- [x] Ghast retiré des spawners obtenables (enum `GHAST` conservé pour BDD/items ; load/pose → cube de magma). Plus dans caisses, `/spawner give`. Quête `kill_ghast` = tuer le mob (pas de spawner).
+- [x] PvP one-way dans les claims : étranger → membre chez lui **toujours** annulé (tag combat ou non). Membre/allié → étranger dans le claim : autorisé. PASDIC : pas de PvP. Wilderness inchangé. `ClaimListener` HIGHEST ; le tag combat ne contourne pas.
+- [x] Plus de lits en pose/allumage raid (config.yml + défauts Java + strip `*_BED` même si le YAML live en a encore). Wither = seul moyen de casser l'obsidienne.
+- [x] Têtes wither skeleton : plus de drop (EntityDeath + loot stack). `/shop` GUERRE **50 000** Cantox, sell off, daily-buy-cap 6. Pose raid des têtes inchangée.
+- [ ] Déployer le JAR `target/cantale-plugin-1.0.0-SNAPSHOT.jar`. `shop.yml` : merge auto de `WITHER_SKELETON_SKULL` au load. Recopier `collections.yml` et `quests.yml` live. `config.yml` live : les lits listés sont ignorés par Java (pas besoin de merger pour ça). Redeploy site wiki.
+
+## Raid claims — TNT / lodestone / explosifs (août 2026)
+- [x] Étrangers : poser TNT, lodestone, cristaux, ancres, seaux, wither ; allumer TNT (briquet) ; vider seaux. PASDIC inchangé. (Lits retirés ensuite — voir section du haut.)
+- [ ] Déployer le JAR (défauts Java, pas besoin de merger le config.yml live pour lodestone / briquet).
+
+
+## F-homes retirés (août 2026)
+- [x] Plus de `/f home` / `/f sethome` / bouton Homes dans `/f`. Quota pouvoir et perm FHOME retirés.
+      Homes perso `/home` inchangés. Mobilité fac : `/f spawn`, `/f warp`.
+      Table `faction_homes` laissée en BDD (pas de DROP). Fichier `FactionHomesUI.java` conservé (stub).
+- [ ] Déployer le JAR.
+
+
+## Quêtes + Collections + events 2–3/j (août 2026)
+- [x] Events faction : 14–21/semaine, 10h–minuit, max 3/j, 2h mini entre (events.yml). Recopier en live.
+- [x] Quêtes solo (1 daily + 1 weekly + 1 seasonal) + courses faction. YAML `quests.yml`.
+- [x] Templates `quests.yml` élargis : 40 → 118 ids distincts (cultures, minerais dont or Nether, cuisson four, PvP, passifs, hostiles dont ghast naturel / warden, distance). Pools inchangés (solo 5/3/2, fac 12/6/3).
+- [x] `QuestTrackListener` : kelp/bambou/cactus/chorus/champignons/fungi/glow berries (vines + clic droit), torchflower/pichet ; `NETHER_GOLD` séparé (plus fusionné dans GOLD) ; soie toujours ignorée.
+- [x] Collections exponentielles `collections.yml` + `/collections`. Pic `/bal` = `balance_peak`. Clés cultures/minage/mobs alignées (GUI 45 max).
+- [x] `/quetes`, `/quete reroll`, `/quete give`, `/saison [start]`.
+- [x] Boutons Quêtes (slot 38) et Collections (slot 40) dans `/cantale` (`MainMenuUI` → `QuestMainUI` / `CollectionMainUI`).
+- [x] Collection `quests` (Quêtes complétées) : +1 solo dans `QuestEngine.completeSolo`, +1 contributeurs fac gagnante. Bonus set ≠ 2e quête. Events reste hidden.
+- [ ] Déployer JAR + copier `quests.yml`, `collections.yml` (catégorie `quests` absente du live — `saveResource` ne fusionne pas), et le bloc faction-events de `events.yml` en live.
+
+
+## PASDIC depuis la carte site (août 2026)
+- [x] Admins site (`ADMIN_DISCORD_ID`) : `/carte` → Mode admin → multi-sélection des claims → **Définir PASDIC**.
+      Chunks avec spawners ou stockage (tile entities à inventaire) refusés ; les propres passent.
+      File `web_admin_actions` type `set_pasdic` → `WebAdminBridge` + `PasdicService` (load async, scan, `claims.pasdic`).
+      `/pasdic set` en jeu : même garde stockage + spawners.
+- [x] Owner / Direction voient le bouton PASDIC (août 2026) : même garde que `/admin` —
+      allowlist `ADMIN_DISCORD_ID(S)` + `OWNER_DISCORD_ID(S)` + `DIRECTION_DISCORD_ID(S)`,
+      rôles Discord Direction (fondateur / co-fondateur / directeur) + owner guilde + rôle Admin,
+      grade Minecraft `OWNER`/`ADMIN`. Pas modos / staff.
+      Poussé `Annonnyx/Cantale` `74cc947` → Vercel prod Ready (www.cantale.world/carte).
+      (`c905ba2` / `24ec579` avaient échoué : `};` en trop dans `territory-canvas.tsx`.)
+- [ ] Déployer le JAR Paper (`target/cantale-plugin-1.0.0-SNAPSHOT.jar`) pour que le pont lise les jobs et élargisse payload/result en TEXT.
+- [x] Site poussé sur `Annonnyx/Cantale` `c905ba2` → Vercel `site-cantale` (www.cantale.world/carte).
+
+## TPA — texte et sens `/tpa` (août 2026)
+- [x] `/tpa` : le demandeur se tp à la cible. Message cible : « X veut se tp à toi » + boutons Accepter/Refuser (hover qui dit qui bouge). `/tpahere` reste l’inverse. Combat-tag inchangé.
+
+## Caisses — plus de « Pas de chance » (août 2026)
+- [x] Retiré Miettes du Roi (Vote) et Aumône (Rare) ; les poids restants se renormalisent au roll. Spawners inchangés.
+
+## Spawners Cantale + fix TAB (août 2026)
+- [x] TAB/nametags : sidebar event faction sur le scoreboard **principal** (plus de board par joueur qui masquait les préfixes). Équipes UUID, `playerListName` pour le TAB, cache préfixe. Nametags tête inchangés (préfixe d'équipe).
+- [x] Spawners 15 mobs (Rare 8 / Épique 4 / Mythique 3 dont golem ×2 intervalle). Items PDC palier 1–8, hologramme, pose claims only, interdit PASDIC, PASDIC échoue si spawners présents. Silk any pickaxe = 1 item du palier ; sans silk = rien. /ah ok, /shop blacklist. Stack clic droit même type, refuse si > 8. Cadence linéaire : N mobs / (8/N) s (T1 8 s, T8 cheat 8/1 s = 480/min). Stacker étendu aux mobs spawners (PDC) ; exclus du cull 15/chunk.
+- [x] Caisses : chance extra 5 % / 3 % / 1,5 % (Rare / Épique / Mythique+Légendaire). `/spawner give`. Table `spawners`. Config `spawners:`.
+- [ ] Déployer JAR + coller le bloc `spawners:` dans le `config.yml` live. Redeploy site wiki si besoin.
+
+## Anti-AFK configurable par grade (août 2026)
+- [x] Timeouts lus dans `config.yml` (`afk.timeout-seconds`) : none 600 s, aventurier 900, vip 1800, chevre 3600, moderator 3600. Admin (`cantale.admin` + ranks ADMIN/OWNER) jamais kick. Vanish skip. Join initialise l’activité (fix joueur immobile jamais kick). Copier le bloc dans le `config.yml` live (saveDefaultConfig ne merge pas).
+- [ ] Déployer JAR + coller le bloc `afk:` dans `plugins/CantalePlugin/config.yml`.
+
+## Perf plugin — 4 quick wins (août 2026)
+- [x] Cache `RankManager.getRank` en mémoire ; invalidation `setRank` / `removeRank` / join / quit.
+- [x] Sentinelles faction : wilderness (`WILDERNESS_SENTINEL`) et sans-faction (`-1`) comme FortifiedChunk ; invalidation claim/unclaim/join/leave/disband.
+- [x] `ActionLogger` file + flush 1 s, flush `onDisable` (même contenu `actionlog.txt`).
+- [x] Vol Chèvre : skip `PlayerMoveEvent` si même chunk (monde + chunkX + chunkZ ; claims = chunks).
+- [ ] Déployer le JAR Paper : `target/cantale-plugin-1.0.0-SNAPSHOT.jar`
+
+## Lag `/rtp` — génération de chunks sync (août 2026)
+- [x] Cause : `RtpCommand.findLocation` tournait **sur le thread principal**. Jusqu’à 16
+      `World#getHighestBlockYAt` / `getBlockAt` à 500–5000 blocs → **génération sync** des
+      chunks (Paper `getChunkAt`). Pas de recherche de biome, mais le filtre lave/eau
+      relance d’autres chunks. Freeze TPS le temps de 1–16 gens.
+- [x] Fix : recherche **séquentielle async** via `World#getChunkAtAsync(..., gen=true)`,
+      inspection safe (lave/eau/feu…) une fois le chunk chargé, warmup inchangé, TP sur
+      le main. Re-check unsafe juste avant TP. Cap 16, timeout 15 s, pas de double-search.
+- [ ] Déployer le JAR Paper.
+
+## `/shop reload` console + MultiCantool spam (août 2026)
+- [x] `/shop reload` accepté depuis la **console** (`ConsoleCommandSender`) et en jeu (`cantale.admin`).
+      Buy/sell/UI restent joueur. Même `ShopManager.reload()` (merge shop.yml). Messages FR console sans MiniMessage.
+- [x] MultiCantool : plus de `logger.info` à chaque morph visuel (`Lirfling → IRON_PICKAXE`). Passage en `FINE` uniquement.
+
+## Fix /day = jour vanilla overworld (août 2026)
+- [x] `/day` lisait le monde du joueur (Nether/End = autre horloge). Source de vérité =
+      `World#getFullTime() / 24000` de l’overworld (`world` spawn, sinon premier NORMAL).
+      Plus de compteur plugin : survit au restart (level.dat). `OverworldDay` pour tout affichage « jour N ».
+- [ ] Déployer le JAR Paper.
+
+## Perf site — chargement lent (août 2026)
+- [x] Cause : pages data `force-dynamic` sans cache MySQL (Vercel → MariaDB distante) ;
+      proxy skins `/api/minecraft/*` en série Mojang 8 s puis CDN (classements = N avatars
+      serverless) ; header `/api/auth/me` + classements/profil appelaient l’API Discord
+      guild à chaque HTML ; `/carte` SSR de tous les claims (JSON énorme).
+- [x] Fix durable (site only) : cache court `unstable_cache` (15–60 s) sur lectures
+      publiques ; proxy skins en parallèle timeout 2,5 s + ISR/CDN 6 h + cache 404 2 min ;
+      session lite sans Discord pour pages publiques / header ; avatar 2D immédiat sur
+      les profils ; claims carte en fetch client ; `loading.tsx` ; timeout MySQL 8 s.
+- [x] Poussé `Annonnyx/Cantale` `8926d65` sur `main` (Vercel auto-deploy prod).
+      **Pas de nouvelle env var.**
+
+## Dernière vie en combat + tag 20 s (août 2026)
+- [x] Dernière vie hors combat : ban sans drop (inchangé). Dernière vie **en tag combat** :
+      drop monde (stockage + armure + offhand) **avant** le kick, sans double drop.
+- [x] Durée tag combat : 20 s (`combat-tag-seconds`, défaut Java + `config.yml` JAR).
+      Live : si la clé n'existe pas encore → 20. Si une ancienne valeur est déjà sur disque, elle gagne.
+- [ ] Déployer le JAR. Si `plugins/CantalePlugin/config.yml` live a déjà `combat-tag-seconds`
+      (autre que 20), le passer à 20. Clé absente = défaut 20, rien à faire.
+
+## Votes ServeurListe API (août 2026)
+- [x] Site 3 (ServeurListe.com) : polling `GET /api/vote?ip_address=&api_token=` (FAQ, pas de liste votes).
+      Même récompense Cadeau du Roi ; dédup `vote_external_ids` + cooldown.
+      Config `vote.serveur-liste.*` + token `vote.tokens.serveurliste.com` (`token_api`).
+      Votifier « connexion impossible » documenté (TCP / `host: 0.0.0.0`) — ignorable si API OK.
+      Docs `docs/Votes.md` §3.3. **Ne pas retirer le site 3.**
+- [ ] Déployer le JAR + coller `token_api` dans le `config.yml` **live** si pas déjà
+      `vote.tokens.serveurliste.com`.
+
+## Fix /f secret SQL MariaDB (août 2026)
+- [x] `SecretCooldownDAO` envoyait `INSERT OR REPLACE` (SQLite) à MariaDB → cooldown non persisté
+      alors que le mode secret s’activait. Upsert dialect-aware (`DatabaseManager.upsertSql`) ;
+      activation seulement si le cooldown est écrit. Même classe de bug corrigée sur
+      `FactionDAO.setPermission` (`ON CONFLICT` SQLite envoyé à MariaDB).
+
+## Votes Serveur-Prive API (août 2026)
+- [x] Site 2 (Serveur-Prive.net) : polling `GET /api/v1/servers/{token}/votes` (`serverVotesList`)
+      + vérif IP des joueurs en ligne ; même récompense Cadeau du Roi que les autres sites ;
+      dédup BDD `vote_external_ids` + cooldown site (pas de double grant avec Votifier).
+      Config `vote.serveur-prive.*` + token `vote.tokens.serveur-prive.net`. Docs `docs/Votes.md` §3.2.
+- [x] `GET /votes/{ip}` 404 live : auto-disable du check IP après le 1er 404 (session),
+      plus de WARN/URL toutes les 60 s ; récompenses via `serverVotesList` uniquement.
+      HTTP déjà async. Optimizer urgence : plus de `System.gc()`, cooldown 2 min.
+      Action bar hoppers : cache 5 s + chunks déjà chargés (plus de load de claims).
+- [ ] Déployer le JAR + coller le token dashboard (Paramètres) dans le `config.yml` **live**
+      si ce n’est pas déjà `vote.tokens.serveur-prive.net`.
+
+## Fixes AH / banque / shop (août 2026)
+- [x] **`/ah sell` AIR** : `setAmount(0)` transformait le stack en AIR → message « AIR ». Snapshot type + clone avant retrait ; clear main hand propre.
+- [x] **`/ah` GUI** : prix visible (lore + nom) ; clic → `ConfirmDialogUI` (pas d'achat au 1er clic) ; mapping slot→listingId.
+- [x] **`/f bank` historique** : résolution UUID→pseudo (`PlayerDAO` / online / OfflinePlayer) ; dates secondes/millis/TIMESTAMP (plus d'« ID » / « date inconnue » si timestamp valide).
+- [x] **Shop** : `END_CRYSTAL` = catégorie `NETHER_END` (pas GUERRE/PvP) ; `HOPPER` = `REDSTONE` 150k cap4 — confirmé JAR `shop.yml`.
+- [x] **`/shop reload` WARN** : `saveResource(shop.yml,false)` loguait un WARN Bukkit si le fichier
+  existait déjà (bénin, reload + merge continuaient). Fix : `saveResource` seulement si absent ;
+  merge non destructif + relecture disque inchangés (prix live préservés).
+
+## Feature — /parrain (août 2026)
+- [x] Commande `/parrain <joueur>` : l'invité remercie son parrain **une seule fois** ;
+  le parrain gagne +1 vie (`LifeManager#addLife`). Persistance BDD
+  (`players.referral_used` / `referred_by` / `referral_at`, marquage atomique).
+- [x] Validation : pas soi-même, cible connue en BDD, tab-complete joueurs online.
+- [x] `plugin.yml` + FAQ + wiki commandes / trois-vies + COMMANDS.md.
+- [ ] Déployer le JAR Paper.
+
+## Fixes joueurs — shop hoppers / mort Nether /lastdeath / compteur Discord (août 2026)
+- [x] **/shop HOPPER** : `saveResource(shop.yml,false)` ne mettait pas à jour le fichier live →
+  HOPPER absent après réintro. Fix durable : merge non destructif des `items.*` JAR→disque
+  (`ShopConfig.mergeMissingItemsFromJar`) + parse Map flow-style. Catégorie REDSTONE, 150k, cap 4.
+  **Merge live** : au prochain `/shop reload` ou restart, HOPPER est ajouté si manquant (prix JAR).
+- [x] **Mort Nether / loot** : aucun clear de drops dans Cantale ; VIE retirée via `event.getDrops()`
+  (plus de mutation inventaire pendant death). Protection feu/lave 90s sur items de mort
+  (`DeathLootProtectListener`). Snapshot inv persisté pour staff. keepInventory staff non forcé.
+  Si loot « disparu » hors lave/feu : vérifier gamerule `keepInventory` externe.
+- [x] **/lastdeath inv staff** : colonne `last_death_inventory` (+ migration) ; GUI lecture seule.
+  Admin toujours ; modo seulement en mode trace (`/moderation`). Pas de restore joueur.
+- [x] **Compteur Discord** : parse strict entier seul ; anti double-post auteur ; prev+1 ;
+  suppression messages invalides (y compris « r » / chat libre). État `last-author-id`.
+- [ ] Déployer le JAR Paper + vérifier bot Manage Messages sur le salon counting.
+
 ## URGENT — crash récursion PrivateChest (août 2026)
 - [x] **Cause** : `saveChestForOwner` appelait `closeInventory()` pendant `InventoryCloseEvent`
   (l’inventaire paraît encore ouvert) → re-entrée `onInventoryClose` → StackOverflow / serveur mort.
@@ -9,10 +507,9 @@
 
 ## Discord — salon compteur (août 2026)
 - [x] Listener JDA `CountingListener` sur `discord.channels.counting`
-  (`1537112048314491040`) : prev+1 si chiffres ; sans chiffre = chat libre.
-- [x] Persistance `discord-counting.yml` + reprise historique si fichier vide.
-- [x] Suppression + avertissement FR si mauvais nombre (Manage Messages).
-- [x] Docs `docs/Discord.md` + wiki Discord & site + FAQ.
+  (`1537112048314491040`) : **strict** entier seul = prev+1 ; anti double-post ; invalides supprimés.
+- [x] Persistance `discord-counting.yml` (`current` + `last-author-id`) + reprise historique.
+- [x] Docs `docs/Discord.md` + FAQ mises à jour (plus de chat libre dans ce salon).
 - [ ] Déployer le JAR plugin + vérifier permissions bot (Manage Messages).
 
 ## Fix /lastdeath coords (août 2026)
@@ -92,7 +589,7 @@
   (`FactionManager`, `Faction`, `FactionPowerShop`, `FactionBankCommand`, `ClaimListener`,
   `FactionPermissions`, `config.yml` factions.*, `events.yml` rewards). Couvre toutes les `/f`,
   sources pouvoir (65 création, +5/membre, PvP ±5, bank 1 unité→+10 pouvoir + ×10 exposant, events top, `/admin addpower`),
-  quotas claims/fhomes/warps, rangs, wilderness/PASDIC, règles stockage/explosifs.
+  quotas claims/warps, rangs, wilderness/PASDIC, règles stockage/explosifs.
 - [x] Support `WikiTable` dans `wiki-content.ts` + rendu page article + index recherche.
 - [x] Alignement `faq.yml` (création, claim/pouvoir, warps, homes, banque) sur les mêmes formules.
 - [x] Claims contigus : nouveau claim doit toucher N/S/E/O un claim existant (sauf 1er du monde) —
@@ -163,6 +660,7 @@
 - [x] Fix skin 3D `/connexion` : Crafatar (HTTP 521) → mc-heads.net puis **proxy same-origin** `/api/minecraft/skin|avatar` (Mojang → textures.minecraft.net, repli crafthead/mc-heads) — viewer + classements/la-liste/factions. **Ops : redeploy Vercel** (prod servait encore le bundle crafatar au 2026-08-11 ; `/joueur/[uuid]` 404 tant que non déployé)
 - [x] `/link` (Minecraft) : clic sur le code → copie presse-papiers (`ClickEvent.copyToClipboard` + hover « Clique pour copier »)
 - [x] Commande admin `/linkforce <Pseudo MC> <ID Discord>` (Minecraft + Discord) — upsert `discord_links`, permission `cantale.admin` / Discord ADMINISTRATOR, gestion des conflits
+- [x] `/unlink confirm` (joueur) + `/forceunlink <joueur>` (admin `cantale.admin`) : délie Discord (`discord_links`) + restes `web_link_codes` ; slash Discord `/unlink` (confirmer) et `/forceunlink` ; rôles Joueur/faction retirés au mieux
 - [x] Exclusion publique **Anox26** (owner) : Cantox/vies en circulation + tous les classements (site `public-ranking-exclusions.ts`, API legacy, `/leaderboard` jeu, Discord `/leaderboard` + daily LB, tops votes) — liste centrale réutilisable (UUID optionnel)
 - [x] Exclusion publique faction **Ø** (noms `Ø` / `O` / `∅`, case-insensitive) : tops pouvoir/richesse/membres site + Discord `/fleaderboard` + daily LB + `/leaderboard` jeu — listes centrales `PUBLIC_RANKING_EXCLUDED_FACTION_NAMES` / `FACTION_NAMES` ; faction reste en jeu + détail slug OK
 - [x] Deploy `Annonnyx/Cantale` `f550770` → Vercel `site-cantale` prod Ready (`site-cantale-3a54jc441…`). Plugin `mvn package` OK (redeploy JAR serveur à faire).
@@ -199,7 +697,7 @@
 - [x] Fix faux-positifs AntiCheat (Timer Check : seuil à 28 pkts/s + tampon de lissage)
 - [x] Fix faux-positifs AntiCheat (AutoClicker : ban en maintenant clic sur herbe) — CPS dig soft/instant exclu ;
   fenêtre 2s + buffer VL ; FastBreak solide séparé (nuker) ; Multi-Cantool exempté
-- [x] Système Anti-AFK par grade (10m Joueur, 30m Aventurier, 1h VIP, illimité pour Chèvre/Staff)
+- [x] Système Anti-AFK par grade (config `afk.timeout-seconds` : 10m Joueur, 15m Aventurier, 30m VIP, 60m Chèvre/Modo ; illimité admin)
 ## Fait
 - [x] Refonte Multi-Cantool : suppression de l'annulation d'événement (plus de desync client/serveur ni de blocs fantômes) + ajustement natif de la vitesse de minage via `PlayerBlockBreakSpeedEvent`
 - [x] Bot Discord : sélection de rôles synchronisée sans doublons, catégorie Support `1504899461401546954` pour les tickets, renommage propre à la réouverture des tickets et logs d'arrivée instantanés sur Discord
@@ -318,6 +816,14 @@
   pose uniquement en claim de sa fac, plafond `max(0, pouvoir / 20)`
   (`factions.hopper-limit` dans `config.yml`). Place-only (pas de retrait à l'unclaim).
   Wiki économie + factions mis à jour. `/shop reload` + reload plugin pour appliquer.
+- [x] **Hoppers action bar + faction obligatoire (août 2026)** : pose refusée hors faction ;
+  action bar Paper tant qu'un hopper est en main (`Hoppers: x/max · restants: n`, sinon motif
+  « rejoins une faction » / « claim de ta fac requis »). Formule inchangée.
+- [x] **Guide votes sites FR** : `docs/Votes.md` (quoi activer sur Top-Serveurs / Serveur-Prive /
+  ServeurListe : Votifier IP/port/clé|token) + logs boot VoteListener plus explicites.
+- [x] **Action bar hoppers** : tenir un hopper en main → `Hoppers: X/Y (Z restants)` au-dessus
+  de la barre d'XP ; sans faction → message court ; refresh slot/swap/inv/pose/casse + tick 1s.
+  Docs vote sites 2&3 (Serveur-Prive / ServeurListe) : checklist Votifier dans `VOTE_SITES_GUIDE.md` §7.
 - [x] Prix d'achat shop ×2 (100%+) sur toutes les catégories **sauf `MINERAIS`** (charbon→émeraude
   inchangés V1). Netherite (scrap/ingot/bloc/debris) et Shulker (shell/box) : achat à prix massifs +
   `daily-buy-cap` (voir `shop.yml`). Ventes inchangées. `/shop reload` pour appliquer.
@@ -355,11 +861,37 @@
   (`discord_role_id` en DB) ; attribué aux comptes liés membres ; retiré au leave ; rôle
   supprimé à la dissolution. Backfill au démarrage du bot pour les facs existantes.
 
-## Anti-cheat — chantier à venir
+## Anti-cheat — refonte Grim + natif (août 2026)
 - [x] FP Speed : grâce 3s post-TP, exemptions élytra/riptide/véhicules/vol, tolérances eau/dolphin/soul speed
 - [x] Aim/Rotation assouplis (buffer + seuils) ; Reach œil→AABB + ping
-- [x] Ban automatique à trust 0 (Paper ban API) ; warn/kick si `auto-punish`
-- [ ] Tester les détections en jeu et retoucher les seuils si besoin
+- [x] **Refonte complète (Grim + natif repositionné)** :
+  - [x] Grim AC (packet-based) = moteur principal mouvement/combat/rotation/packets ; JARs vérifiés dans `server-plugins/` (PacketEvents 2.13.0 + Grim 2.3.74, MC 1.21.11)
+  - [x] GrimBridge (`anticheat/grim/GrimBridge.java`) : flags Grim → trust/alertes/Discord/BDD natifs ; exemptions staff (admin/vanish/trace) annulent le flag Grim ; **fallback auto** : Grim absent → checks natifs mouvement/combat réactivés à chaud
+  - [x] Fix FP natifs : NoFall réécrit (dégât de chute attendu, jamais `getFallDistance()` à l'impact ; exemptions MLG/slime/lit/hay/powder snow) ; Timer = packets position-only + compensation TPS/ping ; exemption vélocité 500 ms (knockback/explosion) pour Speed/Fly/Step
+  - [x] Anti-cascade trust : 1 pénalité max/tick (la plus grosse gagne) + plafond 10 pts/min glissante ; **ban auto à trust 0 supprimé** (alerte staff prioritaire + kick cooldown 5 min) ; tempban auto optionnel sur récidive (`punishments.ban-auto: false` par défaut)
+  - [x] Natif repositionné : Speed/Fly/NoFall/Step/Timer/Reach/KillAura/Aim/Rotation désactivés (doublons Grim) ; AutoArmor (4 équipements/500 ms), ChestStealer (6 prises/500 ms, contenants vanilla seuls), FastUse (état par joueur) corrigés, gardés off pendant rodage ; FastBreak conservé (outils custom)
+  - [x] Robustesse : ViolationManager synchronisé + decay sync ; `/ac toggle <check>` runtime réel ; préférence alertes purgée au quit ; `getSeverityMultiplier` supprimé
+  - [x] Preuves : table `anticheat_violations` (source/check/VL/trust/ping/TPS/détails) + `/ac info` enrichi (moteur, ping, TPS, kicks 24 h, violations BDD) ; alertes Discord activées
+  - [x] Config : blocs `anticheat.lag`, `anticheat.punishments`, `anticheat.grim-integration` ; docs `docs/AntiCheatPlan.md` + `docs/AntiCheat-Grim-Setup.md` (rodage 3 semaines + seuils finaux)
+- [ ] **Déploiement manuel** : copier `server-plugins/packetevents-spigot-2.13.0.jar` + `grimac-bukkit-2.3.74.jar` dans `plugins/`, configurer `plugins/GrimAC/punishments.yml` en log-only (modèle dans `docs/AntiCheat-Grim-Setup.md`), redémarrer
+- [ ] Rodage 3 semaines : log-only → setbacks Grim → kicks natifs → `ban-auto: true` après validation FP ≈ 0 (voir guide)
+
+## Optimisation serveur — refonte complète (août 2026)
+- [x] **Assainissement** : `cleanupEntities()` en **1 seule passe** par monde (avant : 3–4 scans complets) ; tâche `optimizeChunks` no-op supprimée ; clés mortes retirées (`optimize-chunks`, `ground-item-max-age-seconds`, `tps-warning-threshold`) ; `/optimize on|off` **persisté** (`optimization.enabled`) ; `/optimize gc` (`System.gc()`, contre-productif avec G1GC) et `/optimize chunks` (no-op) retirés.
+- [x] **PerformanceGovernor** (`optimization/PerformanceGovernor.java`) : échantillonne TPS 1 min + MSPT (Paper `getAverageTickTime()`) toutes les 5 s ; 3 modes **NORMAL / DEGRADED / CRITICAL** avec hystérésis (min 30 s par mode + 60 s sains pour remonter, un cran à la fois). Actions bornées et restaurées : `World#setSimulationDistance` (base−2/−3, min 4/3), `setViewDistance` (optionnel, CRITICAL seulement), `SpawnerManager.setRateMultiplier` (×1.5/×2.0 sur l'intervalle de spawn), cadence mob-stack 10→5 s, CRITICAL = `emergencyCleanup()` (cooldown 2 min) + alerte staff MC + embed Discord mod-logs (cooldown 5 min). Override manuel `/optimize mode <auto|normal|degraded|critical>`.
+- [x] **ChunkPreloadCache fixé** : clé exacte (record monde/x/z — plus de collision hashCode) + map bornée 10 000 entrées (éviction FIFO, plus de fuite mémoire). `ChunkLoader` : rayon téléport configurable (`optimization.chunk-preload-radius`, défaut 2) + **préchauffage async du spawn au boot** (`spawn-prewarm-radius`, défaut 6) ; `maintainClaimChunks()` no-op remplacé. `AsyncTaskManager` : réellement utilisé (hotspots), shutdown avec attente.
+- [x] **Diagnostic in-game** : `/optimize stats` enrichi (TPS 1m/5m/15m, MSPT, mode gouverneur, mémoire + GC via MXBeans, chunks/entités/tile-entities/distances par monde) ; `/optimize hotspots [n]` (snapshot sync → tri async → top N chunks par entités+tiles avec coords) ; log `[Santé]` une ligne toutes les 5 min.
+- [x] **Templates configs serveur** (`server-config/`) : extraits commentés FR pour `server.properties` / `bukkit.yml` / `spigot.yml` / `paper-global.yml` / `paper-world-defaults.yml` (sources : guide YouHaveTrouble 1.21.11 + docs Paper officielles) + README (ordre d'application, options OPTIONNEL marquées, retour arrière).
+- [x] **Docs** : `docs/ServerOptimization.md` (architecture, guide déploiement, **flags JVM Aikar G1GC**, Spark diagnostic, Chunky pré-génération, anti-patterns à ne pas installer) + `docs/Performance.md` réécrit (architecture réelle) + `COMMANDS.md` (`/optimize` à jour). Redis documenté dormant (mono-serveur).
+- [ ] **Ops** : déployer le JAR ; merger le bloc `optimization.governor` dans le `config.yml` live (défauts Java sinon) ; backup puis fusion des `server-config/*.extra` dans les fichiers serveur (ordre du README, options OPTIONNEL ensuite) ; vérifier les flags JVM Aikar au démarrage ; vérifier au boot `[Governor] Actif` + `[ChunkLoader] Préchauffage spawn` ; en jeu `/optimize stats` / `governor` / `hotspots` ; mesurer 24–48 h (`/mspt`, Spark).
+
+## Hotfix — pose spawner `IllegalArgumentException` min/max spawn delay (2026-08-15)
+- [x] **Cause** : `SpawnerManager.applyBlockState` appelait `setMinSpawnDelay(MAX_VALUE)` alors
+  que le max vanilla était encore 800 → validation CraftBukkit `min <= max` levait
+  `IllegalArgumentException: Minimum Spawn Delay must be less than or equal to Maximum Spawn Delay`
+  à chaque pose de spawner Cantale (BlockPlaceEvent, `place()`).
+- [x] Fix : `setMaxSpawnDelay(Integer.MAX_VALUE)` **avant** `setMinSpawnDelay(Integer.MAX_VALUE)`.
+- [ ] Déployer le JAR (`target/cantale-plugin-1.0.0-SNAPSHOT.jar`).
 
 ## Respawn & claims
 - [x] Invulnérabilité 10s au respawn (anti spawn-kill)
@@ -370,7 +902,7 @@
 - [x] PvP claims : safe dans le claim de sa fac ; on peut tuer les non-membres présents dans son claim ; PASDIC = no PvP
 - [x] `/f bank power [n]` : achat de pouvoir via banque (officiers/chef), prix exponentiel (`cost = floor(base * growth^(power_purchased * 10))`)
 - [x] **GUI pouvoir** (`FactionPowerShopUI`) : `/f power`, `/f bank power` (sans n), bouton `/f` + `/f bank` —
-  quotas claims/fhomes/warps, paliers suivants, achat 1/2/3/5/max (confirm) ; chat `/f bank power <n>` conservé.
+  quotas claims/warps, paliers suivants, achat 1/2/3/5/max (confirm) ; chat `/f bank power <n>` conservé.
   Voir = membres ; acheter = officiers/chef/BANK_TAKE. Wiki + faq + `plugin.yml`.
 - [x] **Historique banque** (`FactionBankHistoryUI`, août 2026) : bouton livre dans `/f bank` —
   table `faction_bank_log` (uuid/nom, type, montant, solde après, note, timestamp) ; logs dépôt/retrait
@@ -402,14 +934,14 @@
 - [x] **Slice Events / TP / AFK / carte** (`wiki-content.ts`) depuis code only :
   - `events-faction` / `reactions-chat` / `recompenses-regulieres` ← `events.yml` + `FactionEventManager` / `ChatReactionManager` / `WeeklyKeyDropManager` / `/recolte` UI (récompenses top 5 exactes, calendriers, `/events` = warps staff ≠ events fac auto)
   - `teleportation` : `/rtp` cooldown 2 min (VIP+ / bypass), distance 500–5000, warmup 3 s ; warps cooldown 20 s
-  - `afk-clearlag` (nouvel article) : AFK 10/30/60/∞ par grade (`AfkListener`) ; clear-lag 180 s + warnings 30/10/5/3/2/1 (`ClearLagTask`)
+  - `afk-clearlag` : AFK 10/15/30/60 min par grade (`AfkListener` + `afk.timeout-seconds`) ; admin illimité ; clear-lag 180 s + warnings 30/10/5/3/2/1 (`ClearLagTask`)
   - `claims-territoire` + `discord-site` : page `/carte` (claims, PASDIC, warps, secret exclu, refresh 30 s)
   - Compteur wiki : **25 articles** / 7 catégories
 - [x] **Slice Commandes / grades / liaison** (`wiki-content.ts`) depuis code only :
   - `commandes-joueur` : essentiels hors `/f` (éco, coffres, TP aperçu, vies, classements, link) + renvoi Factions
   - `teleportation` : spawn/home cooldown 20 s, TPA 60 s, homes par grade, précision Chèvre ≠ bypass cooldown 20 s
   - `grades-permissions` : tableaux PlayerRank / RankManager / PrivateChestService / Feed / RTP / vol claim
-  - `discord-site` : flux `/link` MC (copie clic, 10 min) → Discord `/link` ; `/linkforce` admin ; compte site OAuth `/connexion` ; `/web link` obsolète (redir. URL)
+  - `discord-site` : flux `/link` MC (copie clic, 10 min) → Discord `/link` ; `/unlink confirm` + `/forceunlink` admin ; `/linkforce` admin ; compte site OAuth `/connexion` ; `/web link` obsolète (redir. URL)
   - `coffres-inventaires` : 1/2/3 coffres, 27→54 slots
 - [x] Redeploy site pour publier le wiki mis à jour (`Annonnyx/Cantale` `1328221` / Vercel `site-cantale` prod Ready)
 
@@ -421,7 +953,7 @@
   + mise à 0 des vies avant ban dernière vie. À tester en jeu.
 
 ## Combat — Zones no-PvP + tag (août 2026)
-- [x] **Design** : pendant le tag combat (15 s), **interdiction d'entrer** en zone no-PvP
+- [x] **Design** : pendant le tag combat (20 s, `combat-tag-seconds`), **interdiction d'entrer** en zone no-PvP
   (PASDIC / claim de sa propre fac) — mouvement, ender pearl, portails Nether/End.
   Impossible d'**initier** du PvP en PASDIC / claim de la victime (`ClaimListener`, inchangé + message PASDIC).
 - [x] **Cas limite documenté** : déjà dans une zone no-PvP pendant un tag → tag continue,

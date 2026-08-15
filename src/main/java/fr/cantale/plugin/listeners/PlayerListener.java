@@ -5,7 +5,12 @@ import fr.cantale.plugin.custom.CantalameManager;
 import fr.cantale.plugin.custom.CustomItemType;
 import fr.cantale.plugin.database.PlayerDAO;
 import fr.cantale.plugin.lives.LifeManager;
+import fr.cantale.plugin.util.ItemStackSerializer;
 import org.bukkit.ChatColor;
+import org.bukkit.Location;
+import org.bukkit.NamespacedKey;
+import org.bukkit.World;
+import org.bukkit.entity.Item;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -16,14 +21,17 @@ import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerRespawnEvent;
 import org.bukkit.Bukkit;
 import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 
+import java.util.Iterator;
 import java.util.UUID;
 import java.util.List;
 import java.util.ArrayList;
 import org.bukkit.Material;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.PlayerInventory;
 import org.bukkit.inventory.meta.BookMeta;
 
 public class PlayerListener implements Listener {
@@ -65,6 +73,10 @@ public class PlayerListener implements Listener {
         Player player = event.getPlayer();
         UUID uuid = player.getUniqueId();
 
+        if (plugin.getRankManager() != null) {
+            plugin.getRankManager().invalidate(uuid);
+        }
+
         playerDAO.createOrUpdatePlayer(uuid, player.getName());
         if (player.getAddress() != null && player.getAddress().getAddress() != null) {
             playerDAO.setLastIp(uuid, player.getAddress().getAddress().getHostAddress());
@@ -85,12 +97,17 @@ public class PlayerListener implements Listener {
 
         checkPendingRewards(player);
 
-        // Mettre à jour le nametag (tags, faction, grade) — 1 tick de délai pour que le joueur soit chargé
+        // Nametag / TAB : 1 tick (joueur chargé) + 20 ticks (après pack / scoreboard tardif)
         Bukkit.getScheduler().runTaskLater(plugin, () -> {
-            if (player.isOnline()) {
+            if (player.isOnline() && plugin.getTagManager() != null) {
                 plugin.getTagManager().updatePlayerNametag(player);
             }
         }, 1L);
+        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            if (player.isOnline() && plugin.getTagManager() != null) {
+                plugin.getTagManager().updatePlayerNametag(player);
+            }
+        }, 20L);
 
         // Charger les homes du joueur
         plugin.getHomeManager().loadPlayerHomes(uuid);
@@ -238,6 +255,10 @@ public class PlayerListener implements Listener {
         // Retirer le joueur du suivi des nouveaux pour /bvn
         plugin.getWelcomeCommand().unregisterNewcomer(player.getUniqueId());
 
+        if (plugin.getRankManager() != null) {
+            plugin.getRankManager().invalidate(uuid);
+        }
+
         // Logger la déconnexion
         plugin.getActionLogger().logQuit(player.getName());
 
@@ -270,33 +291,70 @@ public class PlayerListener implements Listener {
     @EventHandler(priority = EventPriority.HIGHEST)
     public void onPlayerDeath(PlayerDeathEvent event) {
         Player player = event.getEntity();
-        lifeManager.handleDeath(player);
 
-        // Pouvoir de faction : +5 pour la faction du tueur, -5 pour celle de la victime (PvP)
-        Player killer = player.getKiller();
-        if (killer != null && !killer.getUniqueId().equals(player.getUniqueId())) {
-            Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
-                boolean gained = plugin.getFactionManager().addPowerToPlayerFaction(killer.getUniqueId(), 5);
-                boolean lost = plugin.getFactionManager().addPowerToPlayerFaction(player.getUniqueId(), -5);
-                if (gained || lost) {
-                    Bukkit.getScheduler().runTask(plugin, () -> {
-                        if (gained) {
-                            killer.sendMessage("§8[§6Faction§8] §a+5 pouvoir pour ta faction grâce à ce kill !");
-                        }
-                        if (lost) {
-                            player.sendMessage("§8[§6Faction§8] §c-5 pouvoir pour ta faction suite à ta mort.");
-                        }
-                    });
-                }
-            });
+        // Snapshot inventaire AVANT toute mutation (vue staff /lastdeath) — ne force pas keepInventory
+        ItemStack[] deathInv = ItemStackSerializer.deepClone(player.getInventory().getContents());
+
+        // Dernière vie hors combat : ban avant spawn des drops (comportement voulu).
+        // Dernière vie EN combat : drop monde avant le kick, sinon le loot disparaît.
+        if (shouldDropInventoryOnLastLifeCombat(player)) {
+            dropLastLifeCombatInventory(player, event);
         }
 
-        // Les items VIE custom dans l'inventaire sont perdus à la mort (ne drop pas)
+        lifeManager.handleDeath(player, deathInv);
+
+        // Pouvoir de faction : +5 pour la faction du tueur, -5 pour celle de la victime (PvP).
+        // Guerre : perte amplifiée pour TOUTE mort d'un membre en guerre
+        // (death-power-multiplier ; death-multiplier-pvp-only restreint aux morts PvP
+        // contre le belligérant) et kill amplifié contre l'ennemi (kill-power-multiplier).
+        final Player killer = player.getKiller();
+        final boolean pvpKill = killer != null && !killer.getUniqueId().equals(player.getUniqueId());
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+            var cfg = plugin.getConfigManager();
+            var diplomacy = plugin.getDiplomatieManager();
+            var victimFaction = plugin.getFactionManager().getPlayerFaction(player.getUniqueId());
+            var killerFaction = pvpKill ? plugin.getFactionManager().getPlayerFaction(killer.getUniqueId()) : null;
+
+            boolean warKill = pvpKill && victimFaction != null && killerFaction != null
+                    && diplomacy != null
+                    && diplomacy.isAtWar(victimFaction.getId(), killerFaction.getId());
+            boolean warDeath = victimFaction != null && diplomacy != null
+                    && (warKill || (!cfg.isWarDeathMultiplierPvpOnly() && diplomacy.hasAnyWar(victimFaction.getId())));
+
+            int loss = warDeath ? (int) Math.round(5 * cfg.getWarDeathPowerMultiplier()) : 5;
+            int gain = warKill ? (int) Math.round(5 * cfg.getWarKillPowerMultiplier()) : 5;
+
+            // Hors guerre, seules les morts PvP font perdre du pouvoir (comportement historique)
+            boolean applyLoss = pvpKill || warDeath;
+            if (!applyLoss && !pvpKill) return;
+
+            boolean gained = pvpKill && plugin.getFactionManager().addPowerToPlayerFaction(killer.getUniqueId(), gain);
+            boolean lost = applyLoss && plugin.getFactionManager().addPowerToPlayerFaction(player.getUniqueId(), -loss);
+            if (gained || lost) {
+                String warSuffixDeath = warDeath ? " §7(guerre ×" + formatWarMultiplier(cfg.getWarDeathPowerMultiplier()) + ")" : "";
+                String warSuffixKill = warKill ? " §7(guerre ×" + formatWarMultiplier(cfg.getWarKillPowerMultiplier()) + ")" : "";
+                Bukkit.getScheduler().runTask(plugin, () -> {
+                    if (gained) {
+                        killer.sendMessage("§8[§6Faction§8] §a+" + gain + " pouvoir pour ta faction grâce à ce kill !" + warSuffixKill);
+                    }
+                    if (lost) {
+                        player.sendMessage("§8[§6Faction§8] §c-" + loss + " pouvoir pour ta faction suite à ta mort." + warSuffixDeath);
+                    }
+                });
+            }
+        });
+
+        // Items VIE custom : retirés des drops (pas de mutation inventaire pendant l'event — évite
+        // les cas où le loot ne spawn pas correctement selon la version Paper).
         fr.cantale.plugin.custom.CustomItemManager cim = plugin.getCustomItemManager();
-        for (org.bukkit.inventory.ItemStack item : player.getInventory().getContents()) {
-            if (item != null && cim.isCustomItem(item)
-                    && cim.getCustomItemType(item) == fr.cantale.plugin.custom.CustomItemType.VIE) {
-                item.setAmount(0);
+        if (event.getDrops() != null) {
+            Iterator<ItemStack> it = event.getDrops().iterator();
+            while (it.hasNext()) {
+                ItemStack drop = it.next();
+                if (drop != null && cim.isCustomItem(drop)
+                        && cim.getCustomItemType(drop) == fr.cantale.plugin.custom.CustomItemType.VIE) {
+                    it.remove();
+                }
             }
         }
 
@@ -314,6 +372,95 @@ public class PlayerListener implements Listener {
                 );
             }
         }
+    }
+
+    /** Formate un multiplicateur de guerre sans décimale inutile (2.0 → « 2 », 1.5 → « 1.5 »). */
+    private static String formatWarMultiplier(double multiplier) {
+        if (multiplier == Math.floor(multiplier) && !Double.isInfinite(multiplier)) {
+            return String.valueOf((long) multiplier);
+        }
+        return String.valueOf(multiplier);
+    }
+
+    /**
+     * Dernière vie + tag combat : le kick du ban coupe le spawn vanilla des drops.
+     * CombatTagListener (HIGH) pose le flag avant ce handler (HIGHEST).
+     */
+    private boolean shouldDropInventoryOnLastLifeCombat(Player player) {
+        var combatTagManager = plugin.getCombatTagManager();
+        boolean diedInCombat = false;
+        if (combatTagManager != null) {
+            diedInCombat = combatTagManager.isInCombat(player)
+                    || combatTagManager.consumeDiedInCombat(player.getUniqueId());
+        }
+        if (!diedInCombat || player.hasPermission("cantale.admin")) {
+            return false;
+        }
+        return lifeManager.getLives(player.getUniqueId()) <= 1;
+    }
+
+    /**
+     * Spawn le loot au sol avant le ban. Si {@code event.getDrops()} est déjà rempli,
+     * on spawn ces stacks uniquement (pas de second passage inventaire).
+     * Items Vie exclus, comme le filtre vanilla des drops.
+     */
+    private void dropLastLifeCombatInventory(Player player, PlayerDeathEvent event) {
+        Location loc = player.getLocation();
+        World world = loc.getWorld();
+        if (world == null) {
+            return;
+        }
+
+        List<ItemStack> toDrop = new ArrayList<>();
+        if (!event.getKeepInventory() && event.getDrops() != null && !event.getDrops().isEmpty()) {
+            for (ItemStack stack : event.getDrops()) {
+                addDroppable(toDrop, stack);
+            }
+        } else {
+            PlayerInventory inv = player.getInventory();
+            addDroppableAll(toDrop, inv.getStorageContents());
+            addDroppableAll(toDrop, inv.getArmorContents());
+            addDroppable(toDrop, inv.getItemInOffHand());
+        }
+
+        if (event.getDrops() != null) {
+            event.getDrops().clear();
+        }
+        event.setKeepInventory(true);
+
+        PlayerInventory inv = player.getInventory();
+        inv.clear();
+        inv.setArmorContents(new ItemStack[4]);
+        inv.setItemInOffHand(new ItemStack(Material.AIR));
+
+        NamespacedKey deathLootKey = new NamespacedKey(plugin, "death_loot_until");
+        long until = System.currentTimeMillis() + 90_000L;
+        for (ItemStack stack : toDrop) {
+            Item dropped = world.dropItemNaturally(loc, stack);
+            dropped.setInvulnerable(true);
+            dropped.setFireTicks(0);
+            dropped.getPersistentDataContainer().set(deathLootKey, PersistentDataType.LONG, until);
+        }
+    }
+
+    private void addDroppableAll(List<ItemStack> out, ItemStack[] stacks) {
+        if (stacks == null) {
+            return;
+        }
+        for (ItemStack stack : stacks) {
+            addDroppable(out, stack);
+        }
+    }
+
+    private void addDroppable(List<ItemStack> out, ItemStack stack) {
+        if (stack == null || stack.getType().isAir() || stack.getAmount() <= 0) {
+            return;
+        }
+        fr.cantale.plugin.custom.CustomItemManager cim = plugin.getCustomItemManager();
+        if (cim != null && cim.isCustomItem(stack) && cim.getCustomItemType(stack) == CustomItemType.VIE) {
+            return;
+        }
+        out.add(stack.clone());
     }
 
     /**

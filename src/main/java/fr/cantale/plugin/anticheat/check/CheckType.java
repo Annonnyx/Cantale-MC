@@ -32,7 +32,10 @@ public enum CheckType {
 
     // ── Packets ──
     BLINK("Blink", Category.PACKET),
-    BAD_PACKETS("BadPackets", Category.PACKET);
+    BAD_PACKETS("BadPackets", Category.PACKET),
+
+    // ── Externe (Grim AC) ──
+    GRIM("Grim", Category.EXTERNAL);
 
     private final String displayName;
     private final Category category;
@@ -59,7 +62,8 @@ public enum CheckType {
         ROTATION("Rotation"),
         INVENTORY("Inventaire"),
         WORLD("Monde"),
-        PACKET("Packets");
+        PACKET("Packets"),
+        EXTERNAL("Externe (Grim)");
 
         private final String displayName;
 

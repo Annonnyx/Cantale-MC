@@ -1,12 +1,12 @@
 package fr.cantale.plugin.commands;
 
 import fr.cantale.plugin.CantalePlugin;
+import fr.cantale.plugin.util.OverworldDay;
 import org.bukkit.ChatColor;
 import org.bukkit.World;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
-import org.bukkit.entity.Player;
 
 public class DayCommand implements CommandExecutor {
 
@@ -18,26 +18,21 @@ public class DayCommand implements CommandExecutor {
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
-        Player player = (sender instanceof Player) ? (Player) sender : null;
-        
-        World world;
-        if (player != null) {
-            world = player.getWorld();
-        } else {
-            world = plugin.getServer().getWorlds().get(0); // Premier monde par défaut
+        World world = OverworldDay.resolveOverworld(plugin.getServer());
+        if (world == null) {
+            sender.sendMessage(formatMessage("&cAucun monde overworld n'est chargé."));
+            return true;
         }
 
-        long fullTime = world.getFullTime();
-        long day = fullTime / 24000 + 1;
-        long timeOfDay = fullTime % 24000;
-        
-        // Calculer l'heure
+        long day = OverworldDay.currentDay(world);
+        long timeOfDay = OverworldDay.timeOfDay(world);
+
         int hours = (int) ((timeOfDay / 1000 + 6) % 24);
         int minutes = (int) ((timeOfDay % 1000) * 60 / 1000);
-        
+
         String timeString = String.format("%02d:%02d", hours, minutes);
         String period;
-        
+
         if (hours >= 6 && hours < 12) {
             period = "Matin";
         } else if (hours >= 12 && hours < 18) {
@@ -52,7 +47,7 @@ public class DayCommand implements CommandExecutor {
         sender.sendMessage(formatMessage("&7Monde: &e" + world.getName()));
         sender.sendMessage(formatMessage("&7Jour: &e" + day));
         sender.sendMessage(formatMessage("&7Heure: &e" + timeString + " &7(" + period + ")"));
-        
+
         return true;
     }
 

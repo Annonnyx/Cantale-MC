@@ -30,6 +30,7 @@ public class ModHelpCommand implements CommandExecutor {
         sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&7/moderation tp <joueur> &8- &7Se téléporter à un joueur"));
         sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&7/moderation tphere <joueur> &8- &7Téléporter un joueur à soi"));
         sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&7/moderation vanish &8- &7Activer/Désactiver le vanish"));
+        sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&7/lastdeath <joueur> &8- &7Coords + inventaire de mort (lecture seule, mode trace requis)"));
         sender.sendMessage("");
         sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&e&lInspection inventaires / homes :"));
         sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&7/adminhome check <joueur> &8- &7Lister les homes"));

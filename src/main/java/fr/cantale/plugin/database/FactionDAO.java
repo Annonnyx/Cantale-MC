@@ -185,7 +185,8 @@ public class FactionDAO {
 
     public void updateFaction(Faction faction) {
         String sql = "UPDATE factions SET name = ?, tag = ?, description = ?, leader_uuid = ?, " +
-                "balance = ?, power = ?, type = ?, spawn_x = ?, spawn_y = ?, spawn_z = ?, spawn_world = ?, secret_until = ?, power_purchased = ? WHERE id = ?";
+                "balance = ?, power = ?, type = ?, spawn_x = ?, spawn_y = ?, spawn_z = ?, spawn_world = ?, " +
+                "secret_until = ?, secret_free_until = ?, last_raid_at = ?, power_purchased = ? WHERE id = ?";
         try (Connection conn = databaseManager.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setString(1, faction.getName());
@@ -200,8 +201,10 @@ public class FactionDAO {
             stmt.setDouble(10, faction.getSpawnZ() != null ? faction.getSpawnZ() : 0);
             stmt.setString(11, faction.getSpawnWorld());
             stmt.setLong(12, faction.getSecretUntil());
-            stmt.setInt(13, faction.getPowerPurchased());
-            stmt.setInt(14, faction.getId());
+            stmt.setLong(13, faction.getSecretFreeUntil());
+            stmt.setLong(14, faction.getLastRaidAt());
+            stmt.setInt(15, faction.getPowerPurchased());
+            stmt.setInt(16, faction.getId());
             stmt.executeUpdate();
         } catch (SQLException e) {
             plugin.getLogger().severe("Erreur updateFaction : " + e.getMessage());
@@ -245,6 +248,20 @@ public class FactionDAO {
 
         // Load secret status
         faction.setSecretUntil(rs.getLong("secret_until"));
+
+        try {
+            faction.setSecretFreeUntil(rs.getLong("secret_free_until"));
+            if (rs.wasNull()) faction.setSecretFreeUntil(0L);
+        } catch (SQLException e) {
+            faction.setSecretFreeUntil(0L);
+        }
+
+        try {
+            faction.setLastRaidAt(rs.getLong("last_raid_at"));
+            if (rs.wasNull()) faction.setLastRaidAt(0L);
+        } catch (SQLException e) {
+            faction.setLastRaidAt(0L);
+        }
 
         try {
             faction.setDiscordRoleId(rs.getLong("discord_role_id"));
@@ -441,13 +458,10 @@ public class FactionDAO {
     }
 
     public void setPermission(int factionId, String rank, String permission, String value) {
-        String sql = "INSERT INTO faction_permissions (faction_id, rank, permission, value) " +
-                "VALUES (?, ?, ?, ?) " +
-                "ON CONFLICT(faction_id, rank, permission) DO UPDATE SET value = excluded.value";
-        if (databaseManager.isSQLite()) {
-            sql = "INSERT OR REPLACE INTO faction_permissions (faction_id, rank, permission, value) " +
-                    "VALUES (?, ?, ?, ?)";
-        }
+        String sql = databaseManager.upsertSql(
+                "faction_permissions (faction_id, rank, permission, value)",
+                "?, ?, ?, ?",
+                "value = VALUES(value)");
         try (Connection conn = databaseManager.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setInt(1, factionId);

@@ -25,6 +25,11 @@ export interface FactionMember {
   joined_at: number;
 }
 
+/**
+ * Liste publique des factions — TOUTES, y compris celles en /f secret
+ * (aligné sur le jeu : /f list les montre). Seule leur position est
+ * protégée : getFactionClaims ne renvoie rien pour une faction secrète.
+ */
 export async function listFactions(): Promise<FactionSummary[]> {
   const db = getDb();
   return await db.query<FactionSummary>(`
@@ -32,10 +37,9 @@ export async function listFactions(): Promise<FactionSummary[]> {
            (SELECT COUNT(*) FROM faction_members fm WHERE fm.faction_id = f.id) AS memberCount,
            (SELECT COUNT(*) FROM claims c            WHERE c.faction_id = f.id) AS claimCount
     FROM factions f
-    WHERE COALESCE(f.secret_until, 0) < ?
-      AND ${publicRankingExcludeFactionSql("f.name", "f.tag")}
+    WHERE ${publicRankingExcludeFactionSql("f.name", "f.tag")}
     ORDER BY f.power DESC, memberCount DESC
-  `, [Math.floor(Date.now() / 1000)]);
+  `);
 }
 
 export async function getFaction(id: number): Promise<FactionSummary | null> {
@@ -79,9 +83,19 @@ export async function getFactionMembers(factionId: number): Promise<Array<Factio
   `, [factionId]);
 }
 
+/**
+ * Claims d'une faction. Une faction en /f secret ne doit JAMAIS exposer sa
+ * position : filtre au niveau SQL (secret_until, unix secondes — miroir de
+ * Faction.isSecret() côté plugin), même comportement que la carte du site
+ * Next.js (web/src/server/repo/map.ts).
+ */
 export async function getFactionClaims(factionId: number): Promise<Array<{ world: string; chunk_x: number; chunk_z: number; pasdic: number }>> {
   const db = getDb();
   return await db.query(`
-    SELECT world, chunk_x, chunk_z, pasdic FROM claims WHERE faction_id = ?
-  `, [factionId]);
+    SELECT c.world, c.chunk_x, c.chunk_z, c.pasdic
+    FROM claims c
+    INNER JOIN factions f ON f.id = c.faction_id
+    WHERE c.faction_id = ?
+      AND COALESCE(f.secret_until, 0) < ?
+  `, [factionId, Math.floor(Date.now() / 1000)]);
 }

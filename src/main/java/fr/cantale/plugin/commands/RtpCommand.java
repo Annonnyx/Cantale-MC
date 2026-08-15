@@ -1,8 +1,8 @@
 package fr.cantale.plugin.commands;
 
 import fr.cantale.plugin.CantalePlugin;
-import fr.cantale.plugin.cooldown.CooldownManager;
-import fr.cantale.plugin.rank.PlayerRank;
+import org.bukkit.Bukkit;
+import org.bukkit.Chunk;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.World;
@@ -12,21 +12,25 @@ import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 
+import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.TimeUnit;
 
 public class RtpCommand implements CommandExecutor {
 
     private final CantalePlugin plugin;
-    private final CooldownManager cooldownManager;
-    /** Cooldown joueur / aventurier — VIP+ sans cooldown. */
-    private static final long COOLDOWN_MS = 120_000L; // 2 minutes
     private static final int MIN_DISTANCE = 500;
     private static final int MAX_DISTANCE = 5000;
     private static final int MAX_ATTEMPTS = 16;
+    private static final long SEARCH_TIMEOUT_SECONDS = 15L;
+
+    private final Set<UUID> searching = ConcurrentHashMap.newKeySet();
 
     public RtpCommand(CantalePlugin plugin) {
         this.plugin = plugin;
-        this.cooldownManager = plugin.getCooldownManager();
     }
 
     @Override
@@ -36,20 +40,18 @@ public class RtpCommand implements CommandExecutor {
             return true;
         }
 
-        PlayerRank rank = plugin.getRankManager().getRank(player.getUniqueId());
-        boolean bypassCooldown = rank.isAtLeastVIP()
-                || player.hasPermission("cantale.admin")
-                || player.hasPermission("cantale.cooldown.bypass");
+        if (!plugin.getTeleportDelayManager().checkTeleportAllowed(player, true)) {
+            return true;
+        }
 
-        if (!bypassCooldown && cooldownManager.hasCooldown(player, "rtp", COOLDOWN_MS)) {
-            long remaining = cooldownManager.getRemainingCooldown(player, "rtp", COOLDOWN_MS);
-            long seconds = Math.max(1, (remaining + 999) / 1000);
-            player.sendMessage("§8[§6Cantale§8] §cCooldown ! Attendez encore " + seconds + " seconde(s).");
+        UUID playerId = player.getUniqueId();
+        if (!searching.add(playerId)) {
+            player.sendMessage("§8[§6Cantale§8] §7Recherche d'une position déjà en cours...");
             return true;
         }
 
         World world = player.getWorld();
-        Location origin = player.getLocation();
+        Location origin = player.getLocation().clone();
 
         WorldBorder border = world.getWorldBorder();
         double borderCenterX = border.getCenter().getX();
@@ -61,49 +63,137 @@ public class RtpCommand implements CommandExecutor {
 
         player.sendMessage("§8[§6Cantale§8] §7Téléportation aléatoire...");
 
-        Location target = findLocation(world, origin, minDist, maxDist, borderCenterX, borderCenterZ, borderRadius);
-        if (target == null) {
-            player.sendMessage("§8[§6Cantale§8] §cImpossible de trouver une position. Réessaie plus tard.");
-            return true;
-        }
+        SearchRequest request = new SearchRequest(
+                playerId, world, origin, minDist, maxDist, borderCenterX, borderCenterZ, borderRadius);
 
-        final boolean applyCooldown = !bypassCooldown;
-        plugin.getTeleportDelayManager().delayTeleport(player, () -> {
-            player.teleport(target);
-            player.sendMessage("§8[§6Cantale§8] §aTéléportation aléatoire effectuée ! §7(" + (int) target.distance(origin) + " blocs)");
-            if (applyCooldown) {
-                cooldownManager.setCooldown(player, "rtp");
-            }
-        });
+        findLocationAsync(request)
+                .orTimeout(SEARCH_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                .whenComplete((target, error) -> runOnMain(() -> finishSearch(player, request, target, error)));
         return true;
     }
 
-    private Location findLocation(World world, Location origin, int minDist, int maxDist,
-                                  double borderCenterX, double borderCenterZ, double borderRadius) {
-        for (int attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-            double angle = ThreadLocalRandom.current().nextDouble() * 2 * Math.PI;
-            double distance = minDist + ThreadLocalRandom.current().nextDouble() * (maxDist - minDist);
-
-            int x = origin.getBlockX() + (int) (Math.cos(angle) * distance);
-            int z = origin.getBlockZ() + (int) (Math.sin(angle) * distance);
-
-            if (Math.abs(x - borderCenterX) >= borderRadius || Math.abs(z - borderCenterZ) >= borderRadius) {
-                continue;
-            }
-
-            int y = world.getHighestBlockYAt(x, z);
-            if (y <= 0) continue;
-
-            Material ground = world.getBlockAt(x, y, z).getType();
-            if (isUnsafeGround(ground)) continue;
-
-            Material above1 = world.getBlockAt(x, y + 1, z).getType();
-            Material above2 = world.getBlockAt(x, y + 2, z).getType();
-            if (!above1.isAir() || !above2.isAir()) continue;
-
-            return new Location(world, x + 0.5, y + 1.0, z + 0.5);
+    private void finishSearch(Player player, SearchRequest request, Location target, Throwable error) {
+        searching.remove(request.playerId());
+        if (!player.isOnline() || !player.getUniqueId().equals(request.playerId())) {
+            return;
         }
-        return null;
+        if (error != null || target == null) {
+            player.sendMessage("§8[§6Cantale§8] §cImpossible de trouver une position. Réessaie plus tard.");
+            return;
+        }
+
+        Location origin = request.origin();
+        plugin.getTeleportDelayManager().requestTeleport(player, target, true, () -> {
+            World world = target.getWorld();
+            if (world == null) {
+                player.sendMessage("§8[§6Cantale§8] §cImpossible de trouver une position. Réessaie plus tard.");
+                return false;
+            }
+            Location stillSafe = inspectIfSafe(world, target.getBlockX(), target.getBlockZ());
+            if (stillSafe == null) {
+                player.sendMessage("§8[§6Cantale§8] §cPosition devenue dangereuse. Réessaie /rtp.");
+                return false;
+            }
+            player.teleport(stillSafe);
+            player.sendMessage("§8[§6Cantale§8] §aTéléportation aléatoire effectuée ! §7("
+                    + (int) stillSafe.distance(origin) + " blocs)");
+            return true;
+        });
+    }
+
+    private CompletableFuture<Location> findLocationAsync(SearchRequest request) {
+        CompletableFuture<Location> result = new CompletableFuture<>();
+        tryAttempt(0, request, result);
+        return result;
+    }
+
+    private void tryAttempt(int attempt, SearchRequest request, CompletableFuture<Location> result) {
+        if (result.isDone()) {
+            return;
+        }
+        if (attempt >= MAX_ATTEMPTS) {
+            result.complete(null);
+            return;
+        }
+        if (Bukkit.getPlayer(request.playerId()) == null) {
+            result.complete(null);
+            return;
+        }
+
+        double angle = ThreadLocalRandom.current().nextDouble() * 2 * Math.PI;
+        double distance = request.minDist() + ThreadLocalRandom.current().nextDouble() * (request.maxDist() - request.minDist());
+
+        int x = request.origin().getBlockX() + (int) (Math.cos(angle) * distance);
+        int z = request.origin().getBlockZ() + (int) (Math.sin(angle) * distance);
+
+        if (Math.abs(x - request.borderCenterX()) >= request.borderRadius()
+                || Math.abs(z - request.borderCenterZ()) >= request.borderRadius()) {
+            tryAttempt(attempt + 1, request, result);
+            return;
+        }
+
+        World world = request.world();
+        int chunkX = x >> 4;
+        int chunkZ = z >> 4;
+
+        if (world.isChunkLoaded(chunkX, chunkZ)) {
+            Location found = inspectIfSafe(world, x, z);
+            if (found != null) {
+                result.complete(found);
+                return;
+            }
+            tryAttempt(attempt + 1, request, result);
+            return;
+        }
+
+        world.getChunkAtAsync(chunkX, chunkZ, true).whenComplete((chunk, error) -> runOnMain(() -> {
+            if (result.isDone()) {
+                return;
+            }
+            if (error != null || chunk == null) {
+                tryAttempt(attempt + 1, request, result);
+                return;
+            }
+            Location found = inspectLoadedChunk(chunk, x, z);
+            if (found != null) {
+                result.complete(found);
+                return;
+            }
+            tryAttempt(attempt + 1, request, result);
+        }));
+    }
+
+    private Location inspectIfSafe(World world, int x, int z) {
+        if (world == null || !world.isChunkLoaded(x >> 4, z >> 4)) {
+            return null;
+        }
+        return inspectLoadedChunk(world.getChunkAt(x >> 4, z >> 4), x, z);
+    }
+
+    private Location inspectLoadedChunk(Chunk chunk, int x, int z) {
+        World world = chunk.getWorld();
+        int y = world.getHighestBlockYAt(x, z);
+        if (y <= 0) {
+            return null;
+        }
+        if (y + 2 >= world.getMaxHeight()) {
+            return null;
+        }
+
+        int localX = x & 15;
+        int localZ = z & 15;
+        Material ground = chunk.getBlock(localX, y, localZ).getType();
+        if (isUnsafeGround(ground)) {
+            return null;
+        }
+
+        Material above1 = chunk.getBlock(localX, y + 1, localZ).getType();
+        Material above2 = chunk.getBlock(localX, y + 2, localZ).getType();
+        if (!above1.isAir() || !above2.isAir()) {
+            return null;
+        }
+
+        return new Location(world, x + 0.5, y + 1.0, z + 0.5);
     }
 
     private boolean isUnsafeGround(Material material) {
@@ -116,4 +206,26 @@ public class RtpCommand implements CommandExecutor {
                material == Material.SOUL_FIRE || material == Material.CAMPFIRE ||
                material == Material.SOUL_CAMPFIRE || material == Material.VOID_AIR;
     }
+
+    private void runOnMain(Runnable task) {
+        if (!plugin.isEnabled()) {
+            return;
+        }
+        if (Bukkit.isPrimaryThread()) {
+            task.run();
+            return;
+        }
+        Bukkit.getScheduler().runTask(plugin, task);
+    }
+
+    private record SearchRequest(
+            UUID playerId,
+            World world,
+            Location origin,
+            int minDist,
+            int maxDist,
+            double borderCenterX,
+            double borderCenterZ,
+            double borderRadius
+    ) {}
 }

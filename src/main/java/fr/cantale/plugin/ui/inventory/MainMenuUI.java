@@ -42,6 +42,12 @@ public class MainMenuUI extends BaseUI {
         setItem(33, Material.REPEATER, "§ePermissions", "§7Gérer les permissions");
         setItem(34, Material.COMPASS, "§eWeb / Link", "§7Lier compte Discord/Site");
 
+        // Ligne 5 — sous Profil / Vote
+        setItem(38, Material.WRITABLE_BOOK, "§eQuêtes",
+                "§7Journalières, hebdo, saison", "§7Courses de faction");
+        setItem(40, Material.ITEM_FRAME, "§eCollections",
+                "§7Paliers long terme", "§7Minage, farming, combat");
+
         addNavigationBar(false, false);
     }
 
@@ -76,6 +82,9 @@ public class MainMenuUI extends BaseUI {
             case 32 -> { close(); player.sendMessage("§8[§6Cantale§8] §7Vous êtes §e" + plugin.getRankManager().getRank(player).name() + "§7. Visitez la boutique en ligne pour upgrade !"); }
             case 33 -> { close(); player.performCommand("perm list"); }
             case 34 -> { close(); player.performCommand("link"); }
+            case 38 -> nav.openUI(player, new QuestMainUI(plugin, player));
+            case 40 -> plugin.getCollectionManager().syncDerived(player.getUniqueId(), () ->
+                    nav.openUI(player, new CollectionMainUI(plugin, player)));
             case 49 -> close();
         }
     }

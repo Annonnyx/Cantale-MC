@@ -1,9 +1,8 @@
 package fr.cantale.plugin.teleport;
 
 import fr.cantale.plugin.CantalePlugin;
-import fr.cantale.plugin.rank.PlayerRank;
-import org.bukkit.Bukkit;
 import org.bukkit.Location;
+import org.bukkit.World;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -13,57 +12,136 @@ import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.scheduler.BukkitTask;
 
-import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.BooleanSupplier;
 
+/**
+ * Point unique pour toute téléportation joueur :
+ * combat-tag, cooldown global 30 s, cooldown RTP 5 min, warmup 3 s immobile
+ * avec préchargement du chunk, puis TP et pose des cooldowns.
+ * Exemptés : {@code cantale.admin} et mode trace ({@code /moderation}).
+ * VIP / Chèvre ne sont pas exemptés.
+ */
 public class TeleportDelayManager implements Listener {
 
+    public static final int WARMUP_SECONDS = 3;
+    public static final long GLOBAL_COOLDOWN_MS = 30_000L;
+    public static final long RTP_COOLDOWN_MS = 5 * 60_000L;
+
+    private static final String PREFIX = "§8[§6Cantale§8] ";
+
     private final CantalePlugin plugin;
-    private final Map<UUID, BukkitTask> pendingTeleports = new HashMap<>();
-    private final Map<UUID, Location> initialLocations = new HashMap<>();
+    private final Map<UUID, BukkitTask> pendingTeleports = new ConcurrentHashMap<>();
+    private final Map<UUID, Location> initialLocations = new ConcurrentHashMap<>();
+    private final Map<UUID, Location> pendingDestinations = new ConcurrentHashMap<>();
+    private final Map<UUID, Long> lastTeleportMs = new ConcurrentHashMap<>();
+    private final Map<UUID, Long> lastRtpMs = new ConcurrentHashMap<>();
 
     public TeleportDelayManager(CantalePlugin plugin) {
         this.plugin = plugin;
     }
 
-    public int getTeleportDelay(Player player) {
+    /**
+     * Admin, ou staff en mode trace ({@code /moderation}). Vanish seul ne suffit pas.
+     */
+    public boolean isTeleportExempt(Player player) {
+        if (player == null) {
+            return false;
+        }
         if (player.hasPermission("cantale.admin")) {
-            return 0;
+            return true;
         }
-        if (player.hasPermission("cantale.moderator")) {
-            var modCmd = plugin.getModerationCommand();
-            if (modCmd != null && modCmd.getTraceManager().isInTrace(player.getUniqueId())) {
-                return 0;
-            }
-        }
-
-        PlayerRank rank = plugin.getRankManager().getRank(player);
-        if (rank == PlayerRank.CHEVRE || rank == PlayerRank.VIP || rank == PlayerRank.MODERATOR || rank == PlayerRank.ADMIN || rank == PlayerRank.OWNER) {
-            return 0;
-        }
-        return 3;
+        var modCmd = plugin.getModerationCommand();
+        return modCmd != null
+                && modCmd.getTraceManager() != null
+                && modCmd.getTraceManager().isInTrace(player.getUniqueId());
     }
 
-    public void delayTeleport(Player player, Runnable teleportAction) {
+    public int getTeleportDelay(Player player) {
+        return isTeleportExempt(player) ? 0 : WARMUP_SECONDS;
+    }
+
+    /**
+     * Combat-tag et cooldowns. Envoie le message FR si bloqué.
+     *
+     * @param rtp si true, attend aussi le cooldown RTP 5 min (max avec le global 30 s)
+     */
+    public boolean checkTeleportAllowed(Player player, boolean rtp) {
+        if (player == null || !player.isOnline()) {
+            return false;
+        }
         if (plugin.getCombatTagManager() != null && plugin.getCombatTagManager().isInCombat(player)) {
-            player.sendMessage("§8[§6Cantale§8] §cImpossible de se téléporter pendant un combat ! (" 
+            player.sendMessage(PREFIX + "§cImpossible de se téléporter pendant un combat ! ("
                     + plugin.getCombatTagManager().getRemainingSeconds(player.getUniqueId()) + "s restantes)");
-            return;
+            return false;
+        }
+        if (isTeleportExempt(player)) {
+            return true;
+        }
+        long globalLeft = remainingMs(lastTeleportMs, player.getUniqueId(), GLOBAL_COOLDOWN_MS);
+        long rtpLeft = rtp ? remainingMs(lastRtpMs, player.getUniqueId(), RTP_COOLDOWN_MS) : 0L;
+        long waitMs = Math.max(globalLeft, rtpLeft);
+        if (waitMs > 0) {
+            sendCooldownMessage(player, waitMs, rtpLeft >= globalLeft && rtpLeft > 0);
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * Téléporte {@code player} vers {@code destination} après les checks / warmup.
+     *
+     * @param onSuccess message (ou logique extra) après un TP réussi ; peut être null
+     * @return false si bloqué avant de démarrer
+     */
+    public boolean requestTeleport(Player player, Location destination, boolean rtp, Runnable onSuccess) {
+        Location dest = destination != null ? destination.clone() : null;
+        return requestTeleport(player, dest, rtp, () -> {
+            if (!player.isOnline()) {
+                return false;
+            }
+            if (dest == null || dest.getWorld() == null) {
+                player.sendMessage(PREFIX + "§cTéléportation annulée : destination introuvable.");
+                return false;
+            }
+            player.teleport(dest);
+            if (onSuccess != null) {
+                onSuccess.run();
+            }
+            return true;
+        });
+    }
+
+    /**
+     * Warmup + preload, puis exécute {@code teleportAction}.
+     * Les cooldowns ne sont posés que si l'action retourne {@code true}.
+     */
+    public boolean requestTeleport(Player player, Location destination, boolean rtp, BooleanSupplier teleportAction) {
+        if (player == null || !player.isOnline() || teleportAction == null) {
+            return false;
+        }
+        if (!checkTeleportAllowed(player, rtp)) {
+            return false;
         }
 
-        int delay = getTeleportDelay(player);
-        if (delay <= 0) {
-            teleportAction.run();
-            return;
+        Location dest = destination != null ? destination.clone() : null;
+        Runnable complete = () -> finishTeleport(player, dest, rtp, teleportAction);
+
+        if (getTeleportDelay(player) <= 0) {
+            complete.run();
+            return true;
         }
 
         cancelPending(player);
+        preloadDestination(dest);
 
-        player.sendMessage("§8[§6Cantale§8] §7Téléportation dans §e" + delay + " §7secondes. Ne bougez pas et ne subissez pas de dégâts.");
+        player.sendMessage(PREFIX + "§7Téléportation dans §e" + WARMUP_SECONDS
+                + " §7secondes. Ne bougez pas et ne subissez pas de dégâts.");
 
         BukkitTask task = new BukkitRunnable() {
-            int remaining = delay;
+            int remaining = WARMUP_SECONDS;
 
             @Override
             public void run() {
@@ -74,33 +152,138 @@ public class TeleportDelayManager implements Listener {
                 }
 
                 if (remaining <= 0) {
-                    teleportAction.run();
                     cancel();
                     cleanup(player.getUniqueId());
+                    complete.run();
                     return;
                 }
 
-                // Show action bar or subtitle for a premium feel
+                if (remaining == 1) {
+                    preloadDestination(dest);
+                }
+
                 player.sendTitle("", "§7Téléportation dans §e" + remaining + "§7s...", 0, 25, 5);
                 remaining--;
             }
         }.runTaskTimer(plugin, 0L, 20L);
 
-        pendingTeleports.put(player.getUniqueId(), task);
-        initialLocations.put(player.getUniqueId(), player.getLocation().getBlock().getLocation());
+        UUID uuid = player.getUniqueId();
+        pendingTeleports.put(uuid, task);
+        initialLocations.put(uuid, player.getLocation().getBlock().getLocation());
+        if (dest != null) {
+            pendingDestinations.put(uuid, dest);
+        }
+        return true;
+    }
+
+    /**
+     * Ancien point d'entrée : warmup + combat, sans destination connue (pas de preload ciblé).
+     * Préférer {@link #requestTeleport}.
+     */
+    public void delayTeleport(Player player, Runnable teleportAction) {
+        requestTeleport(player, null, false, () -> {
+            teleportAction.run();
+            return true;
+        });
     }
 
     public void cancelPending(Player player) {
         UUID uuid = player.getUniqueId();
-        if (pendingTeleports.containsKey(uuid)) {
-            pendingTeleports.get(uuid).cancel();
+        BukkitTask task = pendingTeleports.get(uuid);
+        if (task != null) {
+            task.cancel();
             cleanup(uuid);
         }
+    }
+
+    public boolean hasPending(Player player) {
+        return player != null && pendingTeleports.containsKey(player.getUniqueId());
+    }
+
+    private void finishTeleport(Player player, Location destination, boolean rtp, BooleanSupplier teleportAction) {
+        if (!player.isOnline()) {
+            return;
+        }
+        if (plugin.getCombatTagManager() != null && plugin.getCombatTagManager().isInCombat(player)) {
+            player.sendMessage(PREFIX + "§cTéléportation annulée : combat.");
+            return;
+        }
+
+        Runnable runAction = () -> {
+            if (!player.isOnline()) {
+                return;
+            }
+            boolean success = teleportAction.getAsBoolean();
+            if (success && !isTeleportExempt(player)) {
+                UUID uuid = player.getUniqueId();
+                long now = System.currentTimeMillis();
+                lastTeleportMs.put(uuid, now);
+                if (rtp) {
+                    lastRtpMs.put(uuid, now);
+                }
+            }
+        };
+
+        if (destination == null || destination.getWorld() == null) {
+            runAction.run();
+            return;
+        }
+
+        World world = destination.getWorld();
+        int chunkX = destination.getBlockX() >> 4;
+        int chunkZ = destination.getBlockZ() >> 4;
+        if (world.isChunkLoaded(chunkX, chunkZ)) {
+            runAction.run();
+            return;
+        }
+        world.getChunkAtAsync(chunkX, chunkZ, true).whenComplete((chunk, error) ->
+                plugin.getServer().getScheduler().runTask(plugin, runAction));
+    }
+
+    private void preloadDestination(Location dest) {
+        if (dest == null || dest.getWorld() == null) {
+            return;
+        }
+        if (plugin.getChunkLoader() != null) {
+            plugin.getChunkLoader().preloadChunksAround(dest);
+        }
+        dest.getWorld().getChunkAtAsync(dest.getBlockX() >> 4, dest.getBlockZ() >> 4, true);
+    }
+
+    private void sendCooldownMessage(Player player, long waitMs, boolean rtpCooldown) {
+        String wait = formatDuration(waitMs);
+        if (rtpCooldown) {
+            player.sendMessage(PREFIX + "§cRTP en cooldown. Attendez encore §e" + wait + "§c.");
+        } else {
+            player.sendMessage(PREFIX + "§cTéléportation en cooldown. Attendez encore §e" + wait + "§c.");
+        }
+    }
+
+    static String formatDuration(long millis) {
+        long totalSec = Math.max(1L, (millis + 999L) / 1000L);
+        long min = totalSec / 60L;
+        long sec = totalSec % 60L;
+        if (min > 0) {
+            if (sec == 0) {
+                return min + " min";
+            }
+            return min + " min " + sec + "s";
+        }
+        return totalSec + "s";
+    }
+
+    private static long remainingMs(Map<UUID, Long> map, UUID uuid, long durationMs) {
+        Long last = map.get(uuid);
+        if (last == null) {
+            return 0L;
+        }
+        return Math.max(0L, durationMs - (System.currentTimeMillis() - last));
     }
 
     private void cleanup(UUID uuid) {
         pendingTeleports.remove(uuid);
         initialLocations.remove(uuid);
+        pendingDestinations.remove(uuid);
     }
 
     @EventHandler
@@ -108,33 +291,34 @@ public class TeleportDelayManager implements Listener {
         Player player = event.getPlayer();
         UUID uuid = player.getUniqueId();
 
-        if (pendingTeleports.containsKey(uuid)) {
-            Location initial = initialLocations.get(uuid);
-            if (initial != null) {
-                Location current = player.getLocation().getBlock().getLocation();
-                // Check if they changed block coordinates (x, y, or z)
-                if (initial.getBlockX() != current.getBlockX() ||
-                    initial.getBlockY() != current.getBlockY() ||
-                    initial.getBlockZ() != current.getBlockZ()) {
-                    
-                    cancelPending(player);
-                    player.sendMessage("§8[§6Cantale§8] §cTéléportation annulée : vous avez bougé.");
-                    player.sendTitle("§cTéléportation annulée", "§7Vous avez bougé", 5, 30, 5);
-                }
-            }
+        if (!pendingTeleports.containsKey(uuid)) {
+            return;
+        }
+        Location initial = initialLocations.get(uuid);
+        if (initial == null) {
+            return;
+        }
+        Location current = player.getLocation().getBlock().getLocation();
+        if (initial.getBlockX() != current.getBlockX()
+                || initial.getBlockY() != current.getBlockY()
+                || initial.getBlockZ() != current.getBlockZ()) {
+            cancelPending(player);
+            player.sendMessage(PREFIX + "§cTéléportation annulée : vous avez bougé.");
+            player.sendTitle("§cTéléportation annulée", "§7Vous avez bougé", 5, 30, 5);
         }
     }
 
     @EventHandler
     public void onEntityDamage(EntityDamageEvent event) {
-        if (event.getEntity() instanceof Player player) {
-            UUID uuid = player.getUniqueId();
-            if (pendingTeleports.containsKey(uuid)) {
-                cancelPending(player);
-                player.sendMessage("§8[§6Cantale§8] §cTéléportation annulée : vous avez subi des dégâts.");
-                player.sendTitle("§cTéléportation annulée", "§7Dégâts subis", 5, 30, 5);
-            }
+        if (!(event.getEntity() instanceof Player player)) {
+            return;
         }
+        if (!pendingTeleports.containsKey(player.getUniqueId())) {
+            return;
+        }
+        cancelPending(player);
+        player.sendMessage(PREFIX + "§cTéléportation annulée : vous avez subi des dégâts.");
+        player.sendTitle("§cTéléportation annulée", "§7Dégâts subis", 5, 30, 5);
     }
 
     @EventHandler

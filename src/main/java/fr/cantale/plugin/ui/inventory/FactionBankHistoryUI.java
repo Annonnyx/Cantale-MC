@@ -117,8 +117,9 @@ public class FactionBankHistoryUI extends BaseUI {
     }
 
     private static String formatWhen(long createdAt) {
-        if (createdAt <= 0) return "date inconnue";
-        return DATE_FMT.format(Instant.ofEpochSecond(createdAt));
+        long epochSec = BankManager.normalizeEpochSeconds(createdAt);
+        if (epochSec <= 0) return "date inconnue";
+        return DATE_FMT.format(Instant.ofEpochSecond(epochSec));
     }
 
     private static String c(String line) {

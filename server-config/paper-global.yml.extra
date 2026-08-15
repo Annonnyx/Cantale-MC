@@ -1,0 +1,22 @@
+# ─── config/paper-global.yml — extraits optimisation (Paper 1.21.x) ─────────
+# Fusionner dans config/paper-global.yml.
+
+chunk-loading-basic:
+  # Threads de lecture/écriture monde. -1 = Paper choisit selon le CPU (recommandé).
+  player-chunks:
+    # Ne pas envoyer des chunks au-delà de la view-distance serveur (anti double envoi).
+    min-load-radius: 2
+  autoconfig-send-distance: true
+
+# Support des versions plus anciennes via ViaVersion si présent : laisser Paper gérer.
+packet-limiter:
+  # Protection paquets vanilla, suffisante avec l'anti-cheat Grim en amont.
+  kick-message: "&cTrop de paquets envoyés."
+  limits:
+    all:
+      interval: 7.0
+      max-packet-rate: 500.0
+
+# Région créée par chunk système (threads) : laisser par défaut sur Paper récent.
+# NOTE : NE PAS toucher aux options chunk-system sans mesurer (Spark) — les défauts
+# Paper 1.21 sont déjà bons.

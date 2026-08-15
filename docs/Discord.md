@@ -14,9 +14,10 @@ Bump Reminder :
 
 Salon compteur :
 - Salon configuré via `discord.channels.counting` (défaut `1537112048314491040`).
-- Si le message contient un chiffre : le nombre du compteur doit être **précédent + 1** (nombre en tête de message, ou unique entier du message). Sinon le message est supprimé (permission Manage Messages) et un court avertissement FR est posté puis auto-supprimé.
-- Si le message **ne contient aucun chiffre** : chat libre, le compteur n'avance pas.
-- Compteur persisté dans `plugins/Cantale/discord-counting.yml` ; au démarrage, si le fichier est vide/absent, reprise depuis l'historique récent du salon.
+- **Règles strictes** : le message doit être **exactement** l'entier suivant (`previous + 1`), espaces optionnels uniquement — pas de lettres (« r »), préfixes ni suffixes (`12r`, `n12`…).
+- Un même auteur **ne peut pas compter deux fois de suite**.
+- Tout message invalide est supprimé (permission Manage Messages) + court avertissement FR auto-supprimé.
+- Compteur + dernier auteur persistés dans `plugins/Cantale/discord-counting.yml` ; au démarrage, si le fichier est vide/absent, reprise depuis l'historique récent du salon (messages stricts uniquement).
 - Permission bot recommandée : Manage Messages (+ lire l'historique).
 
 Setup rapide :

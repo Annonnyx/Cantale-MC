@@ -7,8 +7,9 @@ import fr.cantale.plugin.factions.FactionManager;
 import fr.cantale.plugin.factions.permissions.FactionPermissions;
 import fr.cantale.plugin.diplomacy.DiplomacyManager;
 import org.bukkit.ChatColor;
-import org.bukkit.GameMode;
+import org.bukkit.entity.AreaEffectCloud;
 import org.bukkit.entity.Player;
+import org.bukkit.entity.Tameable;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
@@ -16,6 +17,7 @@ import org.bukkit.Material;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockExplodeEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
+import org.bukkit.event.entity.CreatureSpawnEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityExplodeEvent;
 import org.bukkit.block.BlockState;
@@ -39,12 +41,34 @@ public class ClaimListener implements Listener {
 
     private final Set<Material> protectedStorageBlocks;
     private final Set<Material> explosivePlaceBlocks;
+    private final Set<Material> pasdicBannedContainers;
+    private final Set<CreatureSpawnEvent.SpawnReason> pasdicAllowedSpawnReasons;
 
     public ClaimListener(CantalePlugin plugin) {
         this.plugin = plugin;
         this.factionManager = plugin.getFactionManager();
         this.protectedStorageBlocks = plugin.getConfigManager().getClaimProtectedStorageBlocks();
         this.explosivePlaceBlocks = plugin.getConfigManager().getClaimExplosivePlaceBlocks();
+        this.pasdicBannedContainers = plugin.getConfigManager().getPasdicBannedContainers();
+        this.pasdicAllowedSpawnReasons = plugin.getConfigManager().getPasdicAllowedSpawnReasons();
+        if (this.pasdicAllowedSpawnReasons.isEmpty()) {
+            plugin.getLogger().info("[PASDIC] allowed-spawn-reasons vide : limitation des spawns désactivée.");
+        }
+    }
+
+    /**
+     * PASDIC : seuls les spawns de la allow-list (spawners) sont autorisés.
+     * Sortie rapide avant tout lookup de chunk : la majorité des spawns ont lieu hors PASDIC.
+     */
+    @EventHandler(priority = EventPriority.NORMAL, ignoreCancelled = true)
+    public void onCreatureSpawn(CreatureSpawnEvent event) {
+        if (pasdicAllowedSpawnReasons.isEmpty()) return;
+        if (pasdicAllowedSpawnReasons.contains(event.getSpawnReason())) return;
+
+        Claim claim = getClaimAt(event.getLocation());
+        if (claim != null && claim.isPasdic()) {
+            event.setCancelled(true);
+        }
     }
 
     @EventHandler(priority = EventPriority.HIGH)
@@ -64,20 +88,21 @@ public class ClaimListener implements Listener {
             return;
         }
 
-        // PASDIC : claim spécial — TOUT le claim est protégé, aucun bloc cassable.
-        // (canInteractFor a déjà envoyé le message PASDIC au joueur.)
+        // PASDIC : seuls les membres de la faction peuvent casser.
         Claim claim = getClaimAt(loc);
         if (claim != null && claim.isPasdic()) {
             event.setCancelled(true);
             return;
         }
 
-        // Étranger : interdiction de casser les blocs de stockage et les cultures.
-        if (isProtectedStorageBlock(type) || isCultureBlock(type)) {
-            event.setCancelled(true);
-            player.sendMessage(formatMessage("&cVous ne pouvez pas casser ce block dans ce claim."));
+        // Raid : les assaillants en guerre peuvent casser pendant un raid actif.
+        if (claim != null && isRaiding(player, claim)) {
+            return;
         }
-        // Sinon l'étranger peut casser le bloc normalement.
+
+        // Hors raid : aucun étranger ne peut casser dans un claim.
+        event.setCancelled(true);
+        player.sendMessage(formatMessage("&cTu ne peux pas casser dans ce claim sans un raid actif."));
     }
 
     @EventHandler(priority = EventPriority.HIGH)
@@ -92,16 +117,25 @@ public class ClaimListener implements Listener {
         org.bukkit.Location loc = event.getBlock().getLocation();
         Material type = event.getBlock().getType();
 
+        Claim claim = getClaimAt(loc);
+        Faction playerFaction = factionManager.getPlayerFaction(player.getUniqueId());
+        Faction claimFaction = claim == null ? null : factionManager.getFaction(claim.getFactionId());
+        boolean ownClaim = claim != null && playerFaction != null && claimFaction != null
+                && playerFaction.getId() == claimFaction.getId();
+
+        // PASDIC : interdiction de poser des conteneurs de stockage, même pour les membres.
+        if (claim != null && claim.isPasdic() && isPasdicBannedContainer(type)
+                && !plugin.getAdminBypassManager().isBypassing(player)) {
+            event.setCancelled(true);
+            player.sendMessage(formatMessage("&cLes conteneurs de stockage sont interdits dans un PASDIC."));
+            return;
+        }
+
         // Stockage : uniquement dans les claims de SA faction (pas wilderness, pas claims étrangers/alliés).
         // Exception wilderness : CRAFTING_TABLE + fours (FURNACE, BLAST_FURNACE, SMOKER) — ateliers utiles hors claim.
-        // Reste dans storage-blocks pour la protection casse en claim. Pas de coffres/shulkers/hoppers/etc.
-        if (isProtectedStorageBlock(type) && !player.isOp() && !player.hasPermission("cantale.admin")) {
-            Claim claim = getClaimAt(loc);
+        if (isProtectedStorageBlock(type) && !player.isOp() && !player.hasPermission("cantale.admin")
+                && !plugin.getAdminBypassManager().isBypassing(player)) {
             if (!(claim == null && isWildernessAllowedStorage(type))) {
-                Faction playerFaction = factionManager.getPlayerFaction(player.getUniqueId());
-                Faction claimFaction = claim == null ? null : factionManager.getFaction(claim.getFactionId());
-                boolean ownClaim = claim != null && playerFaction != null && claimFaction != null
-                        && playerFaction.getId() == claimFaction.getId();
                 if (!ownClaim) {
                     event.setCancelled(true);
                     player.sendMessage(formatMessage("&cTu ne peux poser du stockage que dans les claims de ta faction."));
@@ -115,35 +149,43 @@ public class ClaimListener implements Listener {
             return;
         }
 
-        // PASDIC : claim spécial — TOUT le claim est protégé, aucune pose (TNT incluse).
-        Claim claim = getClaimAt(loc);
+        // PASDIC : seuls les membres peuvent poser.
         if (claim != null && claim.isPasdic()) {
             event.setCancelled(true);
             return;
         }
 
-        // Étranger : autorisation uniquement des blocs "explosifs" configurés.
-        if (!isExplosivePlaceBlock(type)) {
-            event.setCancelled(true);
-            player.sendMessage(formatMessage("&cVous ne pouvez pas poser ce block dans ce claim."));
+        // Raid : les assaillants en guerre peuvent poser des blocs pendant un raid actif.
+        if (claim != null && isRaiding(player, claim)) {
+            return;
         }
+
+        // Hors raid : aucun étranger ne peut poser dans un claim.
+        event.setCancelled(true);
+        player.sendMessage(formatMessage("&cTu ne peux pas poser de bloc dans ce claim sans un raid actif."));
     }
 
-    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    /**
+     * PvP one-way dans les claims (indépendant du tag combat) :
+     * <ul>
+     *   <li>Étranger → membre dans le claim de SA fac : toujours annulé</li>
+     *   <li>Membre / allié → étranger dans ce claim : autorisé</li>
+     *   <li>PASDIC : aucun PvP</li>
+     *   <li>Wilderness : inchangé (libre)</li>
+     * </ul>
+     * HIGHEST pour que le tag combat (MONITOR) ne voie que les coups non annulés
+     * et ne puisse jamais « autoriser » un hit chez soi.
+     */
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onEntityDamage(EntityDamageByEntityEvent event) {
         if (!(event.getEntity() instanceof Player victim)) return;
 
-        Player attacker = null;
-        if (event.getDamager() instanceof Player direct) {
-            attacker = direct;
-        } else if (event.getDamager() instanceof org.bukkit.entity.Projectile projectile
-                && projectile.getShooter() instanceof Player shooter) {
-            attacker = shooter;
-        }
+        Player attacker = resolvePlayerAttacker(event.getDamager());
         if (attacker == null || attacker.getUniqueId().equals(victim.getUniqueId())) return;
 
-        // Admins / ops : pas de restriction claim
-        if (attacker.isOp() || attacker.hasPermission("cantale.admin")) return;
+        // Admins / ops / bypass admin (/f bypass) : pas de restriction claim
+        if (attacker.isOp() || attacker.hasPermission("cantale.admin")
+                || plugin.getAdminBypassManager().isBypassing(attacker)) return;
 
         Claim claim = getClaimAt(victim.getLocation());
         if (claim == null) return; // wilderness : PvP libre
@@ -160,14 +202,12 @@ public class ClaimListener implements Listener {
 
         Faction victimFaction = factionManager.getPlayerFaction(victim.getUniqueId());
 
-        // Safe : on ne peut pas être tué dans le claim de SA propre faction
+        // One-way : un membre chez lui ne peut pas être frappé (tag combat ou non).
+        // Les membres / alliés peuvent frapper les étrangers présents dans le claim.
         if (victimFaction != null && victimFaction.getId() == claimFaction.getId()) {
             event.setCancelled(true);
             attacker.sendMessage(formatMessage("&cCe joueur est protégé dans le claim de sa faction."));
-            return;
         }
-
-        // Sinon (intrus dans ton claim, claim ennemi, etc.) : PvP autorisé
     }
 
     @EventHandler(priority = EventPriority.HIGH)
@@ -199,11 +239,65 @@ public class ClaimListener implements Listener {
             return;
         }
 
+        // Raid : TNT / cristaux / ancres / lodestone / briquet / seaux / wither — uniquement pendant un raid.
+        if (!claim.isPasdic() && isRaiding(player, claim) && isRaidInteract(event)) {
+            return;
+        }
+
         // Portes, boutons, etc. : membres + alliés (+ admin) — pas les ennemis.
         if (!canInteract(player, loc)) {
             event.setCancelled(true);
             player.sendMessage(formatMessage("&cVous ne pouvez pas interagir avec ce block dans ce claim."));
         }
+    }
+
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onBucketEmpty(org.bukkit.event.player.PlayerBucketEmptyEvent event) {
+        Player player = event.getPlayer();
+        org.bukkit.Location loc = event.getBlockClicked().getLocation();
+        if (canInteractFor(player, loc, false)) return;
+
+        Claim claim = getClaimAt(loc);
+        if (claim != null && claim.isPasdic()) {
+            event.setCancelled(true);
+            return;
+        }
+        // Raid : eau et lave autorisées pour les assaillants.
+        if (claim != null && isRaiding(player, claim)) {
+            return;
+        }
+        Material bucket = event.getBucket();
+        if (bucket == Material.WATER_BUCKET || bucket == Material.LAVA_BUCKET) {
+            event.setCancelled(true);
+            player.sendMessage(formatMessage("&cTu ne peux utiliser des seaux que pendant un raid actif."));
+            return;
+        }
+        event.setCancelled(true);
+        player.sendMessage(formatMessage("&cVous ne pouvez pas utiliser ça dans ce claim."));
+    }
+
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onEntityPlace(org.bukkit.event.entity.EntityPlaceEvent event) {
+        Player player = event.getPlayer();
+        if (player == null) return;
+        org.bukkit.Location loc = event.getEntity().getLocation();
+        if (canInteractFor(player, loc, false)) return;
+
+        Claim claim = getClaimAt(loc);
+        if (claim != null && claim.isPasdic()) {
+            event.setCancelled(true);
+            return;
+        }
+        // Raid : cristaux, TNT minecart et TNT autorisées pour les assaillants.
+        if (claim != null && isRaiding(player, claim)) {
+            org.bukkit.entity.EntityType type = event.getEntityType();
+            if (type == org.bukkit.entity.EntityType.END_CRYSTAL
+                    || type == org.bukkit.entity.EntityType.TNT_MINECART
+                    || type == org.bukkit.entity.EntityType.TNT) {
+                return;
+            }
+        }
+        event.setCancelled(true);
     }
 
     /**
@@ -232,19 +326,64 @@ public class ClaimListener implements Listener {
 
     @EventHandler(priority = EventPriority.HIGH)
     public void onEntityExplode(EntityExplodeEvent event) {
-        // Seuls les blocs dans des claims PASDIC sont protégés ; le reste explose normalement.
-        event.blockList().removeIf(this::isPasdicBlock);
+        if (shouldCancelExplosion(event.getLocation(), event.getEntity())) {
+            event.setCancelled(true);
+            return;
+        }
+        event.blockList().removeIf(this::isExplosionProtectedBlock);
     }
 
     @EventHandler(priority = EventPriority.HIGH)
     public void onBlockExplode(BlockExplodeEvent event) {
-        // Gère les explosions déclenchées par des blocs (lit, ancre de réapparition, cristal de l'End...)
-        event.blockList().removeIf(this::isPasdicBlock);
+        if (shouldCancelExplosion(event.getBlock().getLocation(), null)) {
+            event.setCancelled(true);
+            return;
+        }
+        event.blockList().removeIf(this::isExplosionProtectedBlock);
     }
 
     private boolean isPasdicBlock(org.bukkit.block.Block block) {
         Claim claim = getClaimAt(block.getLocation());
         return claim != null && claim.isPasdic();
+    }
+
+    private boolean isExplosionProtectedBlock(org.bukkit.block.Block block) {
+        Claim claim = getClaimAt(block.getLocation());
+        if (claim == null) return false;
+        if (claim.isPasdic()) return true;
+        return !plugin.getRaidManager().isRaidActive(claim);
+    }
+
+    private boolean shouldCancelExplosion(org.bukkit.Location origin, org.bukkit.entity.Entity source) {
+        Claim originClaim = getClaimAt(origin);
+        if (originClaim == null) return false;
+        if (originClaim.isPasdic()) return true;
+        if (plugin.getRaidManager().isRaidActive(originClaim)) return false;
+        // Wither : exception pour casser l'obsidienne (hors raid et hors PASDIC).
+        if (source != null && isWitherEntity(source)) return false;
+        Player sourcePlayer = getPlayerSource(source);
+        if (sourcePlayer != null && isMemberOfClaim(sourcePlayer, originClaim)) return false;
+        // Bypass admin (/f bypass) : les explosions déclenchées par l'admin ne sont pas annulées.
+        if (sourcePlayer != null && plugin.getAdminBypassManager().isBypassing(sourcePlayer)) return false;
+        return true;
+    }
+
+    private boolean isWitherEntity(org.bukkit.entity.Entity entity) {
+        if (entity == null) return false;
+        org.bukkit.entity.EntityType type = entity.getType();
+        return type == org.bukkit.entity.EntityType.WITHER
+                || type == org.bukkit.entity.EntityType.WITHER_SKULL;
+    }
+
+    private Player getPlayerSource(org.bukkit.entity.Entity entity) {
+        if (entity instanceof Player player) return player;
+        if (entity instanceof org.bukkit.entity.TNTPrimed tnt && tnt.getSource() instanceof Player player) return player;
+        return null;
+    }
+
+    private boolean isMemberOfClaim(Player player, Claim claim) {
+        Faction playerFaction = factionManager.getPlayerFaction(player.getUniqueId());
+        return playerFaction != null && playerFaction.getId() == claim.getFactionId();
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
@@ -264,26 +403,6 @@ public class ClaimListener implements Listener {
             int chunkZ = event.getTo().getBlockZ() >> 4;
             if (factionManager.autoClaim(player.getUniqueId(), event.getTo().getWorld().getName(), chunkX, chunkZ)) {
                 sendClaimMessage(player, "&aAuto-claim du chunk actuel !");
-            }
-        }
-
-        // Gestion du mode PASDIC (Adventure Mode)
-        // Exemptés : membres de la faction propriétaire, admins/ops, et joueurs
-        // en créatif/spectateur (on ne touche qu'au survival).
-        boolean fromPasdic = fromClaim != null && fromClaim.isPasdic();
-        boolean toPasdic = toClaim != null && toClaim.isPasdic();
-
-        if (!fromPasdic && toPasdic) {
-            if (player.getGameMode() == GameMode.SURVIVAL && !isPasdicExempt(player, toClaim)) {
-                player.setGameMode(GameMode.ADVENTURE);
-                sendClaimMessage(player, "&bMode Adventure activé - Zone PASDIC");
-            }
-        } else if (fromPasdic && !toPasdic) {
-            // L'Adventure n'étant imposé que par PASDIC sur ce serveur, tout joueur
-            // non exempté qui sort d'un PASDIC en Adventure repasse en Survival.
-            if (player.getGameMode() == GameMode.ADVENTURE && !isPasdicExempt(player, fromClaim)) {
-                player.setGameMode(GameMode.SURVIVAL);
-                sendClaimMessage(player, "&aMode Survival rétabli");
             }
         }
 
@@ -323,15 +442,6 @@ public class ClaimListener implements Listener {
         return canInteractFor(player, location, false);
     }
 
-    /** Membres de la faction propriétaire et staff : pas de mode Adventure forcé en PASDIC. */
-    private boolean isPasdicExempt(Player player, Claim claim) {
-        if (player.isOp() || player.hasPermission("cantale.admin")) return true;
-        Faction claimFaction = factionManager.getFaction(claim.getFactionId());
-        Faction playerFaction = factionManager.getPlayerFaction(player.getUniqueId());
-        return claimFaction != null && playerFaction != null
-                && claimFaction.getId() == playerFaction.getId();
-    }
-
     /**
      * Accès aux conteneurs / blocs de stockage d'un claim.
      * <ul>
@@ -343,6 +453,8 @@ public class ClaimListener implements Listener {
      */
     private boolean canAccessClaimStorage(Player player, Claim claim) {
         if (player.isOp() || player.hasPermission("cantale.admin")) return true;
+        // Bypass admin (/f bypass) : ouvre tous les conteneurs, y compris en PASDIC.
+        if (plugin.getAdminBypassManager().isBypassing(player)) return true;
 
         Faction claimFaction = factionManager.getFaction(claim.getFactionId());
         Faction playerFaction = factionManager.getPlayerFaction(player.getUniqueId());
@@ -367,6 +479,8 @@ public class ClaimListener implements Listener {
     private boolean canInteractFor(Player player, org.bukkit.Location location, boolean isCulture) {
         // Bypass admin/op
         if (player.isOp() || player.hasPermission("cantale.admin")) return true;
+        // Bypass admin (/f bypass) : ignore toutes les protections de claims (y compris PASDIC).
+        if (plugin.getAdminBypassManager().isBypassing(player)) return true;
 
         Claim claim = getClaimAt(location);
         if (claim == null) return true; // wilderness
@@ -423,6 +537,15 @@ public class ClaimListener implements Listener {
         return protectedStorageBlocks.contains(mat);
     }
 
+    private boolean isPasdicBannedContainer(Material mat) {
+        return mat != null && pasdicBannedContainers.contains(mat);
+    }
+
+    private boolean isRaiding(Player player, Claim claim) {
+        if (claim == null || claim.isPasdic()) return false;
+        return plugin.getRaidManager() != null && plugin.getRaidManager().isAttackingInRaid(player, claim);
+    }
+
     /**
      * Conteneurs dont le contenu est volable (coffres, fours, hoppers, shulkers…).
      * Exclut les ateliers sans inventaire de loot partagé (craft, enclume, loom…).
@@ -451,7 +574,46 @@ public class ClaimListener implements Listener {
     }
 
     private boolean isExplosivePlaceBlock(Material mat) {
-        return explosivePlaceBlocks.contains(mat);
+        return mat != null && explosivePlaceBlocks.contains(mat);
+    }
+
+    /** Briquet, cristaux, seaux, lodestone déjà posé, TNT à allumer, etc. */
+    private boolean isRaidInteract(org.bukkit.event.player.PlayerInteractEvent event) {
+        Material clicked = event.getClickedBlock() != null ? event.getClickedBlock().getType() : null;
+        if (isExplosivePlaceBlock(clicked) || isIgnitableRaidBlock(clicked)) {
+            return true;
+        }
+        Material hand = event.getItem() == null ? Material.AIR : event.getItem().getType();
+        if (isExplosivePlaceBlock(hand)) return true;
+        return hand == Material.FLINT_AND_STEEL || hand == Material.FIRE_CHARGE;
+    }
+
+    private static boolean isIgnitableRaidBlock(Material mat) {
+        if (mat == null) return false;
+        return mat == Material.TNT || mat == Material.RESPAWN_ANCHOR || mat == Material.LODESTONE;
+    }
+
+    /**
+     * Attaquant joueur : coup direct, projectile, nuage de potion, pet apprivoisé.
+     * TNT / cristaux / wither ne passent pas ici (raid, pas un « hit » PvP).
+     */
+    private static Player resolvePlayerAttacker(org.bukkit.entity.Entity damager) {
+        if (damager instanceof Player direct) {
+            return direct;
+        }
+        if (damager instanceof org.bukkit.entity.Projectile projectile
+                && projectile.getShooter() instanceof Player shooter) {
+            return shooter;
+        }
+        if (damager instanceof AreaEffectCloud cloud
+                && cloud.getSource() instanceof Player source) {
+            return source;
+        }
+        if (damager instanceof Tameable tameable
+                && tameable.getOwner() instanceof Player owner) {
+            return owner;
+        }
+        return null;
     }
 
     private Claim getClaimAt(org.bukkit.Location location) {

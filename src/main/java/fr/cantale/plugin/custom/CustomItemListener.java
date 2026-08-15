@@ -5,7 +5,6 @@ import fr.cantale.plugin.factions.FactionManager;
 import fr.cantale.plugin.serialkiller.SerialKillerManager;
 import org.bukkit.Location;
 import org.bukkit.Material;
-import org.bukkit.Sound;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -16,17 +15,23 @@ import fr.cantale.plugin.factions.Faction;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockDamageEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
+import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.PrepareAnvilEvent;
+import org.bukkit.event.inventory.PrepareGrindstoneEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 
 import java.util.ArrayDeque;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class CustomItemListener implements Listener {
 
@@ -36,6 +41,8 @@ public class CustomItemListener implements Listener {
     private final CantalameManager cantalameManager;
     private final SerialKillerManager serialKillerManager;
     private final Set<Material> protectedStorageBlocks;
+    /** Dernier chunk testé pour le vol Chèvre — claims = chunks, ignore le reste. */
+    private final Map<UUID, String> lastChevreCheckChunk = new ConcurrentHashMap<>();
 
     public CustomItemListener(CantalePlugin plugin) {
         this.plugin = plugin;
@@ -92,6 +99,49 @@ public class CustomItemListener implements Listener {
             handleCantaxe(event);
         } else if (type.isMultiCantool()) {
             handleMultiCantool(event);
+        } else {
+            return; // Pas un outil à utilisations (Cantalame, Vie, armure…) : rien à décompter.
+        }
+
+        // Point unique de consommation : 1 utilisation par COUP (par BlockBreakEvent),
+        // quelle que soit la zone minée. La durabilité vanilla n'est plus touchée
+        // (voir onItemDamage) : le compteur d'utilisations est la seule jauge.
+        consumeToolUse(player, tool, type);
+    }
+
+    /**
+     * Décompte 1 utilisation et gère la casse à 0.
+     * Sémantique du dernier coup : le coup qui amène le compteur à 0 MINE le bloc
+     * (et toute la zone associée, déjà cassée ci-dessus), puis l'outil se brise —
+     * plus satisfaisant qu'une casse « avant » le coup. L'event n'est donc jamais
+     * annulé pour cette raison.
+     */
+    private void consumeToolUse(Player player, ItemStack tool, CustomItemType type) {
+        int left = customItemManager.consumeOneUse(tool, type);
+        if (left > 0) return;
+
+        // Dernier coup consommé : l'outil se brise proprement (son + particules + message).
+        player.getInventory().setItemInMainHand(null);
+        player.playSound(player.getLocation(), org.bukkit.Sound.ENTITY_ITEM_BREAK, 1.0f, 1.0f);
+        player.spawnParticle(org.bukkit.Particle.ITEM,
+                player.getLocation().add(0, 1, 0), 30, 0.3, 0.3, 0.3, 0.05,
+                new ItemStack(type.getMaterial()));
+        player.sendMessage("§8[§6Cantale§8] §cTon " + type.getDisplayName()
+                + " §cs'est épuisé après son dernier coup.");
+    }
+
+    /**
+     * La durabilité vanilla ne sert plus de jauge pour les outils custom : on annule
+     * toute perte pour que la barre reste pleine (le compteur d'utilisations est la
+     * seule jauge). L'armure du Garde n'est PAS concernée (durabilité de combat vanilla).
+     */
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onItemDamage(org.bukkit.event.player.PlayerItemDamageEvent event) {
+        ItemStack item = event.getItem();
+        if (!customItemManager.isCustomItem(item)) return;
+        CustomItemType type = customItemManager.getCustomItemType(item);
+        if (customItemManager.isToolWithUses(type)) {
+            event.setCancelled(true);
         }
     }
 
@@ -102,23 +152,6 @@ public class CustomItemListener implements Listener {
         block.setType(Material.AIR);
     }
 
-    private void damageItem(Player player, ItemStack item, int amount) {
-        if (item == null || item.getType().isAir()) return;
-        if (player.getGameMode() == org.bukkit.GameMode.CREATIVE) return;
-
-        org.bukkit.inventory.meta.Damageable meta = (org.bukkit.inventory.meta.Damageable) item.getItemMeta();
-        if (meta == null) return;
-
-        int damage = meta.getDamage() + amount;
-        if (damage >= item.getType().getMaxDurability()) {
-            player.getInventory().setItemInMainHand(new ItemStack(Material.AIR));
-            player.playSound(player.getLocation(), Sound.ENTITY_ITEM_BREAK, 1.0f, 1.0f);
-        } else {
-            meta.setDamage(damage);
-            item.setItemMeta(meta);
-        }
-    }
-
     /**
      * breakNaturally / setType(AIR) ne déclenchent pas BlockBreakEvent :
      * ClaimListener ne voit pas ces casses. Toute casse manuelle hors event
@@ -126,6 +159,8 @@ public class CustomItemListener implements Listener {
      */
     private boolean canBreakExtraBlock(Player player, Block block) {
         if (player.isOp() || player.hasPermission("cantale.admin")) return true;
+        // Bypass admin (/f bypass) : la casse à l'aire (Pickantise/Cantaxe/Multi-Cantool) ignore les claims.
+        if (plugin.getAdminBypassManager().isBypassing(player)) return true;
         if (factionManager == null) return true;
 
         Claim claim = factionManager.getClaimAt(
@@ -150,13 +185,13 @@ public class CustomItemListener implements Listener {
                 && diplomacy.isAllied(playerFaction.getId(), claimFaction.getId());
         if (isAlly) return true;
 
-        // Étranger : interdiction de casser les stockages et cultures protégés
-        Material type = block.getType();
-        if (protectedStorageBlocks.contains(type) || isCultureBlock(type.name())) {
-            return false;
+        // Raid : les assaillants peuvent tout casser pendant un raid actif
+        if (plugin.getRaidManager() != null && plugin.getRaidManager().isAttackingInRaid(player, claim)) {
+            return true;
         }
 
-        return true;
+        // Hors raid : aucune destruction par un étranger
+        return false;
     }
 
     private boolean isCultureBlock(String matName) {
@@ -169,10 +204,13 @@ public class CustomItemListener implements Listener {
                 || matName.contains("VINE") || matName.contains("LEAVES");
     }
 
-    private void breakExtraBlock(Player player, Block block, ItemStack tool) {
+    /**
+     * @return true si le bloc a effectivement été cassé (droits de claim inclus)
+     */
+    private boolean breakExtraBlock(Player player, Block block, ItemStack tool) {
         Material targetType = block.getType();
-        if (targetType == Material.AIR || targetType == Material.BEDROCK) return;
-        if (!canBreakExtraBlock(player, block)) return;
+        if (targetType == Material.AIR || targetType == Material.BEDROCK) return false;
+        if (!canBreakExtraBlock(player, block)) return false;
 
         String name = targetType.name();
         if (name.contains("SAND") || name.contains("GRAVEL") || name.contains("CONCRETE_POWDER")) {
@@ -182,6 +220,7 @@ public class CustomItemListener implements Listener {
         } else {
             block.breakNaturally();
         }
+        return true;
     }
 
     private void handlePickantise(BlockBreakEvent event, CustomItemType type) {
@@ -240,6 +279,8 @@ public class CustomItemListener implements Listener {
 
         ItemStack tool = player.getInventory().getItemInMainHand();
         for (Block block : blocksToBreak) {
+            // Toute la zone est minée pour 1 seule utilisation (décomptée une fois
+            // le coup terminé, dans onBlockBreak) — plus de coût par bloc.
             breakExtraBlock(player, block, tool);
         }
     }
@@ -281,6 +322,8 @@ public class CustomItemListener implements Listener {
         ItemStack tool = player.getInventory().getItemInMainHand();
         for (Block log : logs) {
             if (log.equals(startBlock)) continue;
+            // L'arbre entier est abattu pour 1 seule utilisation (décomptée une fois
+            // le coup terminé, dans onBlockBreak) — plus de coût par bûche.
             breakExtraBlock(player, log, tool);
         }
     }
@@ -308,7 +351,8 @@ public class CustomItemListener implements Listener {
                 block.getWorld().dropItemNaturally(block.getLocation(), drop);
             }
         }
-        damageItem(player, tool, 1);
+        // Usure : 1 utilisation décomptée dans onBlockBreak après ce handler.
+        // La durabilité vanilla est neutralisée (onItemDamage) — ne rien faire ici.
     }
 
     private boolean isShearsBlock(String matName) {
@@ -402,7 +446,22 @@ public class CustomItemListener implements Listener {
 
     @EventHandler
     public void onPlayerMove(PlayerMoveEvent event) {
+        Location to = event.getTo();
+        if (to == null || to.getWorld() == null) return;
+
+        Location from = event.getFrom();
+        if ((from.getBlockX() >> 4) == (to.getBlockX() >> 4)
+                && (from.getBlockZ() >> 4) == (to.getBlockZ() >> 4)
+                && from.getWorld() == to.getWorld()) {
+            return;
+        }
+
         Player player = event.getPlayer();
+        String chunkKey = to.getWorld().getName() + "," + (to.getBlockX() >> 4) + "," + (to.getBlockZ() >> 4);
+        if (chunkKey.equals(lastChevreCheckChunk.get(player.getUniqueId()))) {
+            return;
+        }
+        lastChevreCheckChunk.put(player.getUniqueId(), chunkKey);
 
         // Vol créatif réservé au grade Chèvre uniquement (pas modos/admin/owner) dans ses claims
         fr.cantale.plugin.rank.PlayerRank rank = plugin.getRankManager().getRank(player);
@@ -467,18 +526,41 @@ public class CustomItemListener implements Listener {
     @EventHandler
     public void onPrepareAnvil(PrepareAnvilEvent event) {
         ItemStack result = event.getResult();
-        if (result == null) return;
+        if (result == null || result.getType().isAir()) return;
 
-        // Gérer l'enchantement des custom items
+        // Blocage total des items custom dans l'enclume (pas de désenchantement, pas de fusion, pas de renommage).
         if (customItemManager.isCustomItem(result)) {
-            CustomItemType type = customItemManager.getCustomItemType(result);
-            
-            // Pickantaxe et Cantaxe : autoriser tous les enchantements
-            // (Le système vanilla gère déjà la compatibilité)
-            if (type.isPickantise() || type.isCantaxe()) {
-                // Ne rien bloquer, laisser passer
+            event.setResult(null);
+        }
+    }
+
+    @EventHandler
+    public void onPrepareGrindstone(PrepareGrindstoneEvent event) {
+        ItemStack result = event.getResult();
+        if (result == null || result.getType().isAir()) return;
+        if (customItemManager.isCustomItem(result)) {
+            event.setResult(null);
+        }
+    }
+
+    @EventHandler(ignoreCancelled = true)
+    public void onInventoryClick(InventoryClickEvent event) {
+        if (!(event.getWhoClicked() instanceof Player player)) return;
+        org.bukkit.inventory.Inventory inv = event.getInventory();
+        if (inv.getType() != org.bukkit.event.inventory.InventoryType.GRINDSTONE) return;
+        // Si un item custom est présent dans les entrées (slots 0 et 1), bloquer le clic sur le résultat (slot 2).
+        if (event.getRawSlot() == 2) {
+            if (isCustomItemAt(inv, 0) || isCustomItemAt(inv, 1)) {
+                event.setCancelled(true);
+                player.sendMessage("§8[§6Cantale§8] §cLes items custom ne peuvent pas être désenchantés.");
             }
         }
+    }
+
+    private boolean isCustomItemAt(org.bukkit.inventory.Inventory inv, int slot) {
+        if (slot < 0 || slot >= inv.getSize()) return false;
+        ItemStack item = inv.getItem(slot);
+        return item != null && customItemManager.isCustomItem(item);
     }
 
     private boolean isMineable(Material material) {
@@ -547,5 +629,10 @@ public class CustomItemListener implements Listener {
     @EventHandler(priority = EventPriority.HIGHEST)
     public void onPlayerJoin(PlayerJoinEvent event) {
         serialKillerManager.onPlayerJoin(event.getPlayer());
+    }
+
+    @EventHandler
+    public void onPlayerQuit(PlayerQuitEvent event) {
+        lastChevreCheckChunk.remove(event.getPlayer().getUniqueId());
     }
 }

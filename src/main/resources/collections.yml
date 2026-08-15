@@ -1,0 +1,133 @@
+# ============================================================
+# Cantale — Collections (paliers nombreux, jamais reset)
+# Copier dans plugins/CantalePlugin/
+# ============================================================
+# Récompenses par palier : cantox / key (RARE, EPIC, MYTHIC, LEGENDARY) /
+# lives / spawner (true = RARE, ou rareté exacte : RARE, EPIC, MYTHIC).
+# Spawners : RARE dès le milieu de tableau, EPIC/MYTHIC en haut.
+# NOTE : les claims sont stockés par INDEX de palier — modifier les seuils
+# ne permet pas de re-claim un index déjà pris (pas de double récompense).
+
+# Paliers par défaut (cultures / minerais / mobs) — 12 paliers, dernier = années
+default-tiers: [500, 1500, 4000, 10000, 25000, 60000, 150000, 400000, 1000000, 2500000, 7500000, 20000000]
+
+# Récompenses par défaut (index 0 = palier 1)
+default-rewards:
+  - { cantox: 250 }
+  - { cantox: 500 }
+  - { cantox: 1000, key: RARE }
+  - { cantox: 2000 }
+  - { cantox: 4000, key: EPIC }
+  - { cantox: 8000, spawner: RARE }
+  - { cantox: 15000, key: MYTHIC }
+  - { cantox: 30000, spawner: RARE }
+  - { cantox: 50000, key: LEGENDARY }
+  - { cantox: 80000, spawner: EPIC }
+  - { cantox: 120000, lives: 1 }
+  - { cantox: 200000, key: LEGENDARY, spawner: MYTHIC }
+
+categories:
+  crops:
+    label: Cultures
+    icon: WHEAT
+    keys: [WHEAT, CARROT, POTATO, BEETROOT, NETHER_WART, SUGAR_CANE, MELON, PUMPKIN, COCOA, SWEET_BERRIES, GLOW_BERRIES, KELP, BAMBOO, CACTUS, CHORUS, BROWN_MUSHROOM, RED_MUSHROOM, CRIMSON_FUNGUS, WARPED_FUNGUS, TORCHFLOWER, PITCHER_CROP]
+  mining:
+    label: Minage
+    icon: IRON_PICKAXE
+    keys: [COAL, IRON, COPPER, GOLD, NETHER_GOLD, REDSTONE, LAPIS, DIAMOND, EMERALD, QUARTZ, ANCIENT_DEBRIS]
+  mobs:
+    label: Mobs
+    icon: BONE
+    keys: [COW, PIG, SHEEP, CHICKEN, RABBIT, GOAT, MOOSHROOM, BEE, SQUID, ZOMBIE, SKELETON, SPIDER, CREEPER, ENDERMAN, BLAZE, WITCH, SLIME, MAGMA_CUBE, IRON_GOLEM, DROWNED, HUSK, STRAY, PIGLIN, HOGLIN, GUARDIAN, PHANTOM, SILVERFISH, ENDERMITE, SHULKER, RAVAGER, VINDICATOR, PILLAGER, EVOKER, WARDEN, GHAST, WITHER_SKELETON, CAVE_SPIDER, ZOMBIFIED_PIGLIN, PIGLIN_BRUTE, ZOGLIN, ELDER_GUARDIAN, VEX, BREEZE, BOGGED, ZOMBIE_VILLAGER]
+  chat:
+    label: Réactions chat
+    icon: PAPER
+    keys: [TOTAL]
+    tiers: [8, 20, 45, 90, 180, 350, 700, 1400, 3000, 7500]
+    rewards:
+      - { cantox: 200 }
+      - { cantox: 400 }
+      - { cantox: 800, key: RARE }
+      - { cantox: 1500 }
+      - { cantox: 3000, key: EPIC }
+      - { cantox: 6000 }
+      - { cantox: 10000, key: MYTHIC }
+      - { cantox: 18000 }
+      - { cantox: 30000, spawner: RARE }
+      - { cantox: 50000, key: LEGENDARY, spawner: EPIC }
+  keys:
+    label: Clefs ouvertes
+    icon: TRIPWIRE_HOOK
+    keys: [TOTAL]
+    tiers: [15, 40, 90, 180, 350, 700, 1500, 3000, 6000, 12000, 25000, 45000]
+  events:
+    label: Events
+    icon: NETHER_STAR
+    hidden: true
+    keys: [TOTAL]
+  votes:
+    label: Votes
+    icon: GOLDEN_APPLE
+    keys: [TOTAL]
+    tiers: [4, 12, 25, 50, 100, 200, 400, 800, 1600, 3500]
+    rewards:
+      - { cantox: 300 }
+      - { cantox: 600 }
+      - { cantox: 1200, key: RARE }
+      - { cantox: 2500 }
+      - { cantox: 5000, key: EPIC }
+      - { cantox: 10000 }
+      - { cantox: 20000, spawner: RARE }
+      - { cantox: 35000, key: MYTHIC }
+      - { cantox: 60000, lives: 1 }
+      - { cantox: 100000, key: LEGENDARY, spawner: EPIC }
+  quests:
+    label: Quêtes complétées
+    icon: WRITABLE_BOOK
+    keys: [TOTAL]
+    # +1 par quête solo finie ; +1 par contributeur de la fac gagnante (pas le bonus set)
+    tiers: [8, 20, 40, 80, 150, 300, 600, 1200, 2500, 5000]
+    rewards:
+      - { cantox: 250 }
+      - { cantox: 500 }
+      - { cantox: 1000, key: RARE }
+      - { cantox: 2000 }
+      - { cantox: 4000, key: EPIC }
+      - { cantox: 8000 }
+      - { cantox: 15000, key: MYTHIC }
+      - { cantox: 30000, spawner: RARE }
+      - { cantox: 50000, lives: 1 }
+      - { cantox: 90000, key: LEGENDARY, spawner: EPIC }
+  money:
+    label: Argent (pic /bal)
+    icon: GOLD_INGOT
+    keys: [PEAK]
+    tiers: [50000, 150000, 400000, 1000000, 3000000, 8000000, 20000000, 50000000, 120000000, 300000000]
+    rewards:
+      - { cantox: 1000 }
+      - { cantox: 2500 }
+      - { cantox: 5000, key: RARE }
+      - { cantox: 10000 }
+      - { cantox: 20000, key: EPIC }
+      - { cantox: 40000 }
+      - { cantox: 75000, key: MYTHIC }
+      - { cantox: 125000, spawner: RARE }
+      - { cantox: 200000, lives: 1 }
+      - { cantox: 350000, key: LEGENDARY, spawner: EPIC }
+  playtime:
+    label: Temps de jeu (heures)
+    icon: CLOCK
+    keys: [HOURS]
+    # heures de jeu
+    tiers: [10, 25, 60, 150, 350, 800, 1800, 4000, 8000, 15000]
+    rewards:
+      - { cantox: 500 }
+      - { cantox: 1000 }
+      - { cantox: 2000, key: RARE }
+      - { cantox: 5000 }
+      - { cantox: 10000, key: EPIC }
+      - { cantox: 20000 }
+      - { cantox: 40000, key: MYTHIC }
+      - { cantox: 70000, spawner: RARE }
+      - { cantox: 100000, lives: 1 }
+      - { cantox: 150000, key: LEGENDARY, spawner: EPIC }

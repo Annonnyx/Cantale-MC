@@ -92,7 +92,12 @@ public class ShopCategoryUI extends BaseUI {
     }
 
     private String buildDisplayName(ShopItem item) {
-        return "§e" + item.getMaterial().name();
+        // Nom Material (ex. HOPPER) — reconnaissable à la recherche visuelle / /shop buy
+        String name = item.getMaterial().name();
+        if (item.getMaterial() == Material.HOPPER) {
+            return "§eHopper §8(HOPPER)";
+        }
+        return "§e" + name;
     }
 
     private String[] buildLore(ShopItem item) {

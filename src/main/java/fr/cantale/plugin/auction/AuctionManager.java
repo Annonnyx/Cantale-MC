@@ -5,6 +5,7 @@ import fr.cantale.plugin.rank.PlayerRank;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.PlayerInventory;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -24,55 +25,77 @@ public class AuctionManager {
         this.playerItemTypes = new ConcurrentHashMap<>();
     }
 
-    public boolean sellItem(Player player, ItemStack item, int quantity, double pricePerUnit) {
+    public boolean sellItem(Player player, ItemStack handItem, int quantity, double pricePerUnit) {
         UUID uuid = player.getUniqueId();
+
+        if (handItem == null || handItem.getType().isAir() || handItem.getAmount() <= 0) {
+            player.sendMessage("§8[§6Cantale§8] §cTenez un item dans votre main.");
+            return false;
+        }
+
+        // Snapshot AVANT toute mutation : setAmount(0) transforme le stack Bukkit en AIR.
+        Material soldType = handItem.getType();
+        ItemStack listingStack = handItem.clone();
+        listingStack.setAmount(quantity);
 
         // Vérifier max types d'items (dépend du grade)
         PlayerRank rank = plugin.getRankManager().getRank(player);
         int maxListings = rank.getMaxAhListings();
         Set<Material> playerTypes = playerItemTypes.computeIfAbsent(uuid, k -> new HashSet<>());
-        if (!playerTypes.contains(item.getType()) && playerTypes.size() >= maxListings) {
+        if (!playerTypes.contains(soldType) && playerTypes.size() >= maxListings) {
             player.sendMessage("§8[§6Cantale§8] §cVous avez déjà " + maxListings + " types d'items en vente. Annulez-en un avant.");
             return false;
         }
 
-        // Vérifier quantité
-        int available = item.getAmount();
-        if (quantity > available) {
-            if (quantity == available) {
-                // OK, on vend tout
-            } else {
-                player.sendMessage("§8[§6Cantale§8] §cVous n'avez que " + available + " items.");
-                return false;
-            }
+        int available = handItem.getAmount();
+        if (quantity <= 0 || quantity > available) {
+            player.sendMessage("§8[§6Cantale§8] §cVous n'avez que " + available + " items en main.");
+            return false;
         }
 
-        // Vérifier prix
         if (pricePerUnit <= 0) {
             player.sendMessage("§8[§6Cantale§8] §cLe prix doit être positif.");
             return false;
         }
 
-        // Créer la vente
-        AuctionListing listing = new AuctionListing(uuid, player.getName(), item, quantity, pricePerUnit, DEFAULT_DURATION_MS);
+        AuctionListing listing = new AuctionListing(uuid, player.getName(), listingStack, quantity, pricePerUnit, DEFAULT_DURATION_MS);
         int id = auctionDAO.createListing(listing);
         if (id > 0) {
             listing.setId(id);
             activeListings.put(id, listing);
-            playerTypes.add(item.getType());
+            playerTypes.add(soldType);
 
-            // Retirer l'item de l'inventaire
-            item.setAmount(item.getAmount() - quantity);
-            if (item.getAmount() <= 0) {
-                player.getInventory().removeItem(item);
-            }
+            consumeFromMainHand(player, quantity);
 
-            player.sendMessage("§8[§6Cantale§8] §aItem mis en vente : §e" + item.getType().name() + " §7x" + quantity + " §7pour §6" + pricePerUnit + " §7Cantox/u");
+            player.sendMessage("§8[§6Cantale§8] §aItem mis en vente : §e" + soldType.name()
+                    + " §7x" + quantity + " §7pour §6" + formatPrice(pricePerUnit) + " §7Cantox/u");
             return true;
         }
 
         player.sendMessage("§8[§6Cantale§8] §cErreur lors de la mise en vente.");
         return false;
+    }
+
+    /** Retire {@code quantity} de la main principale sans laisser un stack AIR fantôme. */
+    private static void consumeFromMainHand(Player player, int quantity) {
+        PlayerInventory inv = player.getInventory();
+        ItemStack hand = inv.getItemInMainHand();
+        if (hand == null || hand.getType().isAir()) return;
+
+        int left = hand.getAmount() - quantity;
+        if (left <= 0) {
+            inv.setItemInMainHand(null);
+        } else {
+            hand.setAmount(left);
+            inv.setItemInMainHand(hand);
+        }
+    }
+
+    public static String formatPrice(double price) {
+        if (Math.floor(price) == price) {
+            return String.valueOf((long) price);
+        }
+        return String.format(Locale.US, "%.2f", price);
     }
 
     public boolean buyItem(Player player, int listingId, int quantity) {
@@ -91,25 +114,25 @@ public class AuctionManager {
         if (quantity > available) {
             quantity = available;
         }
-
-        double totalPrice = listing.getPricePerUnit() * quantity;
-
-        // Vérifier solde
-        if (!plugin.getEconomyManager().hasEnough(player, totalPrice)) {
-            player.sendMessage("§8[§6Cantale§8] §cSolde insuffisant (besoin : " + totalPrice + " Cantox)");
+        if (quantity <= 0) {
+            player.sendMessage("§8[§6Cantale§8] §cQuantité invalide.");
             return false;
         }
 
-        // Transfert
+        double totalPrice = listing.getPricePerUnit() * quantity;
+
+        if (!plugin.getEconomyManager().hasEnough(player, totalPrice)) {
+            player.sendMessage("§8[§6Cantale§8] §cSolde insuffisant (besoin : " + formatPrice(totalPrice) + " Cantox)");
+            return false;
+        }
+
         plugin.getEconomyManager().withdraw(player, totalPrice);
         plugin.getEconomyManager().addBalance(listing.getSellerUuid(), totalPrice);
 
-        // Donner l'item
         ItemStack item = listing.getItem().clone();
         item.setAmount(quantity);
         player.getInventory().addItem(item);
 
-        // Mettre à jour la vente
         if (quantity == available) {
             listing.setBuyerUuid(player.getUniqueId());
             auctionDAO.updateListing(listing);
@@ -120,8 +143,13 @@ public class AuctionManager {
             auctionDAO.updateListing(listing);
         }
 
-        player.sendMessage("§8[§6Cantale§8] §aAchat effectué : §e" + item.getType().name() + " §7x" + quantity + " §7pour §6" + totalPrice + " §7Cantox");
+        player.sendMessage("§8[§6Cantale§8] §aAchat effectué : §e" + item.getType().name()
+                + " §7x" + quantity + " §7pour §6" + formatPrice(totalPrice) + " §7Cantox");
         return true;
+    }
+
+    public AuctionListing getListing(int listingId) {
+        return activeListings.get(listingId);
     }
 
     public boolean cancelListing(Player player, int listingId) {
@@ -141,12 +169,10 @@ public class AuctionManager {
             return false;
         }
 
-        // Remettre l'item
         ItemStack item = listing.getItem().clone();
         item.setAmount(listing.getQuantity());
         player.getInventory().addItem(item);
 
-        // Supprimer
         auctionDAO.deleteListing(listingId);
         activeListings.remove(listingId);
         removePlayerItemType(player.getUniqueId(), listing.getItemType());
@@ -206,7 +232,6 @@ public class AuctionManager {
         while (it.hasNext()) {
             AuctionListing listing = it.next();
             if (listing.isExpired() && !listing.isSold()) {
-                // Rendre l'item au vendeur
                 if (plugin.getServer().getPlayer(listing.getSellerUuid()) != null) {
                     ItemStack item = listing.getItem().clone();
                     item.setAmount(listing.getQuantity());

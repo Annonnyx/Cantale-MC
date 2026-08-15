@@ -1,7 +1,6 @@
 package fr.cantale.plugin.commands;
 
 import fr.cantale.plugin.CantalePlugin;
-import fr.cantale.plugin.cooldown.CooldownManager;
 import fr.cantale.plugin.teleport.HomeManager;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
@@ -15,15 +14,10 @@ import java.util.List;
 
 public class HomeCommand implements CommandExecutor, TabCompleter {
 
-    private final CantalePlugin plugin;
     private final HomeManager homeManager;
-    private final CooldownManager cooldownManager;
-    private static final long COOLDOWN_MS = 20000; // 20 secondes
 
     public HomeCommand(CantalePlugin plugin) {
-        this.plugin = plugin;
         this.homeManager = plugin.getHomeManager();
-        this.cooldownManager = plugin.getCooldownManager();
     }
 
     @Override
@@ -55,12 +49,6 @@ public class HomeCommand implements CommandExecutor, TabCompleter {
                 homeManager.deleteHome(player, args[1]);
                 break;
             default:
-                // Vérifier le cooldown pour la téléportation
-                if (cooldownManager.hasCooldown(player, "home", COOLDOWN_MS)) {
-                    long remaining = cooldownManager.getRemainingCooldown(player, "home", COOLDOWN_MS);
-                    player.sendMessage("§cCooldown ! Attendez encore " + (remaining / 1000) + " secondes.");
-                    return true;
-                }
                 homeManager.teleportHome(player, args[0]);
                 break;
         }

@@ -14,17 +14,18 @@ import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.scheduler.BukkitTask;
 
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class CombatTagManager {
 
-    private static final int COMBAT_DURATION_SECONDS = 15;
-
     private final CantalePlugin plugin;
     private final Map<UUID, Long> combatExpirations = new ConcurrentHashMap<>();
     private final Map<UUID, UUID> opponents = new ConcurrentHashMap<>();
     private final Map<UUID, BukkitTask> actionbarTasks = new ConcurrentHashMap<>();
+    /** Mort pendant un tag : capturé avant {@link #endCombat} (HIGH) pour le loot dernière vie (HIGHEST). */
+    private final Set<UUID> diedInCombat = ConcurrentHashMap.newKeySet();
 
     public CombatTagManager(CantalePlugin plugin) {
         this.plugin = plugin;
@@ -37,7 +38,7 @@ public class CombatTagManager {
         if (player1 == null || player2 == null) return;
         if (player1.getUniqueId().equals(player2.getUniqueId())) return;
 
-        long expireAt = System.currentTimeMillis() + (COMBAT_DURATION_SECONDS * 1000L);
+        long expireAt = System.currentTimeMillis() + (getCombatDurationSeconds() * 1000L);
 
         tagPlayer(player1, player2, expireAt);
         tagPlayer(player2, player1, expireAt);
@@ -72,10 +73,11 @@ public class CombatTagManager {
      * Zone no-PvP pour ce joueur, alignée sur {@code ClaimListener#onEntityDamage} :
      * claim PASDIC (spawn/warp), ou claim de SA propre faction (safe chez soi).
      * <p>
-     * Règle combat : un joueur tagué ne peut pas <em>entrer</em> dans une telle zone
-     * (mouvement / pearl / portail). S'il y est déjà (pearl admin, claim devenu PASDIC, etc.) :
-     * le tag continue, les coups restent annulés par ClaimListener, la sortie est libre,
-     * la ré-entrée est bloquée tant que le tag est actif.
+     * Sert uniquement à bloquer l'<em>entrée</em> (mouvement / pearl / portail) pendant
+     * le tag combat. Ne contourne jamais le PvP one-way des claims : un étranger
+     * tagué ne peut toujours pas frapper un membre chez lui ; un membre peut
+     * toujours frapper un étranger dans son claim. ClaimListener (HIGHEST) ignore
+     * le tag combat pour les dégâts.
      */
     public boolean isNoPvpZone(Player player, Location location) {
         if (player == null || location == null || location.getWorld() == null) {
@@ -146,11 +148,34 @@ public class CombatTagManager {
     }
 
     /**
+     * Durée du tag (config {@code combat-tag-seconds}, défaut 20). Lu à chaque tag.
+     */
+    public int getCombatDurationSeconds() {
+        if (plugin.getConfigManager() == null) {
+            return 20;
+        }
+        return plugin.getConfigManager().getCombatTagSeconds();
+    }
+
+    /**
+     * {@code true} si le joueur vient de mourir pendant un tag combat.
+     * Consomme le flag (PlayerDeathEvent HIGH pose le flag, HIGHEST le lit avant le ban).
+     */
+    public boolean consumeDiedInCombat(UUID uuid) {
+        return uuid != null && diedInCombat.remove(uuid);
+    }
+
+    /**
      * Gère la mort d'un joueur : si la victime avait un adversaire, le timer de cet adversaire est réinitialisé à 0.
      */
     public void handleOpponentDeath(Player victim) {
         if (victim == null) return;
         UUID victimUuid = victim.getUniqueId();
+        if (isInCombat(victimUuid)) {
+            diedInCombat.add(victimUuid);
+        } else {
+            diedInCombat.remove(victimUuid);
+        }
         UUID opponentUuid = opponents.get(victimUuid);
 
         endCombat(victimUuid);

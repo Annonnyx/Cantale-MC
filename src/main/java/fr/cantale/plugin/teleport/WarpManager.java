@@ -57,6 +57,10 @@ public class WarpManager {
         if (id > 0) {
             warp.setId(id);
             warps.put(name, warp);
+            // Nouveau marqueur warp sur la carte des clients du mod Cantale
+            if (plugin.getClientMapBridge() != null) {
+                plugin.getClientMapBridge().refreshMarkersForAll();
+            }
             return true;
         }
         return false;
@@ -70,6 +74,10 @@ public class WarpManager {
 
         warpDAO.deleteWarp(warps.get(key).getId());
         warps.remove(key);
+        // Retirer le marqueur warp de la carte des clients du mod Cantale
+        if (plugin.getClientMapBridge() != null) {
+            plugin.getClientMapBridge().refreshMarkersForAll();
+        }
         return true;
     }
 
@@ -85,34 +93,14 @@ public class WarpManager {
             return false;
         }
 
-        final Warp finalWarp = warp;
-
-        int delay = plugin.getTeleportDelayManager().getTeleportDelay(player);
-
-        if (finalWarp.getLocation() != null && finalWarp.getLocation().getWorld() != null) {
-            plugin.getChunkLoader().preloadChunksAround(finalWarp.getLocation(), 1);
-            if (delay > 0) {
-                long ticksBefore = Math.max(0, (delay - 1) * 20L);
-                plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
-                    if (finalWarp.getLocation() != null && finalWarp.getLocation().getWorld() != null) {
-                        finalWarp.getLocation().getWorld().getChunkAtAsync(
-                                finalWarp.getLocation().getBlockX() >> 4,
-                                finalWarp.getLocation().getBlockZ() >> 4);
-                    }
-                }, ticksBefore);
-            } else {
-                finalWarp.getLocation().getWorld().getChunkAtAsync(
-                        finalWarp.getLocation().getBlockX() >> 4,
-                        finalWarp.getLocation().getBlockZ() >> 4);
-            }
+        Location dest = warp.getLocation();
+        if (dest == null || dest.getWorld() == null) {
+            player.sendMessage("§8[§6Cantale§8] §cLe monde de ce warp est introuvable (déchargé ?).");
+            return false;
         }
 
-        plugin.getTeleportDelayManager().delayTeleport(player, () -> {
-            player.teleport(finalWarp.getLocation());
-            player.sendMessage("§8[§6Cantale§8] §aTéléporté au warp §e" + finalWarp.getName() + "§a.");
-            plugin.getCooldownManager().setCooldown(player, "warp");
-        });
-        return true;
+        return plugin.getTeleportDelayManager().requestTeleport(player, dest, false, () ->
+                player.sendMessage("§8[§6Cantale§8] §aTéléporté au warp §e" + warp.getName() + "§a."));
     }
 
     public List<Warp> getWarps() {
@@ -181,6 +169,10 @@ public class WarpManager {
         if (warp != null && warp.isEvent()) {
             warp.setActive(active);
             warpDAO.updateWarp(warp);
+            // Un warp d'événement (dés)activé apparaît/disparaît de la carte des clients du mod
+            if (plugin.getClientMapBridge() != null) {
+                plugin.getClientMapBridge().refreshMarkersForAll();
+            }
         }
     }
 

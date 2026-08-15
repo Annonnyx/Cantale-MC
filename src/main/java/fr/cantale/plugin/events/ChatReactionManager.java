@@ -112,6 +112,9 @@ public class ChatReactionManager {
         plugin.getEconomyManager().deposit(player, reward);
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () ->
                 plugin.getPlayerDAO().incrementChatReactions(player.getUniqueId()));
+        if (plugin.getCollectionManager() != null) {
+            plugin.getCollectionManager().onChatReaction(player.getUniqueId());
+        }
 
         Bukkit.broadcastMessage(ChatColor.translateAlternateColorCodes('&',
                 "&8[&6Réaction&8] &a" + player.getName()

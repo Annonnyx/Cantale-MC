@@ -27,6 +27,10 @@ public enum FactionRank {
         return this.level >= other.level;
     }
 
+    public boolean isLessThan(FactionRank other) {
+        return this.level < other.level;
+    }
+
     public static FactionRank fromString(String name) {
         for (FactionRank rank : values()) {
             if (rank.name().equalsIgnoreCase(name)) {

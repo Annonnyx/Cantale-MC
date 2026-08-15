@@ -37,6 +37,7 @@ public class WebAdminBridge {
     private static final long INITIAL_DELAY_TICKS = 20L * 8;
     private static final int BATCH_SIZE = 10;
     private static final int RESULT_MAX = 255;
+    private static final int PASDIC_RESULT_MAX = 65000;
 
     private final CantalePlugin plugin;
     private final AdminInventoryMutator inventoryMutator;
@@ -94,6 +95,10 @@ public class WebAdminBridge {
     }
 
     private void process(Pending pending) {
+        if ("set_pasdic".equalsIgnoreCase(pending.type())) {
+            processSetPasdic(pending);
+            return;
+        }
         try {
             CompletableFuture<String> done = new CompletableFuture<>();
             Bukkit.getScheduler().runTask(plugin, () -> {
@@ -111,6 +116,31 @@ public class WebAdminBridge {
             } else {
                 mark(pending.id(), "failed", err);
             }
+        } catch (Exception e) {
+            mark(pending.id(), "failed", truncate(e.getMessage()));
+        }
+    }
+
+    /**
+     * PASDIC carte site : charge chaque chunk en async, scanne spawners/stockage,
+     * applique uniquement les claims propres. Hors timeout 12 s du pont.
+     */
+    private void processSetPasdic(Pending pending) {
+        mark(pending.id(), "processing", null);
+        var service = plugin.getPasdicService();
+        if (service == null) {
+            mark(pending.id(), "failed", "service PASDIC indisponible");
+            return;
+        }
+        try {
+            service.applyBatchFromWeb(pending.payload()).whenComplete((json, error) -> {
+                if (error != null) {
+                    mark(pending.id(), "failed", truncate(error.getMessage()));
+                    return;
+                }
+                mark(pending.id(), "done", json, PASDIC_RESULT_MAX);
+                plugin.getLogger().info("[Web] set_pasdic #" + pending.id() + " terminé.");
+            });
         } catch (Exception e) {
             mark(pending.id(), "failed", truncate(e.getMessage()));
         }
@@ -138,6 +168,7 @@ public class WebAdminBridge {
             case "clear_shulker" -> inventoryMutator.clearShulker(uuid, name, payload);
             case "give_effect" -> inventoryMutator.giveEffect(uuid, name, payload);
             case "clear_effect" -> inventoryMutator.clearEffect(uuid, name, payload);
+            case "set_pasdic" -> "utiliser le traitement async";
             default -> "type inconnu: " + type;
         };
     }
@@ -423,13 +454,17 @@ public class WebAdminBridge {
     }
 
     private void mark(long id, String status, String result) {
+        mark(id, status, result, RESULT_MAX);
+    }
+
+    private void mark(long id, String status, String result, int maxLen) {
         String sql = "UPDATE web_admin_actions SET status = ?, result = ?, processed_at = CURRENT_TIMESTAMP WHERE id = ?";
         try (Connection conn = plugin.getDatabaseManager().getConnection()) {
             if (conn == null) return;
             try (PreparedStatement ps = conn.prepareStatement(sql)) {
                 ps.setString(1, status);
                 if (result == null) ps.setNull(2, java.sql.Types.VARCHAR);
-                else ps.setString(2, truncate(result));
+                else ps.setString(2, truncate(result, maxLen));
                 ps.setLong(3, id);
                 ps.executeUpdate();
             }
@@ -439,7 +474,11 @@ public class WebAdminBridge {
     }
 
     private static String truncate(String value) {
+        return truncate(value, RESULT_MAX);
+    }
+
+    private static String truncate(String value, int max) {
         if (value == null) return null;
-        return value.length() <= RESULT_MAX ? value : value.substring(0, RESULT_MAX);
+        return value.length() <= max ? value : value.substring(0, max);
     }
 }

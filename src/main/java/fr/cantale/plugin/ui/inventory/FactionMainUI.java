@@ -34,19 +34,20 @@ public class FactionMainUI extends BaseUI {
             setItem(13, Material.GOLD_INGOT, "§eBanque", "§7Déposer / Retirer", "§7Solde : §6" + (int) faction.getBalance() + " §7Cantox");
             setItem(14, Material.NETHER_STAR, "§bPouvoir",
                     "§7Pouvoir : §b" + faction.getPower(),
-                    "§7Claims / homes / warps",
+                    "§7Claims / warps / hoppers",
                     "§7Paliers + achat GUI",
                     "§8Aussi : §7/f power");
             setItem(15, Material.BOOK, "§ePermissions", "§7Voir les permissions par grade");
             setItem(16, Material.ENDER_PEARL, "§eSpawn", "§7TP au spawn faction");
             setItem(17, Material.MAP, "§eCarte", "§7Carte des claims");
             setItem(18, Material.COMPASS, "§eWarps", "§7Téléportations publiques", "§7de la faction");
-            setItem(19, Material.RED_BED, "§eHomes", "§7Vos homes de faction");
 
             setItem(20, Material.LIME_WOOL, "§aInviter", "§7Envoyer une invitation");
             setItem(21, Material.ANVIL, "§ePromouvoir / Rétrograder", "§7Gérer les grades");
             setItem(22, Material.RED_WOOL, "§cQuitter", "§7Attention ! Action définitive");
             setItem(23, Material.TNT, "§cSupprimer", "§7Leader uniquement");
+            setItem(24, Material.WRITABLE_BOOK, "§bQuêtes de faction",
+                    "§7Courses partagées", "§7/quetes fac");
         }
 
         addNavigationBar(true, false);
@@ -83,7 +84,6 @@ public class FactionMainUI extends BaseUI {
                 case 16 -> { close(); player.performCommand("f spawn"); }
                 case 17 -> nav.openUI(player, new FactionMapUI(plugin, player));
                 case 18 -> nav.openUI(player, new FactionWarpsUI(plugin, player, faction));
-                case 19 -> nav.openUI(player, new FactionHomesUI(plugin, player, faction));
                 case 20 -> nav.openUI(player, new PlayerSelectorUI(plugin, player, "§7Inviter un joueur", target -> {
                     player.performCommand("f invite " + target.getName());
                 }, title));
@@ -94,6 +94,7 @@ public class FactionMainUI extends BaseUI {
                 case 23 -> nav.openUI(player, new ConfirmDialogUI(plugin, player, "§7Supprimer la faction", "Voulez-vous vraiment SUPPRIMER " + faction.getName() + " ? Cette action est IRRÉVERSIBLE.", confirmed -> {
                     if (confirmed) player.performCommand("f disband");
                 }));
+                case 24 -> nav.openUI(player, new QuestFactionUI(plugin, player));
             }
         }
     }

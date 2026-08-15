@@ -9,6 +9,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 
 import org.bukkit.Bukkit;
+import org.bukkit.Location;
 import org.bukkit.entity.Player;
 
 import fr.cantale.plugin.CantalePlugin;
@@ -32,6 +33,11 @@ public class FactionManager {
 
     /** Lettres (unicode), chiffres, underscore, tiret — mêmes règles create/rename. */
     private static final Pattern NAME_PATTERN = Pattern.compile("^[\\p{L}0-9_\\-]{" + NAME_MIN_LENGTH + "," + NAME_MAX_LENGTH + "}$");
+
+    /** Sentinelle « pas de faction » — ConcurrentHashMap ne peut pas stocker null (comme FortifiedChunkDAO -1). */
+    private static final int NO_FACTION = -1;
+    /** Sentinelle wilderness : getClaimAt doit mémoriser l'absence, pas re-SQL à chaque lookup. */
+    private static final Claim WILDERNESS_SENTINEL = new Claim(-1, "__wilderness__", 0, 0);
 
     private final CantalePlugin plugin;
     private final FactionDAO factionDAO;
@@ -101,8 +107,15 @@ public class FactionManager {
             faction.setId(id);
             applyMemberPowerDelta(faction, POWER_PER_MEMBER);
             cacheFaction(faction);
+            long freeSeconds = plugin.getConfigManager().getSecretFreeDaysNewFaction() * 86400L;
+            faction.setSecretFreeUntil(System.currentTimeMillis() / 1000 + freeSeconds);
+            saveFaction(faction);
             if (plugin.getDiscordBot() != null && plugin.getDiscordBot().isConnected()) {
                 plugin.getDiscordBot().ensureFactionDiscordRole(faction);
+            }
+            // Le chef rejoint une faction : resync de sa carte mod client (relations + /f spawn)
+            if (plugin.getClientMapBridge() != null) {
+                plugin.getClientMapBridge().onMemberFactionChanged(leader);
             }
             return faction;
         }
@@ -232,15 +245,17 @@ public class FactionManager {
     public Faction getPlayerFaction(UUID playerUuid) {
         Integer cachedId = playerFactionCache.get(playerUuid);
         if (cachedId != null) {
-            return getFaction(cachedId);
+            return cachedId == NO_FACTION ? null : getFaction(cachedId);
         }
 
         Faction faction = factionDAO.getFactionByPlayer(playerUuid);
         if (faction != null) {
             cacheFaction(faction);
             playerFactionCache.put(playerUuid, faction.getId());
+            return faction;
         }
-        return faction;
+        playerFactionCache.put(playerUuid, NO_FACTION);
+        return null;
     }
 
     public List<Faction> getAllFactions() {
@@ -269,10 +284,10 @@ public class FactionManager {
             plugin.getFortifiedChunkDAO().removeAllForFaction(id);
         }
 
-        // Clear cache
+        // Clear cache — mémoriser l'absence (pas remove, sinon SQL à chaque lookup)
         loadedFactions.remove(id);
         for (UUID member : faction.getMembers()) {
-            playerFactionCache.remove(member);
+            playerFactionCache.put(member, NO_FACTION);
         }
 
         return factionDAO.deleteFaction(id);
@@ -307,6 +322,10 @@ public class FactionManager {
         if (plugin.getDiscordBot() != null && plugin.getDiscordBot().isConnected()) {
             plugin.getDiscordBot().syncFactionRoleForPlayer(playerUuid, true);
         }
+        // Ses relations de claims changent (OWN) → resync complet de sa carte mod client
+        if (plugin.getClientMapBridge() != null) {
+            plugin.getClientMapBridge().onMemberFactionChanged(playerUuid);
+        }
         return true;
     }
 
@@ -317,12 +336,16 @@ public class FactionManager {
 
         factionDAO.removeMember(factionId, playerUuid);
         faction.removeMember(playerUuid);
-        playerFactionCache.remove(playerUuid);
+        playerFactionCache.put(playerUuid, NO_FACTION);
 
         if (plugin.getDiscordBot() != null && plugin.getDiscordBot().isConnected()) {
             plugin.getDiscordBot().syncFactionRoleForPlayer(playerUuid, false);
         }
-        
+        // Le joueur quitte sa faction : ses claims OWN redeviennent OTHER sur sa carte mod
+        if (plugin.getClientMapBridge() != null) {
+            plugin.getClientMapBridge().onMemberFactionChanged(playerUuid);
+        }
+
         // Si c'était le dernier membre, détruire la faction (pas besoin de -5 / claims)
         if (faction.getMembers().isEmpty()) {
             deleteFaction(factionId);
@@ -407,6 +430,10 @@ public class FactionManager {
         factionDAO.addClaim(claim);
         faction.addClaim(claim);
         claimCache.put(claim.getChunkKey(), claim);
+        // Diffuser le nouveau claim aux clients du mod Cantale (delta cantale:map)
+        if (plugin.getClientMapBridge() != null) {
+            plugin.getClientMapBridge().onClaimAdded(faction, claim);
+        }
         return true;
     }
 
@@ -420,18 +447,28 @@ public class FactionManager {
         }
 
         factionDAO.removeClaim(claim.getId());
-        claimCache.remove(claim.getChunkKey());
+        claimCache.put(claim.getChunkKey(), WILDERNESS_SENTINEL);
 
         // Une fortification ne survit pas à la perte du claim
         if (plugin.getFortifiedChunkDAO() != null) {
             plugin.getFortifiedChunkDAO().unfortifyChunk(world, chunkX, chunkZ);
+        }
+        // Retirer le chunk de la carte des clients du mod Cantale (delta cantale:map)
+        if (plugin.getClientMapBridge() != null) {
+            plugin.getClientMapBridge().onClaimRemoved(world, chunkX, chunkZ, claim.getFactionId());
         }
         return true;
     }
 
     public Claim getClaimAt(String world, int chunkX, int chunkZ) {
         String key = world + "," + chunkX + "," + chunkZ;
-        return claimCache.computeIfAbsent(key, k -> factionDAO.getClaimAt(world, chunkX, chunkZ));
+        Claim cached = claimCache.get(key);
+        if (cached != null) {
+            return cached == WILDERNESS_SENTINEL ? null : cached;
+        }
+        Claim claim = factionDAO.getClaimAt(world, chunkX, chunkZ);
+        claimCache.put(key, claim != null ? claim : WILDERNESS_SENTINEL);
+        return claim;
     }
 
     public Faction getFactionAtClaim(String world, int chunkX, int chunkZ) {
@@ -440,6 +477,36 @@ public class FactionManager {
             return getFaction(claim.getFactionId());
         }
         return null;
+    }
+
+    /**
+     * Claim propriétaire du /f spawn : le chunk qui contient {@code faction.getSpawn()}.
+     * Spawn non défini, ou chunk plus claimé par cette fac → false.
+     * Suit {@code /f setspawn} (l'ancien chunk n'est plus spécial).
+     */
+    public boolean isFactionSpawnClaim(String world, int chunkX, int chunkZ) {
+        Claim claim = getClaimAt(world, chunkX, chunkZ);
+        if (claim == null) {
+            return false;
+        }
+        Faction faction = getFaction(claim.getFactionId());
+        return faction != null && faction.isSpawnInChunk(world, chunkX, chunkZ);
+    }
+
+    /**
+     * Immunité explosions : uniquement via rune de fortification.
+     * Le claim principal (/f setspawn) n'est plus protégé spécifiquement.
+     */
+    public boolean isExplosionImmune(String world, int chunkX, int chunkZ) {
+        return plugin.getFortifiedChunkDAO() != null
+                && plugin.getFortifiedChunkDAO().isFortified(world, chunkX, chunkZ);
+    }
+
+    public boolean isExplosionImmune(Location loc) {
+        if (loc == null || loc.getWorld() == null) {
+            return false;
+        }
+        return isExplosionImmune(loc.getWorld().getName(), loc.getChunk().getX(), loc.getChunk().getZ());
     }
 
     public boolean autoClaim(UUID playerUuid, String world, int chunkX, int chunkZ) {

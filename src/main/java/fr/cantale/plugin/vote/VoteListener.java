@@ -22,13 +22,16 @@ import java.util.Locale;
 import java.util.UUID;
 
 /**
- * Intégration Votifier (NuVotifier) via réflexion — pas de dépendance compile-time.
+ * Intégration votes externes :
+ *  - Votifier (NuVotifier) via réflexion — pas de dépendance compile-time (surtout site 1).
+ *  - Polling API Serveur-Prive ({@link ServeurPriveVotePoller}, site 2).
+ *  - Polling API ServeurListe ({@link ServeurListeVotePoller}, site 3, vérif par IP).
  *
  * Au boot :
  *  - Si la classe {@code com.vexsoftware.votifier.model.VotifierEvent} existe, on enregistre
  *    dynamiquement un EventExecutor qui réceptionne les votes et appelle {@link #handleVote}.
- *  - Sinon, on logue un avertissement et le système devient passif (commandes /vote
- *    fonctionnent toujours mais aucun vote ne sera reçu).
+ *  - Sinon, on logue un avertissement (Top-Serveurs principalement).
+ *  - Les pollers API démarrent dès qu'un token est présent.
  *
  * Si le joueur est en ligne : récompense immédiate (Cadeau(x) du Roi).
  * Sinon : vote stocké en pending, délivré à la prochaine connexion via {@link #onJoin}.
@@ -41,6 +44,8 @@ public class VoteListener implements Listener {
     private final VoteDAO voteDAO;
     private final VoteRewardManager rewardManager;
     private final VotePartyManager partyManager;
+    private final ServeurPriveVotePoller serveurPrivePoller;
+    private final ServeurListeVotePoller serveurListePoller;
 
     public VoteListener(CantalePlugin plugin) {
         this.plugin = plugin;
@@ -49,6 +54,19 @@ public class VoteListener implements Listener {
         this.partyManager = new VotePartyManager(plugin);
         new VoteReminder(plugin); // démarre le scheduler de rappels si activé
         VoteMonthlyManager.onStartup(plugin);
+        this.serveurPrivePoller = new ServeurPriveVotePoller(plugin, this);
+        this.serveurListePoller = new ServeurListeVotePoller(plugin, this);
+        this.serveurPrivePoller.start();
+        this.serveurListePoller.start();
+    }
+
+    public void shutdown() {
+        if (serveurPrivePoller != null) {
+            serveurPrivePoller.stop();
+        }
+        if (serveurListePoller != null) {
+            serveurListePoller.stop();
+        }
     }
 
     /**
@@ -59,7 +77,8 @@ public class VoteListener implements Listener {
     public boolean tryRegisterVotifier() {
         Class<?> votifierEventClass = loadVotifierEventClass();
         if (votifierEventClass == null) {
-            plugin.getLogger().info("[Vote] Votifier/NuVotifier non détecté — système de vote passif. Installe NuVotifier.jar pour activer.");
+            plugin.getLogger().warning("[Vote] Votifier/NuVotifier ABSENT — Top-Serveurs ne pourra pas récompenser via Votifier. "
+                    + "Serveur-Prive et ServeurListe utilisent l'API (polling). Installe NuVotifier.jar pour le site 1 (docs/Votes.md).");
             return false;
         }
 
@@ -81,6 +100,9 @@ public class VoteListener implements Listener {
 
         pm.registerEvent(eventClass, this, EventPriority.NORMAL, executor, plugin);
         plugin.getLogger().info("[Vote] Votifier détecté — listener enregistré sur " + eventClass.getSimpleName());
+        plugin.getLogger().info("[Vote] Après un vrai vote Top-Serveurs, tu dois voir « [Vote] VotifierEvent reçu ». "
+                + "Serveur-Prive / ServeurListe = API polling (Votifier optionnel). Si ce log n'apparaît jamais "
+                + "sur Top-Serveurs : le site n'atteint pas NuVotifier (IP/port/clé, host 0.0.0.0) — docs/Votes.md.");
         return true;
     }
 
@@ -171,12 +193,12 @@ public class VoteListener implements Listener {
                     + "\" — fallback 1× Cadeau du Roi. Vérifie le serviceName NuVotifier / config vote.sites.");
         }
 
-        // Anti-abuse : vérifier le cooldown IP pour ce site (ou clé brute si site inconnu)
-        VoteSite cooldownKey = voteSite != null ? voteSite : new VoteSite(site, "", 1);
-        if (address != null && !address.isBlank()
-                && voteDAO.hasRecentVoteFromIp(address, cooldownKey, plugin.getConfig().getInt("vote.ip-cooldown-hours", 1))) {
-            plugin.getLogger().info("[Vote] Vote ignoré pour " + resolvedName + " sur " + site
-                    + " : cooldown IP actif (" + address + ").");
+        // Anti-doublon site (Votifier + polling API Serveur-Prive / ServeurListe, ou double event).
+        // Pas de cooldown IP côté plugin : chaque site applique déjà le sien, et un filtre IP
+        // bloquait les foyers à IP partagée et avalait des votes légitimes.
+        if (voteSite != null && voteDAO.hasRecentVoteOnSite(uuid, siteLabel, voteSite.cooldownHours())) {
+            plugin.getLogger().info("[Vote] Vote ignoré pour " + resolvedName + " sur " + siteLabel
+                    + " : déjà récompensé dans la fenêtre de cooldown (" + voteSite.cooldownHours() + "h).");
             return;
         }
 

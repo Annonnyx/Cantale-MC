@@ -37,15 +37,30 @@ public class MobStackManager {
             EntityType.GOAT
     );
 
-    private static final Map<EntityType, String> FRENCH_NAMES = Map.of(
-            EntityType.SHEEP, "Mouton",
-            EntityType.COW, "Vache",
-            EntityType.CHICKEN, "Poulet",
-            EntityType.PIG, "Cochon",
-            EntityType.RABBIT, "Lapin",
-            EntityType.MOOSHROOM, "Champimeuh",
-            EntityType.GOAT, "Chèvre"
-    );
+    private static final Map<EntityType, String> FRENCH_NAMES;
+
+    static {
+        Map<EntityType, String> names = new HashMap<>();
+        names.put(EntityType.SHEEP, "Mouton");
+        names.put(EntityType.COW, "Vache");
+        names.put(EntityType.CHICKEN, "Poulet");
+        names.put(EntityType.PIG, "Cochon");
+        names.put(EntityType.RABBIT, "Lapin");
+        names.put(EntityType.MOOSHROOM, "Champimeuh");
+        names.put(EntityType.GOAT, "Chèvre");
+        names.put(EntityType.ZOMBIE, "Zombie");
+        names.put(EntityType.SKELETON, "Squelette");
+        names.put(EntityType.SPIDER, "Araignée");
+        names.put(EntityType.CREEPER, "Creeper");
+        names.put(EntityType.ENDERMAN, "Enderman");
+        names.put(EntityType.BLAZE, "Blaze");
+        names.put(EntityType.WITCH, "Sorcière");
+        names.put(EntityType.SLIME, "Slime");
+        names.put(EntityType.GHAST, "Ghast");
+        names.put(EntityType.MAGMA_CUBE, "Cube de magma");
+        names.put(EntityType.IRON_GOLEM, "Golem de fer");
+        FRENCH_NAMES = Map.copyOf(names);
+    }
 
     private final CantalePlugin plugin;
     private final NamespacedKey stackKey;
@@ -60,6 +75,8 @@ public class MobStackManager {
     private boolean stackTamed;
 
     private BukkitTask task;
+    /** Override de cadence piloté par le PerformanceGovernor (null = intervalle config). */
+    private volatile Integer intervalOverrideSeconds;
 
     public MobStackManager(CantalePlugin plugin) {
         this.plugin = plugin;
@@ -84,10 +101,28 @@ public class MobStackManager {
             plugin.getLogger().info("[MobStack] Désactivé (optimization.mob-stacking.enabled=false)");
             return;
         }
-        long period = intervalSeconds * 20L;
+        long period = effectiveIntervalSeconds() * 20L;
         this.task = Bukkit.getScheduler().runTaskTimer(plugin, this::stackPass, period, period);
         plugin.getLogger().info("[MobStack] Actif — max=" + maxStack + ", radius=" + radius
-                + ", interval=" + intervalSeconds + "s (Animals exclus du cull chunk)");
+                + ", interval=" + effectiveIntervalSeconds() + "s (Animals exclus du cull chunk)");
+    }
+
+    /**
+     * Override temporaire de la cadence de merge (PerformanceGovernor, mode dégradé+).
+     * null = retour à l'intervalle config. Relance la tâche si la valeur change.
+     */
+    public void setIntervalOverrideSeconds(Integer seconds) {
+        Integer newValue = seconds == null ? null : Math.max(5, seconds);
+        if (java.util.Objects.equals(newValue, this.intervalOverrideSeconds)) return;
+        this.intervalOverrideSeconds = newValue;
+        if (enabled && Bukkit.isPrimaryThread() && task != null) {
+            start();
+        }
+    }
+
+    private int effectiveIntervalSeconds() {
+        Integer override = intervalOverrideSeconds;
+        return override != null ? override : intervalSeconds;
     }
 
     public void stop() {
@@ -152,7 +187,7 @@ public class MobStackManager {
 
     public boolean isStackableCandidate(LivingEntity entity) {
         if (!enabled || entity == null || !entity.isValid() || entity.isDead()) return false;
-        if (!STACKABLE_TYPES.contains(entity.getType())) return false;
+        if (!STACKABLE_TYPES.contains(entity.getType()) && !isSpawnerMob(entity)) return false;
         if (hasSkipMerge(entity)) return false;
         if (entity.isLeashed()) return false;
         if (!entity.getPassengers().isEmpty() || entity.getVehicle() != null) return false;
@@ -188,7 +223,23 @@ public class MobStackManager {
         if (entity instanceof MushroomCow mooshroom) {
             key.append(':').append(mooshroom.getVariant().name());
         }
+        if (entity instanceof Slime slime) {
+            key.append(':').append(slime.getSize());
+        }
         return key.toString();
+    }
+
+    private boolean isSpawnerMob(Entity entity) {
+        var spawners = plugin.getSpawnerManager();
+        return spawners != null && spawners.isSpawnerMob(entity);
+    }
+
+    private void copySpawnerFlag(LivingEntity from, LivingEntity to) {
+        var spawners = plugin.getSpawnerManager();
+        if (spawners == null || from == null || to == null) return;
+        if (spawners.isSpawnerMob(from) && !spawners.isSpawnerMob(to)) {
+            to.getPersistentDataContainer().set(spawners.keys().mobFlag, PersistentDataType.BYTE, (byte) 1);
+        }
     }
 
     public void updateStackDisplay(LivingEntity entity, int size) {
@@ -213,6 +264,9 @@ public class MobStackManager {
         }
         if (from instanceof MushroomCow fromMoosh && to instanceof MushroomCow toMoosh) {
             toMoosh.setVariant(fromMoosh.getVariant());
+        }
+        if (from instanceof Slime fromSlime && to instanceof Slime toSlime) {
+            toSlime.setSize(fromSlime.getSize());
         }
         if (from instanceof Ageable fromAge && to instanceof Ageable toAge) {
             if (fromAge.isAdult()) {
@@ -266,6 +320,7 @@ public class MobStackManager {
         if (world == null) return;
         for (ItemStack stack : loot) {
             if (stack == null || stack.getType().isAir() || stack.getAmount() <= 0) continue;
+            if (stack.getType() == org.bukkit.Material.WITHER_SKELETON_SKULL) continue;
             world.dropItemNaturally(loc, stack);
         }
     }
@@ -341,6 +396,7 @@ public class MobStackManager {
                 int take = Math.min(room, otherSize);
                 total += take;
                 consumed.add(other.getUniqueId());
+                copySpawnerFlag(other, host);
 
                 if (take >= otherSize) {
                     other.remove();
@@ -387,6 +443,7 @@ public class MobStackManager {
         if (room <= 0) return;
 
         int take = Math.min(room, add);
+        copySpawnerFlag(spawned, best);
         setStackSize(best, bestSize + take);
         if (take >= add) {
             spawned.remove();

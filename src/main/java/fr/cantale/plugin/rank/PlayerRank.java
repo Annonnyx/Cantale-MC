@@ -2,12 +2,13 @@ package fr.cantale.plugin.rank;
 
 public enum PlayerRank {
     //                       display       dailyC  stL  pc  pc2 mL  homes ah
-    NONE("Aucun",           0,      0, 27,  0,  0,  3,  3),
-    AVENTURIER("Aventurier",2500,   0, 27,  0,  1,  5,  5),
+    NONE("Aucun",           0,      0, 27,  0,  0,  5,  3),
+    AVENTURIER("Aventurier",2500,   0, 27,  0,  1,  8,  5),
     VIP("VIP",              10000,  1, 54,  0,  2, 10, 12),
     CHEVRE("Chèvre",        100000, 1, 54, 54,  3,999, 20),
     // Staff : pas de bonus /daily ni vies mensuelles (même base 1000 Cantox que les joueurs)
-    MODERATOR("Modo",       0,      0, 54, 54,  0,999, 20),
+    // Modo : homes = la norme joueur (teleport.max-homes), aucun privilège de homes.
+    MODERATOR("Modo",       0,      0, 54, 54,  0,  5, 20),
     ADMIN("Admin",          0,      0, 54, 54,  0,999, 20),
     OWNER("Owner",          0,      0, 54, 54,  0,999, 20);
 

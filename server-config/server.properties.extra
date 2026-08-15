@@ -1,0 +1,18 @@
+# ─── server.properties — extraits optimisation (Paper 1.21.x) ───────────────
+# Fusionner dans server.properties (clés existantes à modifier, pas à dupliquer).
+
+# Compression réseau : 256 évite de compresser les petits paquets (CPU).
+# Défaut : 256 (vérifier qu'elle n'a pas été montée/baissée).
+network-compression-threshold=256
+
+# Distances de base : le serveur SIMULE peu (4) mais les joueurs VOIENT loin (7).
+# Le gouverneur Cantale ajuste ces valeurs à la baisse sous charge (mode dégradé/critique)
+# et les restaure ensuite — ce sont les valeurs "nominales" captées au boot.
+# Défauts : 10 / 10.
+simulation-distance=4
+view-distance=7
+
+# Sauvegarde des chunks hors thread principal (forcé à false par Paper de toute façon).
+sync-chunk-writes=false
+
+# Toujours recommandé sur Paper : utilisez les flags JVM Aikar (voir docs/ServerOptimization.md).

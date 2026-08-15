@@ -9,6 +9,7 @@ import org.bukkit.entity.MushroomCow;
 import org.bukkit.entity.Projectile;
 import org.bukkit.entity.Rabbit;
 import org.bukkit.entity.Sheep;
+import org.bukkit.entity.Slime;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
@@ -88,7 +89,10 @@ public class MobStackListener implements Listener {
         } else {
             mooshVariant = null;
         }
+        final int slimeSize = dead instanceof Slime slime ? slime.getSize() : -1;
         adult = !(dead instanceof Ageable ageable) || ageable.isAdult();
+        final boolean fromSpawner = plugin.getSpawnerManager() != null
+                && plugin.getSpawnerManager().isSpawnerMob(dead);
 
         new BukkitRunnable() {
             @Override
@@ -105,12 +109,20 @@ public class MobStackListener implements Listener {
                 if (replacement instanceof MushroomCow moosh && mooshVariant != null) {
                     moosh.setVariant(mooshVariant);
                 }
+                if (replacement instanceof Slime slime && slimeSize > 0) {
+                    slime.setSize(slimeSize);
+                }
                 if (replacement instanceof Ageable ageable) {
                     if (adult) ageable.setAdult();
                     else ageable.setBaby();
                 }
                 manager.setStackSize(replacement, remaining);
                 manager.markSkipMerge(replacement, 60);
+                if (fromSpawner && plugin.getSpawnerManager() != null) {
+                    replacement.getPersistentDataContainer().set(
+                            plugin.getSpawnerManager().keys().mobFlag,
+                            org.bukkit.persistence.PersistentDataType.BYTE, (byte) 1);
+                }
             }
         }.runTaskLater(plugin, 1L);
     }

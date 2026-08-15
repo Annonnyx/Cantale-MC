@@ -192,7 +192,7 @@ public class NavigationManager {
 [Ligne 2]  [VIDE] FACTION ÉCONOMIE AUCTION HOMES WARPS VIES [VIDE]
 [Ligne 3]  [VIDE] PROFILE LEADER VOTE WANTED TRADE ITEMS [VIDE]
 [Ligne 4]  [VIDE] PC/EC MODERATION ADMIN RANK PERMS WEB [VIDE]
-[Ligne 5]  [VIDE] [VIDE] [VIDE] [VIDE] [VIDE] [VIDE] [VIDE] [VIDE]
+[Ligne 5]  [VIDE] [VIDE] QUÊTES [VIDE] COLLECTIONS [VIDE] [VIDE] [VIDE]
 [Ligne 6]  [VIDE] [VIDE] [VIDE] [VIDE] FERMER [VIDE] [VIDE] [VIDE]
 ```
 
@@ -233,6 +233,10 @@ public class NavigationManager {
 | 32 | NETHER_STAR | `§eRanks` | `§7Grades VIP / Chèvre` | Ouvre RankUI |
 | 33 | REPEATER | `§ePermissions` | `§7Gérer les permissions` | Ouvre PermissionUI |
 | 34 | COMPASS | `§eWeb / Link` | `§7Discord /link · Site /connexion` | Ouvre WebLinkUI |
+| 38 | WRITABLE_BOOK | `§eQuêtes` | `§7Journalières, hebdo, saison
+§7Courses de faction` | Ouvre QuestMainUI |
+| 40 | ITEM_FRAME | `§eCollections` | `§7Paliers long terme
+§7Minage, farming, combat` | Ouvre CollectionMainUI |
 | 49 | BARRIER | `§cFermer` | `§7Fermer le menu` | Ferme l'inventaire |
 
 ---

@@ -6,12 +6,16 @@ import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 
 import java.io.File;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.logging.Level;
 
 /**
  * Charge {@code shop.yml} et résout, pour chaque {@link Material}, s'il est
@@ -58,8 +62,16 @@ public class ShopConfig {
         resolved.clear();
         byCategory.clear();
 
-        plugin.saveResource("shop.yml", false);
         File file = new File(plugin.getDataFolder(), "shop.yml");
+        // Ne pas appeler saveResource si le fichier existe déjà : Bukkit logue un WARN
+        // trompeur (« Could not save… because … already exists ») alors que c'est le
+        // comportement voulu (replace=false). Copie JAR → disque uniquement au 1er run.
+        if (!file.exists()) {
+            plugin.saveResource("shop.yml", false);
+        }
+        // Fusionne les items du JAR absents du fichier disque (ex. HOPPER réintroduit)
+        // sans écraser les prix/customisations existantes.
+        mergeMissingItemsFromJar(file);
         YamlConfiguration yaml = YamlConfiguration.loadConfiguration(file);
 
         loadCategories(yaml);
@@ -128,6 +140,44 @@ public class ShopConfig {
         return rules;
     }
 
+    /**
+     * Ajoute dans le {@code shop.yml} disque les clés {@code items.*} présentes dans le JAR
+     * mais absentes du fichier live. Ne modifie jamais une entrée déjà définie.
+     */
+    private void mergeMissingItemsFromJar(File diskFile) {
+        try (InputStream in = plugin.getResource("shop.yml")) {
+            if (in == null || !diskFile.exists()) return;
+            YamlConfiguration jarYaml = YamlConfiguration.loadConfiguration(
+                    new InputStreamReader(in, StandardCharsets.UTF_8));
+            YamlConfiguration diskYaml = YamlConfiguration.loadConfiguration(diskFile);
+
+            ConfigurationSection jarItems = jarYaml.getConfigurationSection("items");
+            if (jarItems == null) return;
+
+            ConfigurationSection diskItems = diskYaml.getConfigurationSection("items");
+            if (diskItems == null) {
+                diskYaml.createSection("items");
+                diskItems = diskYaml.getConfigurationSection("items");
+            }
+            if (diskItems == null) return;
+
+            int added = 0;
+            for (String key : jarItems.getKeys(false)) {
+                if (diskItems.contains(key)) continue;
+                Object value = jarItems.get(key);
+                diskItems.set(key, value);
+                added++;
+                plugin.getLogger().info("[Shop] Item manquant fusionné depuis le JAR : items." + key);
+            }
+            if (added > 0) {
+                diskYaml.save(diskFile);
+                plugin.getLogger().info("[Shop] " + added + " item(s) ajouté(s) au shop.yml disque (merge non destructif).");
+            }
+        } catch (Exception e) {
+            plugin.getLogger().log(Level.WARNING, "[Shop] Échec merge items JAR → shop.yml : " + e.getMessage(), e);
+        }
+    }
+
     private Map<Material, ShopItem> loadExactItems(YamlConfiguration yaml) {
         Map<Material, ShopItem> items = new LinkedHashMap<>();
         ConfigurationSection section = yaml.getConfigurationSection("items");
@@ -139,16 +189,37 @@ public class ShopConfig {
                 plugin.getLogger().warning("[Shop] Material inconnu dans shop.yml (items." + key + ") — ignoré.");
                 continue;
             }
-            ConfigurationSection entry = section.getConfigurationSection(key);
-            if (entry == null) continue;
 
-            String category = entry.getString("category", "BLOCS");
-            double buy = entry.getDouble("buy", 0);
-            double sell = entry.getDouble("sell", 0);
-            boolean buyEnabled = entry.getBoolean("buy-enabled", buy > 0);
-            boolean sellEnabled = entry.getBoolean("sell-enabled", sell > 0);
-            int dailySellCap = entry.getInt("daily-sell-cap", 0);
-            int dailyBuyCap = entry.getInt("daily-buy-cap", 0);
+            String category = "BLOCS";
+            double buy = 0;
+            double sell = 0;
+            boolean buyEnabled;
+            boolean sellEnabled;
+            int dailySellCap = 0;
+            int dailyBuyCap = 0;
+
+            ConfigurationSection entry = section.getConfigurationSection(key);
+            if (entry != null) {
+                category = entry.getString("category", "BLOCS");
+                buy = entry.getDouble("buy", 0);
+                sell = entry.getDouble("sell", 0);
+                buyEnabled = entry.getBoolean("buy-enabled", buy > 0);
+                sellEnabled = entry.getBoolean("sell-enabled", sell > 0);
+                dailySellCap = entry.getInt("daily-sell-cap", 0);
+                dailyBuyCap = entry.getInt("daily-buy-cap", 0);
+            } else {
+                // Flow-style YAML {k: v} parfois exposé comme Map et non ConfigurationSection
+                Object raw = section.get(key);
+                if (!(raw instanceof Map<?, ?> map)) continue;
+                Object catObj = map.get("category");
+                category = catObj != null ? String.valueOf(catObj) : "BLOCS";
+                buy = toDouble(map.get("buy"), 0);
+                sell = toDouble(map.get("sell"), 0);
+                buyEnabled = toBoolean(map.get("buy-enabled"), buy > 0);
+                sellEnabled = toBoolean(map.get("sell-enabled"), sell > 0);
+                dailySellCap = (int) toDouble(map.get("daily-sell-cap"), 0);
+                dailyBuyCap = (int) toDouble(map.get("daily-buy-cap"), 0);
+            }
 
             items.put(material, new ShopItem(material, category, buy, sell, buyEnabled, sellEnabled, dailySellCap, dailyBuyCap));
         }

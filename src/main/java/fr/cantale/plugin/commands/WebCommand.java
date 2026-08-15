@@ -39,6 +39,7 @@ public class WebCommand implements CommandExecutor, TabCompleter {
         sender.sendMessage(format("&7Connecte-toi sur le site :"));
         sender.sendMessage(format("&b" + SITE_CONNEXION));
         sender.sendMessage(format("&7Pour lier Discord ↔ Minecraft : &e/link &7en jeu, puis &e/link &7sur Discord."));
+        sender.sendMessage(format("&7Pour délier : &e/unlink confirm &7en jeu."));
         sender.sendMessage(format("&8&m─────────────────────────"));
         if (sender instanceof Player player) {
             // Clickable URL for in-game clients that support it

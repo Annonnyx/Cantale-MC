@@ -15,7 +15,6 @@ import org.jetbrains.annotations.NotNull;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
@@ -23,14 +22,19 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Salon compteur Discord : le chiffre doit être prev+1.
- * Messages sans aucun chiffre = chat libre (ignorés, compteur inchangé).
+ * Salon compteur Discord — règles strictes :
+ * <ul>
+ *   <li>Message = exactement l'entier suivant (espaces optionnels uniquement)</li>
+ *   <li>Pas de lettres, préfixes, suffixes (« r », « 12r », « n12 »…)</li>
+ *   <li>Doit être {@code previous + 1}</li>
+ *   <li>Un même auteur ne peut pas compter deux fois de suite</li>
+ * </ul>
+ * Tout message invalide est supprimé (Manage Messages) + avertissement FR court.
  */
 public class CountingListener extends ListenerAdapter {
 
-    private static final Pattern HAS_DIGIT = Pattern.compile("\\d");
-    private static final Pattern LEADING_NUMBER = Pattern.compile("^\\s*(\\d+)");
-    private static final Pattern ANY_NUMBER = Pattern.compile("\\d+");
+    /** Entier positif seul, espaces optionnels autour — rien d'autre. */
+    private static final Pattern STRICT_INTEGER = Pattern.compile("^\\s*(\\d+)\\s*$");
     private static final String STATE_FILE = "discord-counting.yml";
     private static final int HISTORY_SCAN = 100;
     private static final Emoji WRONG_REACT = Emoji.fromUnicode("❌");
@@ -38,6 +42,7 @@ public class CountingListener extends ListenerAdapter {
     private final CantalePlugin plugin;
     private final DiscordConfig config;
     private final AtomicLong current = new AtomicLong(0L);
+    private final AtomicLong lastAuthorId = new AtomicLong(0L);
     private final Object saveLock = new Object();
     private volatile boolean hydrated;
 
@@ -68,19 +73,20 @@ public class CountingListener extends ListenerAdapter {
         }
 
         channel.getHistory().retrievePast(HISTORY_SCAN).queue(messages -> {
-            Long lastCount = findLastCountInHistory(messages);
+            HistoryHit hit = findLastValidCountInHistory(messages);
             long fileValue = current.get();
             if (fileValue > 0L) {
                 plugin.getLogger().info("[Discord Counting] Compteur fichier conservé : " + fileValue
-                    + (lastCount != null ? " (historique récent ≈ " + lastCount + ")" : ""));
-            } else if (lastCount != null) {
-                setAndSave(lastCount);
-                plugin.getLogger().info("[Discord Counting] Compteur repris depuis l'historique : " + lastCount);
+                    + (hit != null ? " (historique récent ≈ " + hit.number + ")" : ""));
+            } else if (hit != null) {
+                setAndSave(hit.number, hit.authorId);
+                plugin.getLogger().info("[Discord Counting] Compteur repris depuis l'historique : " + hit.number);
             } else {
                 plugin.getLogger().info("[Discord Counting] Aucun compte trouvé — départ à 0.");
             }
             plugin.getLogger().info("[Discord Counting] Actif sur #" + channel.getName()
-                + " — prochain attendu : " + (current.get() + 1));
+                + " — prochain attendu : " + (current.get() + 1)
+                + " (strict, anti double-post)");
             hydrated = true;
         }, err -> {
             plugin.getLogger().warning("[Discord Counting] Historique illisible : " + err.getMessage()
@@ -98,25 +104,32 @@ public class CountingListener extends ListenerAdapter {
         if (channelId <= 0L || event.getChannel().getIdLong() != channelId) return;
 
         String content = event.getMessage().getContentRaw();
-        if (content == null || content.isBlank()) return;
-
-        // Pas de chiffre → chat libre, compteur inchangé
-        if (!HAS_DIGIT.matcher(content).find()) return;
+        long expected = current.get() + 1L;
+        long authorId = event.getAuthor().getIdLong();
 
         Long parsed = extractCountNumber(content);
-        long expected = current.get() + 1L;
-
-        if (parsed == null || parsed != expected) {
-            rejectWrong(event, expected);
+        if (parsed == null) {
+            rejectWrong(event, expected, "message invalide — envoie uniquement le nombre (ex. **"
+                + expected + "**), sans lettres ni texte.");
             return;
         }
 
-        // Correct → avancer + persister
-        setAndSave(expected);
+        if (parsed != expected) {
+            rejectWrong(event, expected, "mauvais nombre — le prochain est **" + expected + "**.");
+            return;
+        }
+
+        long prevAuthor = lastAuthorId.get();
+        if (prevAuthor != 0L && prevAuthor == authorId) {
+            rejectWrong(event, expected, "tu ne peux pas compter deux fois de suite — laisse quelqu'un d'autre.");
+            return;
+        }
+
+        setAndSave(expected, authorId);
         event.getMessage().addReaction(Emoji.fromUnicode("✅")).queue(null, ignored -> {});
     }
 
-    private void rejectWrong(MessageReceivedEvent event, long expected) {
+    private void rejectWrong(MessageReceivedEvent event, long expected, String reason) {
         Message message = event.getMessage();
         TextChannel channel = event.getChannel() instanceof TextChannel tc ? tc : null;
 
@@ -125,14 +138,13 @@ public class CountingListener extends ListenerAdapter {
 
         Runnable warn = () -> {
             if (channel == null) return;
-            String text = "❌ Mauvais nombre — le prochain est **" + expected
-                + "**. (Sans chiffre = chat libre.)";
+            String text = "❌ " + reason;
             channel.sendMessage(event.getAuthor().getAsMention() + " " + text)
                 .queue(m -> m.delete().queueAfter(8, TimeUnit.SECONDS), ignored -> {});
         };
 
         if (canManage) {
-            message.delete().reason("Compteur Discord : mauvais nombre").queue(
+            message.delete().reason("Compteur Discord : " + reason).queue(
                 ok -> warn.run(),
                 err -> {
                     message.addReaction(WRONG_REACT).queue(null, ignored -> {});
@@ -146,24 +158,14 @@ public class CountingListener extends ListenerAdapter {
     }
 
     /**
-     * Extrait le nombre du compteur : nombre en tête de message, sinon unique entier du message.
-     * @return null si format ambigu / invalide
+     * Accepte uniquement un message dont le contenu entier est un entier (espaces OK).
+     * @return null si format invalide
      */
     static Long extractCountNumber(String content) {
-        Matcher lead = LEADING_NUMBER.matcher(content);
-        if (lead.find()) {
-            return parseLongSafe(lead.group(1));
-        }
-
-        Matcher any = ANY_NUMBER.matcher(content);
-        List<String> found = new ArrayList<>();
-        while (any.find()) {
-            found.add(any.group());
-        }
-        if (found.size() == 1) {
-            return parseLongSafe(found.get(0));
-        }
-        return null;
+        if (content == null) return null;
+        Matcher m = STRICT_INTEGER.matcher(content);
+        if (!m.matches()) return null;
+        return parseLongSafe(m.group(1));
     }
 
     private static Long parseLongSafe(String raw) {
@@ -174,16 +176,13 @@ public class CountingListener extends ListenerAdapter {
         }
     }
 
-    private Long findLastCountInHistory(List<Message> messages) {
+    private HistoryHit findLastValidCountInHistory(List<Message> messages) {
         // messages : du plus récent au plus ancien
         for (Message msg : messages) {
             if (msg.getAuthor().isBot() || msg.isWebhookMessage()) continue;
-            String content = msg.getContentRaw();
-            if (content == null || content.isBlank()) continue;
-            if (!HAS_DIGIT.matcher(content).find()) continue;
-            Long n = extractCountNumber(content);
+            Long n = extractCountNumber(msg.getContentRaw());
             if (n != null && n >= 0L) {
-                return n;
+                return new HistoryHit(n, msg.getAuthor().getIdLong());
             }
         }
         return null;
@@ -196,15 +195,18 @@ public class CountingListener extends ListenerAdapter {
         long value = yaml.getLong("current", 0L);
         if (value < 0L) value = 0L;
         current.set(value);
+        lastAuthorId.set(yaml.getLong("last-author-id", 0L));
         plugin.getLogger().info("[Discord Counting] Compteur chargé depuis fichier : " + value);
     }
 
-    private void setAndSave(long value) {
+    private void setAndSave(long value, long authorId) {
         current.set(value);
+        lastAuthorId.set(authorId);
         synchronized (saveLock) {
             File file = new File(plugin.getDataFolder(), STATE_FILE);
             FileConfiguration yaml = new YamlConfiguration();
             yaml.set("current", value);
+            yaml.set("last-author-id", authorId);
             yaml.set("updated-at", System.currentTimeMillis());
             try {
                 if (!plugin.getDataFolder().exists()) {
@@ -221,4 +223,6 @@ public class CountingListener extends ListenerAdapter {
     public long getCurrent() {
         return current.get();
     }
+
+    private record HistoryHit(long number, long authorId) {}
 }

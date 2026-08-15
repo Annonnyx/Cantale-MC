@@ -24,17 +24,20 @@ public class HomeManager {
     }
 
     private int getMaxHomes(Player player) {
-        PlayerRank rank = plugin.getRankManager().getRank(player);
-        if (rank == PlayerRank.ADMIN || rank == PlayerRank.OWNER) {
-            return Integer.MAX_VALUE;
-        }
-        return rank.getMaxHomes();
+        return maxHomesFor(plugin.getRankManager().getRank(player));
     }
 
     private int getMaxHomes(UUID uuid) {
-        PlayerRank rank = plugin.getRankManager().getRank(uuid);
+        return maxHomesFor(plugin.getRankManager().getRank(uuid));
+    }
+
+    /** NONE et les modos suivent la norme configurable (teleport.max-homes) ; Admin/Owner illimité ; sinon valeur du grade. */
+    private int maxHomesFor(PlayerRank rank) {
         if (rank == PlayerRank.ADMIN || rank == PlayerRank.OWNER) {
             return Integer.MAX_VALUE;
+        }
+        if (rank == PlayerRank.NONE || rank == PlayerRank.MODERATOR) {
+            return plugin.getConfigManager().getMaxHomes();
         }
         return rank.getMaxHomes();
     }
@@ -56,6 +59,10 @@ public class HomeManager {
             homes.put(name, home);
             player.sendMessage("§8[§6Cantale§8] §aHome §e" + name + " §adéfini !");
             plugin.getLogger().info("Home créé: " + name + " pour " + player.getName() + " (UUID: " + uuid + ")");
+            // Nouveau marqueur home sur sa carte mod client
+            if (plugin.getClientMapBridge() != null) {
+                plugin.getClientMapBridge().refreshMarkers(uuid);
+            }
             return true;
         }
 
@@ -75,6 +82,10 @@ public class HomeManager {
         homeDAO.deleteHome(homes.get(name).getId());
         homes.remove(name);
         player.sendMessage("§8[§6Cantale§8] §aHome §e" + name + " §asupprimé.");
+        // Retirer le marqueur home de sa carte mod client
+        if (plugin.getClientMapBridge() != null) {
+            plugin.getClientMapBridge().refreshMarkers(uuid);
+        }
         return true;
     }
 
@@ -92,29 +103,15 @@ public class HomeManager {
         }
 
         Location loc = homes.get(name).getLocation();
-
-        int delay = plugin.getTeleportDelayManager().getTeleportDelay(player);
-        if (loc != null && loc.getWorld() != null) {
-            plugin.getChunkLoader().preloadChunksAround(loc, 1);
-            if (delay > 0) {
-                long ticksBefore = Math.max(0, (delay - 1) * 20L);
-                plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
-                    if (loc.getWorld() != null) {
-                        loc.getWorld().getChunkAtAsync(loc.getBlockX() >> 4, loc.getBlockZ() >> 4);
-                    }
-                }, ticksBefore);
-            } else {
-                loc.getWorld().getChunkAtAsync(loc.getBlockX() >> 4, loc.getBlockZ() >> 4);
-            }
+        if (loc == null || loc.getWorld() == null) {
+            player.sendMessage("§8[§6Cantale§8] §cLe monde de ce home est introuvable (déchargé ?).");
+            return false;
         }
 
-        plugin.getTeleportDelayManager().delayTeleport(player, () -> {
-            player.teleport(loc);
+        return plugin.getTeleportDelayManager().requestTeleport(player, loc, false, () -> {
             player.sendMessage("§8[§6Cantale§8] §aTéléporté au home §e" + name + "§a.");
-            plugin.getCooldownManager().setCooldown(player, "home");
             plugin.getLogger().info("TP home réussi: " + name);
         });
-        return true;
     }
 
     public List<Home> getPlayerHomes(UUID uuid) {
@@ -203,7 +200,7 @@ public class HomeManager {
             return false;
         }
 
-        plugin.getChunkLoader().preloadChunksAround(loc, 1);
+        plugin.getChunkLoader().preloadChunksAround(loc);
         loc.getWorld().getChunkAtAsync(loc.getBlockX() >> 4, loc.getBlockZ() >> 4);
         admin.teleport(loc);
         admin.sendMessage("§8[§6Cantale§8] §aTéléporté au home §e" + home.getName()

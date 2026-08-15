@@ -158,6 +158,14 @@ public class SlashCommandManager extends ListenerAdapter {
                 .addOption(OptionType.STRING, "discord_id", "ID Discord (snowflake)", true)
                 .setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.ADMINISTRATOR)),
 
+            Commands.slash("unlink", "Délier son compte Minecraft")
+                .addOption(OptionType.BOOLEAN, "confirmer", "Mets « Vrai » pour confirmer la suppression", true)
+                .setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.USE_APPLICATION_COMMANDS)),
+
+            Commands.slash("forceunlink", "[Admin] Forcer la suppression de la liaison Discord d'un joueur")
+                .addOption(OptionType.STRING, "pseudo", "Pseudo Minecraft à délier", true)
+                .setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.ADMINISTRATOR)),
+
             Commands.slash("pay", "Payer un joueur Minecraft en Cantox")
                 .addOption(OptionType.STRING, "joueur", "Pseudo du joueur", true)
                 .addOption(OptionType.NUMBER, "montant", "Montant en Cantox", true)
@@ -256,6 +264,8 @@ public class SlashCommandManager extends ListenerAdapter {
             case "giveaway" -> giveawayManager.handleGiveaway(event, member);
             case "link" -> handleLink(event, member);
             case "linkforce" -> handleLinkForce(event, member);
+            case "unlink" -> handleUnlink(event, member);
+            case "forceunlink" -> handleForceUnlink(event, member);
             case "pay" -> handlePay(event, member);
             case "givevie" -> handleGiveVie(event, member);
             case "annonce" -> handleAnnonce(event, member);
@@ -907,6 +917,60 @@ public class SlashCommandManager extends ListenerAdapter {
                 if (result.success()) {
                     plugin.getLogger().info("[LinkForce] Discord " + member.getUser().getName()
                         + " a lié " + result.player().username() + " ↔ " + result.discordId());
+                    event.getHook().editOriginal("✅ " + result.message()).queue();
+                } else {
+                    event.getHook().editOriginal("❌ " + result.message()).queue();
+                }
+            });
+        });
+    }
+
+    private void handleUnlink(SlashCommandInteractionEvent event, Member member) {
+        boolean confirmer = event.getOption("confirmer") != null && event.getOption("confirmer").getAsBoolean();
+        if (!confirmer) {
+            event.reply("⚠️ Pour délier ton compte Minecraft, relance `/unlink` avec **confirmer = Vrai**.")
+                .setEphemeral(true).queue();
+            return;
+        }
+
+        event.deferReply(true).queue();
+        org.bukkit.Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+            fr.cantale.plugin.discord.DiscordLinkService linkService =
+                new fr.cantale.plugin.discord.DiscordLinkService(plugin);
+            fr.cantale.plugin.discord.DiscordLinkService.UnlinkResult result =
+                linkService.unlinkByDiscordId(member.getId());
+
+            org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> {
+                if (result.success()) {
+                    plugin.getLogger().info("[Unlink] Discord " + member.getUser().getName()
+                        + " a délié " + result.playerName());
+                    event.getHook().editOriginal("✅ " + result.message()).queue();
+                } else {
+                    event.getHook().editOriginal("❌ " + result.message()).queue();
+                }
+            });
+        });
+    }
+
+    private void handleForceUnlink(SlashCommandInteractionEvent event, Member member) {
+        if (!member.hasPermission(Permission.ADMINISTRATOR) && !isOwner(member)) {
+            event.reply("❌ Cette commande est réservée aux administrateurs.").setEphemeral(true).queue();
+            return;
+        }
+
+        String pseudo = event.getOption("pseudo").getAsString();
+        event.deferReply(true).queue();
+
+        org.bukkit.Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+            fr.cantale.plugin.discord.DiscordLinkService linkService =
+                new fr.cantale.plugin.discord.DiscordLinkService(plugin);
+            fr.cantale.plugin.discord.DiscordLinkService.UnlinkResult result =
+                linkService.unlinkByMinecraftName(pseudo);
+
+            org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> {
+                if (result.success()) {
+                    plugin.getLogger().info("[ForceUnlink] Discord " + member.getUser().getName()
+                        + " a délié " + result.playerName());
                     event.getHook().editOriginal("✅ " + result.message()).queue();
                 } else {
                     event.getHook().editOriginal("❌ " + result.message()).queue();

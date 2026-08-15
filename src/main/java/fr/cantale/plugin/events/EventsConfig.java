@@ -37,15 +37,15 @@ public class EventsConfig {
 
     // Faction events
     private boolean factionEnabled = true;
-    private int factionPerWeekMin = 3;
-    private int factionPerWeekMax = 4;
+    private int factionPerWeekMin = 14;
+    private int factionPerWeekMax = 21;
     private int factionDurationMinutes = 60;
-    private int factionStartHour = 14;
-    private int factionEndHour = 22;
+    private int factionStartHour = 10;
+    private int factionEndHour = 24;
     /** Heures mini entre la fin d'un event et le début du suivant. */
-    private int factionMinHoursBetween = 8;
-    /** 0 = pas de limite ; 1 = au plus un event par jour civil. */
-    private int factionMaxEventsPerDay = 1;
+    private int factionMinHoursBetween = 2;
+    /** 0 = pas de limite. */
+    private int factionMaxEventsPerDay = 3;
     private List<FactionEventType> factionTypes = new ArrayList<>();
     private int harvestPointsPerItem = 1;
     private int miningPointsPerOre = 1;
@@ -142,16 +142,16 @@ public class EventsConfig {
             return;
         }
         factionEnabled = section.getBoolean("enabled", true);
-        factionPerWeekMin = section.getInt("events-per-week-min", 3);
-        factionPerWeekMax = section.getInt("events-per-week-max", 4);
+        factionPerWeekMin = section.getInt("events-per-week-min", 14);
+        factionPerWeekMax = section.getInt("events-per-week-max", 21);
         if (factionPerWeekMax < factionPerWeekMin) {
             factionPerWeekMax = factionPerWeekMin;
         }
         factionDurationMinutes = Math.max(1, section.getInt("duration-minutes", 60));
-        factionStartHour = section.getInt("start-hour", 14);
-        factionEndHour = section.getInt("end-hour", 22);
-        factionMinHoursBetween = Math.max(0, section.getInt("min-hours-between-events", 8));
-        factionMaxEventsPerDay = Math.max(0, section.getInt("max-events-per-day", 1));
+        factionStartHour = section.getInt("start-hour", 10);
+        factionEndHour = section.getInt("end-hour", 24);
+        factionMinHoursBetween = Math.max(0, section.getInt("min-hours-between-events", 2));
+        factionMaxEventsPerDay = Math.max(0, section.getInt("max-events-per-day", 3));
 
         for (String typeName : section.getStringList("types")) {
             try {

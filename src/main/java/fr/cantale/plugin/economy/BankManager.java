@@ -6,11 +6,13 @@ import fr.cantale.plugin.factions.Faction;
 import fr.cantale.plugin.factions.FactionManager;
 import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
+import org.bukkit.entity.Player;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -22,6 +24,9 @@ public class BankManager {
     public static final String ACTION_POWER_BUY = "POWER_BUY";
     public static final String ACTION_ADMIN_ADD = "ADMIN_ADD";
     public static final String ACTION_ADMIN_REMOVE = "ADMIN_REMOVE";
+    public static final String ACTION_SECRET_TAX = "SECRET_TAX";
+    public static final String ACTION_PASDIC = "PASDIC";
+    public static final String ACTION_WAR_REPARATION = "WAR_REPARATION";
 
     private final CantalePlugin plugin;
     private final FactionManager factionManager;
@@ -142,29 +147,118 @@ public class BankManager {
         return transactions;
     }
 
-    private static BankTransaction readTransaction(ResultSet rs) throws SQLException {
+    private BankTransaction readTransaction(ResultSet rs) throws SQLException {
         double balanceAfter = rs.getDouble("balance_after");
         if (rs.wasNull()) {
             balanceAfter = Double.NaN;
         }
+        String storedName = rs.getString("player_name");
+        String playerUuid = rs.getString("player_uuid");
+        String resolvedName = resolveDisplayName(storedName, playerUuid);
+        long createdAt = readCreatedAtSeconds(rs);
         return new BankTransaction(
                 rs.getInt("id"),
                 rs.getInt("faction_id"),
-                rs.getString("player_uuid"),
-                rs.getString("player_name"),
+                playerUuid,
+                resolvedName,
                 rs.getString("action"),
                 rs.getDouble("amount"),
                 balanceAfter,
                 rs.getString("reason"),
-                rs.getLong("created_at")
+                createdAt
         );
     }
 
-    private static String resolvePlayerName(UUID playerUuid) {
+    /**
+     * Lit {@code created_at} en secondes Unix, y compris colonnes TIMESTAMP JDBC
+     * ou anciennes valeurs stockées en millisecondes.
+     */
+    private static long readCreatedAtSeconds(ResultSet rs) throws SQLException {
+        long raw = rs.getLong("created_at");
+        if (!rs.wasNull() && raw > 0) {
+            return normalizeEpochSeconds(raw);
+        }
+        try {
+            Timestamp ts = rs.getTimestamp("created_at");
+            if (ts != null) {
+                return normalizeEpochSeconds(ts.getTime());
+            }
+        } catch (SQLException ignored) {
+            // colonne entière pure : pas de Timestamp
+        }
+        return 0L;
+    }
+
+    /** Accepte secondes ou millisecondes epoch. */
+    public static long normalizeEpochSeconds(long value) {
+        if (value <= 0) return 0L;
+        // > ~année 2286 en secondes → traité comme millis
+        if (value > 10_000_000_000L) {
+            return value / 1000L;
+        }
+        return value;
+    }
+
+    private String resolveDisplayName(String storedName, String playerUuidStr) {
+        if (isUsablePlayerName(storedName)) {
+            return storedName.trim();
+        }
+        if (playerUuidStr == null || playerUuidStr.isBlank()) {
+            return "Système";
+        }
+        try {
+            UUID uuid = UUID.fromString(playerUuidStr.trim());
+            String resolved = resolvePlayerName(uuid);
+            if (isUsablePlayerName(resolved)) {
+                return resolved.trim();
+            }
+        } catch (IllegalArgumentException ignored) {
+            // uuid invalide
+        }
+        return "Joueur inconnu";
+    }
+
+    private String resolvePlayerName(UUID playerUuid) {
         if (playerUuid == null) return null;
+
+        Player online = Bukkit.getPlayer(playerUuid);
+        if (online != null && online.getName() != null && !online.getName().isBlank()) {
+            return online.getName();
+        }
+
+        String dbName = new PlayerDAO(plugin).getUsername(playerUuid);
+        if (isUsablePlayerName(dbName)) {
+            return dbName.trim();
+        }
+
         OfflinePlayer offline = Bukkit.getOfflinePlayer(playerUuid);
         String name = offline.getName();
-        return name != null ? name : playerUuid.toString().substring(0, 8);
+        if (isUsablePlayerName(name)) {
+            return name.trim();
+        }
+        return null;
+    }
+
+    /** Nom affichable : pas vide, pas un fragment / UUID brut. */
+    static boolean isUsablePlayerName(String name) {
+        if (name == null || name.isBlank()) return false;
+        String trimmed = name.trim();
+        if (trimmed.equalsIgnoreCase("Système") || trimmed.equalsIgnoreCase("Joueur inconnu")) {
+            return true;
+        }
+        if (trimmed.length() == 36 && trimmed.chars().filter(c -> c == '-').count() == 4) {
+            try {
+                UUID.fromString(trimmed);
+                return false;
+            } catch (IllegalArgumentException ignored) {
+                // pas un UUID
+            }
+        }
+        // Ancien fallback : 8 premiers chars d'UUID hex
+        if (trimmed.length() <= 8 && trimmed.matches("(?i)[0-9a-f]{8}")) {
+            return false;
+        }
+        return true;
     }
 
     public static class BankTransaction {
@@ -194,9 +288,9 @@ public class BankManager {
         }
 
         public String displayName() {
-            if (playerName != null && !playerName.isBlank()) return playerName;
+            if (isUsablePlayerName(playerName)) return playerName.trim();
             if (playerUuid == null || playerUuid.isBlank()) return "Système";
-            return playerUuid.length() >= 8 ? playerUuid.substring(0, 8) : playerUuid;
+            return "Joueur inconnu";
         }
     }
 }

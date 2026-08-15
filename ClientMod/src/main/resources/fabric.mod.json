@@ -1,0 +1,23 @@
+{
+	"schemaVersion": 1,
+	"id": "cantale",
+	"version": "${version}",
+	"name": "Cantale Client",
+	"description": "Mod client officiel du serveur Cantale : vraie carte du monde façon JourneyMap (touche M), minimap (touche N), claims de factions colorés par relation, warps, homes et spawn de faction synchronisés depuis le serveur.",
+	"authors": [
+		"Cantale"
+	],
+	"license": "Propriétaire — réservé au serveur Cantale",
+	"environment": "client",
+	"entrypoints": {
+		"client": [
+			"fr.cantale.client.CantaleMod"
+		]
+	},
+	"depends": {
+		"fabricloader": ">=0.19.3",
+		"fabric-api": "*",
+		"minecraft": "~1.21.11",
+		"java": ">=21"
+	}
+}

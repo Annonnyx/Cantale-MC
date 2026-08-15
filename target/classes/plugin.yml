@@ -7,6 +7,8 @@ description: Plugin Minecraft complet avec factions, économie, vies hardcore, e
 softdepend:
   - Votifier
   - NuVotifier
+  - packetevents
+  - GrimAC
 
 # Plugin message channels pour JourneyMap et Xaero's Minimap
 plugin-message-channels:
@@ -21,26 +23,27 @@ commands:
     usage: /cantale
   admin:
     description: Liste toutes les commandes admin et modérateur
-    usage: /admin
+    usage: /admin [f rename <faction> <nouveau_nom>|…]
     permission: cantale.admin
   dropvie:
     description: Sacrifier une vie
     usage: /dropvie
   givevie:
-    description: Donner une vie à un joueur
+    description: Donner une vie à un joueur (console = grant admin sans coût)
     usage: /givevie <joueur>
     permission: cantale.givevie
+    permission-message: "§cPermission manquante (cantale.givevie). Depuis la console : givevie <joueur>"
   addlife:
-    description: Ajouter des vies à un joueur (admin)
+    description: Ajouter des vies à un joueur (admin / console)
     usage: /addlife <joueur> <nombre>
     permission: cantale.admin
   removelife:
-    description: Retirer des vies à un joueur (admin)
+    description: Retirer des vies à un joueur (admin / console)
     usage: /removelife <joueur> <nombre>
     permission: cantale.admin
   f:
-    description: Commandes de faction
-    usage: /f <subcommand>
+    description: Commandes de faction (menu /f, banque, pouvoir, claims…)
+    usage: /f [rename|bank|power|claim|…]
     aliases: [faction]
   fc:
     description: Chat de faction
@@ -51,6 +54,17 @@ commands:
   link:
     description: Génère un code pour lier son compte Discord
     usage: /link
+  unlink:
+    description: Délie son propre compte Discord
+    usage: /unlink confirm
+  forceunlink:
+    description: Force la suppression de la liaison Discord d'un joueur (admin)
+    usage: /forceunlink <joueur>
+    permission: cantale.admin
+  linkforce:
+    description: Force la liaison Discord ↔ Minecraft (admin)
+    usage: /linkforce <Pseudo MC> <ID Discord>
+    permission: cantale.admin
   pay:
     description: Payer un joueur en Cantox
     usage: /pay <joueur> <montant>
@@ -61,27 +75,59 @@ commands:
   ah:
     description: Hôtel des ventes
     usage: /ah <subcommand>
-    aliases: [auction]
+    aliases: [auction, hdv]
   trade:
     description: Échanger avec un joueur
     usage: /trade <joueur|accept|decline>
     aliases: [trades]
   customitem:
-    description: Donner un item custom (admin)
-    usage: /customitem <type>
+    description: Donner un item custom (admin / console)
+    usage: /customitem <type> [joueur]
     permission: cantale.admin
   home:
-    description: Gérer ses homes personnels
+    description: Gérer ses homes personnels (TP cooldown 30 s, warmup 3 s)
     usage: /home [set|delete|del] [nom]
+  adminhome:
+    description: "Staff — lister/TP vers les homes d'un joueur"
+    usage: "/adminhome check <joueur> | /adminhome <joueur> <nom> | /adminhome tp <joueur> <nom>"
+    aliases: [ahome, seehome]
+    permission: cantale.moderator
+    permission-message: "§cPermission refusée (cantale.admin / cantale.moderator)."
+  adminec:
+    description: "Staff — ouvrir/éditer l'ender chest d'un joueur (live si en ligne)"
+    usage: /adminec <joueur>
+    aliases: [aec, seeec]
+    permission: cantale.moderator
+    permission-message: "§cPermission refusée (cantale.admin / cantale.moderator)."
+  adminpc:
+    description: "Staff — ouvrir/éditer les coffres privés (PC) d'un joueur"
+    usage: /adminpc <joueur> [1|2|3]
+    aliases: [apc, sepc]
+    permission: cantale.moderator
+    permission-message: "§cPermission refusée (cantale.admin / cantale.moderator)."
   warp:
-    description: Téléportation aux warps publics
+    description: Téléportation aux warps publics (cooldown 30 s, warmup 3 s)
     usage: /warp [nom|set|delete|toggle]
   spawn:
-    description: Téléportation au spawn
+    description: Téléportation au spawn (cooldown 30 s, warmup 3 s)
     usage: /spawn
   rtp:
-    description: Téléportation aléatoire
+    description: Téléportation aléatoire (cooldown 5 min + 30 s global, warmup 3 s)
     usage: /rtp
+  tpa:
+    description: Demander à se téléporter vers un joueur (cooldown 30 s, warmup 3 s)
+    usage: /tpa <joueur>
+  tpahere:
+    description: Demander à un joueur de se téléporter vers toi (cooldown 30 s, warmup 3 s)
+    usage: /tpahere <joueur>
+  tpyes:
+    description: Accepter une demande de téléportation
+    usage: /tpyes
+    aliases: [tpaccept]
+  tpno:
+    description: Refuser une demande de téléportation
+    usage: /tpno
+    aliases: [tpdeny]
   moderation:
     description: Outils de modération
     usage: /moderation <kick|mute|unmute|tp|tphere|vanish>
@@ -116,8 +162,9 @@ commands:
     usage: /leaderboard <type> [limite]
     aliases: [top, lb, leaderboards, classement, classements]
   lastdeath:
-    description: Afficher les infos de la dernière mort
+    description: Afficher date/coords de la dernière mort ; staff = inventaire lecture seule
     usage: /lastdeath [joueur]
+    # Vue inventaire : cantale.admin toujours ; cantale.moderator + mode trace (/moderation)
   optimize:
     description: Optimisation du serveur (admin)
     usage: /optimize [stats|cleanup|clearall|save|chunks|villagers|gc|on|off|reload]
@@ -145,24 +192,48 @@ commands:
   bvn:
     description: Souhaite la bienvenue à un nouveau joueur
     usage: /bvn <pseudo>
+  parrain:
+    description: Remercie le joueur qui t'a invité (une seule fois) — il gagne +1 vie
+    usage: /parrain <joueur>
+    permission: cantale.parrain
+  quetes:
+    description: Quêtes solo et de faction
+    usage: /quetes [fac]
+    aliases: [quests]
+  quete:
+    description: Admin quêtes (reroll / give)
+    usage: /quete reroll <solo|fac> <daily|weekly|seasonal> | /quete give <joueur> <daily|weekly|seasonal|rare|epic|mythic|legendary>
+    permission: cantale.admin
+  collections:
+    description: Collections long terme
+    usage: /collections
+    aliases: [collection]
+  saison:
+    description: Infos saison / forcer une nouvelle saison (admin)
+    usage: /saison [start]
   crate:
     description: Donner des caisses ou recharger crate.yml (admin)
     usage: /crate give <joueur> <vote|rare|epic|mythic|legendary> [quantité] | /crate reload
+    permission: cantale.admin
+  spawner:
+    description: Donner un spawner Cantale (admin)
+    usage: /spawner give <joueur> <mob> [tier]
     permission: cantale.admin
   listemorts:
     description: Afficher la liste des joueurs morts définitivement
     usage: /listemorts
     aliases: [list, morts, bans]
   events:
-    description: Liste les événements actifs et permet de s'y téléporter
+    description: Liste les événements actifs (TP cooldown 30 s, warmup 3 s)
     usage: /events
   vote:
     description: Liste des sites de vote et récompenses
     usage: /vote [claim|stats|top|help]
   web:
-    description: Lier son compte Minecraft au site Cantale
-    usage: /web link <code>
+    description: Affiche le lien vers le site Cantale (connexion Discord OAuth)
+    usage: /web
     aliases: [website, site]
+
   tag:
     description: Gérer les tags des joueurs
     usage: /tag <create|delete|add|remove|color|edit|list>
@@ -184,7 +255,7 @@ commands:
     permission: cantale.admin
   shop:
     description: Boutique Admin (Cantox) — plancher de prix et sink économique
-    usage: /shop [buy|sell] <item> <quantité>
+    usage: /shop [buy|sell] <item> <quantité> | /shop reload
     aliases: [adminshop, boutique]
   recolte:
     description: Déposer des récoltes pendant un événement faction HARVEST
@@ -202,6 +273,9 @@ permissions:
   cantale.givevie:
     description: Permet de donner une vie
     default: op
+  cantale.parrain:
+    description: Permet d'utiliser /parrain (remercier son parrain)
+    default: true
   cantale.feed:
     description: Permet d'utiliser /feed (sinon grade VIP+)
     default: false
@@ -217,6 +291,10 @@ permissions:
       cantale.feed: true
       cantale.anticheat.alerts: true
       cantale.anticheat.bypass: true
+      cantale.faction.bypass: true
+  cantale.faction.bypass:
+    description: Permet d'utiliser /f bypass (ignore les protections de claims, session uniquement)
+    default: op
   cantale.anticheat.alerts:
     description: Permet de recevoir les alertes de triche en jeu
     default: false

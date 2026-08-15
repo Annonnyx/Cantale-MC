@@ -176,6 +176,35 @@ public class DiscordBot {
     }
 
     /**
+     * Envoie un message privé Discord à un utilisateur par son ID snowflake.
+     */
+    public void sendPrivateMessage(long discordId, String message) {
+        if (jda == null || !isConnected()) return;
+        jda.retrieveUserById(discordId).queue(user -> {
+            if (user == null) return;
+            user.openPrivateChannel().queue(channel -> {
+                channel.sendMessage(message).queue();
+            }, error -> {
+                plugin.getLogger().fine("[Discord] MP impossible pour " + discordId + " : " + error.getMessage());
+            });
+        }, error -> {
+            plugin.getLogger().fine("[Discord] Utilisateur " + discordId + " introuvable : " + error.getMessage());
+        });
+    }
+
+    /**
+     * Envoie un message privé Discord à un utilisateur par son ID snowflake (String).
+     */
+    public void sendPrivateMessage(String discordId, String message) {
+        if (discordId == null || discordId.isBlank()) return;
+        try {
+            sendPrivateMessage(Long.parseUnsignedLong(discordId.trim()), message);
+        } catch (NumberFormatException e) {
+            plugin.getLogger().warning("[Discord] sendPrivateMessage ID invalide : " + discordId);
+        }
+    }
+
+    /**
      * Envoie un embed vers un salon Discord spécifique (par ID).
      * Les codes couleur Minecraft (§) sont automatiquement supprimés.
      */
@@ -325,42 +354,56 @@ public class DiscordBot {
         });
     }
 
+    /**
+     * Retire les rôles de faction après un unlink, avec un Discord ID déjà connu
+     * (la ligne {@code discord_links} peut déjà avoir été supprimée).
+     */
+    public void stripFactionRolesForUnlink(UUID playerUuid, String discordId) {
+        if (playerUuid == null || discordId == null || discordId.isBlank() || !isConnected()) return;
+        org.bukkit.Bukkit.getScheduler().runTaskAsynchronously(plugin, () ->
+            applyFactionDiscordRoles(null, discordId));
+    }
+
     private void syncFactionDiscordRoles(UUID playerUuid, fr.cantale.plugin.factions.Faction factionOrNull) {
         if (playerUuid == null || !isConnected()) return;
 
         org.bukkit.Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
             String discordId = lookupDiscordId(playerUuid);
-            if (discordId == null || discordId.isBlank()) return;
+            applyFactionDiscordRoles(factionOrNull, discordId);
+        });
+    }
 
-            Guild guild = jda.getGuildById(config.getGuildId());
-            if (guild == null) return;
+    private void applyFactionDiscordRoles(fr.cantale.plugin.factions.Faction factionOrNull, String discordId) {
+        if (discordId == null || discordId.isBlank() || !isConnected()) return;
 
-            java.util.Set<Long> knownFactionRoleIds = collectKnownFactionRoleIds();
+        Guild guild = jda.getGuildById(config.getGuildId());
+        if (guild == null) return;
 
-            guild.retrieveMemberById(discordId).queue(member -> {
-                Role genericRole = guild.getRoleById(FACTION_MEMBER_ROLE_ID);
-                boolean shouldHaveGeneric = factionOrNull != null;
-                if (genericRole != null) {
-                    applyRole(guild, member, genericRole, shouldHaveGeneric);
-                }
+        java.util.Set<Long> knownFactionRoleIds = collectKnownFactionRoleIds();
 
-                long wantedRoleId = factionOrNull != null ? factionOrNull.getDiscordRoleId() : 0L;
-                for (Long roleId : knownFactionRoleIds) {
-                    if (roleId == null || roleId <= 0) continue;
-                    Role role = guild.getRoleById(roleId);
-                    if (role == null) continue;
-                    applyRole(guild, member, role, roleId == wantedRoleId);
-                }
+        guild.retrieveMemberById(discordId).queue(member -> {
+            Role genericRole = guild.getRoleById(FACTION_MEMBER_ROLE_ID);
+            boolean shouldHaveGeneric = factionOrNull != null;
+            if (genericRole != null) {
+                applyRole(guild, member, genericRole, shouldHaveGeneric);
+            }
 
-                // Faction fraîchement créée : le rôle peut ne pas encore être dans knownFactionRoleIds
-                // (cache mémoire) — on force l'ajout du rôle voulu.
-                if (wantedRoleId > 0 && !knownFactionRoleIds.contains(wantedRoleId)) {
-                    Role role = guild.getRoleById(wantedRoleId);
-                    if (role != null) applyRole(guild, member, role, true);
-                }
-            }, error -> {
-                // Membres absents de la guilde ou ID invalide : ignorer.
-            });
+            long wantedRoleId = factionOrNull != null ? factionOrNull.getDiscordRoleId() : 0L;
+            for (Long roleId : knownFactionRoleIds) {
+                if (roleId == null || roleId <= 0) continue;
+                Role role = guild.getRoleById(roleId);
+                if (role == null) continue;
+                applyRole(guild, member, role, roleId == wantedRoleId);
+            }
+
+            // Faction fraîchement créée : le rôle peut ne pas encore être dans knownFactionRoleIds
+            // (cache mémoire) — on force l'ajout du rôle voulu.
+            if (wantedRoleId > 0 && !knownFactionRoleIds.contains(wantedRoleId)) {
+                Role role = guild.getRoleById(wantedRoleId);
+                if (role != null) applyRole(guild, member, role, true);
+            }
+        }, error -> {
+            // Membres absents de la guilde ou ID invalide : ignorer.
         });
     }
 

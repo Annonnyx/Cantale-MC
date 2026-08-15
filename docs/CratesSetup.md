@@ -111,6 +111,8 @@ Puis push le zip sur le repo `Annonnyx/Cantale-resourcepack` (branche `main`) et
 
 Types : `vote`, `rare`, `epic`, `mythic`, `legendary`
 
+Les caisses Rare / Épique / Mythique / Légendaire peuvent aussi donner un **spawner Cantale** (chances config `spawners.crate.*` : 5 % / 3 % / 1,5 % / 1,5 %). Pas sur Vote.
+
 Exemple :
 ```
 /crate give Anox26 rare 1

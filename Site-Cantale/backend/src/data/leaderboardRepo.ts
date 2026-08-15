@@ -68,14 +68,15 @@ export async function getLeaderboard(type: LeaderboardType, limit = 10): Promise
       );
       break;
     case "factions":
+      // Factions /f secret incluses : visibles partout (comme /f list en jeu) —
+      // seuls leurs claims sont masqués, jamais la faction elle-même.
       rows = await db.query(
         `SELECT f.tag AS uuid, f.name AS username, f.power AS value,
                 CAST((SELECT COUNT(*) FROM faction_members fm WHERE fm.faction_id = f.id) AS TEXT) AS extra
          FROM factions f
-         WHERE COALESCE(f.secret_until, 0) < ?
-           AND ${publicRankingExcludeFactionSql("f.name", "f.tag")}
+         WHERE ${publicRankingExcludeFactionSql("f.name", "f.tag")}
          ORDER BY f.power DESC LIMIT ?`,
-        [Math.floor(Date.now() / 1000), lim]
+        [lim]
       );
       break;
   }

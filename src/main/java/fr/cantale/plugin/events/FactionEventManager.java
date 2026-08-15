@@ -236,7 +236,7 @@ public class FactionEventManager {
         hourMax = Math.min(23, hourMax);
 
         int attempts = 0;
-        int maxAttempts = 300;
+        int maxAttempts = 2500;
         while (plannedStarts.size() < count && attempts < maxAttempts) {
             attempts++;
             int dayOffset = pickDayOffset(monday);

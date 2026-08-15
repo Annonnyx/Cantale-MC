@@ -27,6 +27,11 @@
             <id>dv8tion</id>
             <url>https://m2.dv8tion.net/repository/maven-public/</url>
         </repository>
+        <repository>
+            <id>grimac-snapshots</id>
+            <name>GrimAC's Maven Repository</name>
+            <url>https://repo.grim.ac/snapshots</url>
+        </repository>
     </repositories>
 
     <dependencies>
@@ -55,6 +60,13 @@
             <groupId>com.google.code.gson</groupId>
             <artifactId>gson</artifactId>
             <version>2.11.0</version>
+        </dependency>
+        <!-- Grim AC : intégration via API publique, fournie à runtime par le serveur (softdepend) -->
+        <dependency>
+            <groupId>ac.grim.grimac</groupId>
+            <artifactId>GrimAPI</artifactId>
+            <version>1.3.2.1</version>
+            <scope>provided</scope>
         </dependency>
         <!-- NuVotifier : on s'interface via réflexion (voir VoteListener) pour éviter
              une dépendance Maven publique. Compatible avec NuVotifier ≥ 2.x et Votifier legacy. -->

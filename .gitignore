@@ -1,0 +1,24 @@
+# === Secrets & espaces de déploiement temporaires ===
+# Dépôts git imbriqués contenant des .env — ne jamais versionner.
+/.tmp-cantale-deploy/
+/.tmp-rp-host/
+
+# Variables d'environnement (secrets)
+.env
+.env.*
+!.env.example
+
+# === Binaires lourds tenus hors de l'historique ===
+# Plugins tiers de référence (Grim, PacketEvents, …)
+/server-plugins/
+# Polices sources (assets lourds ; les polices web utilisées sont dans web/src/assets)
+polices/
+# Archives (resourcepacks, bundles de déploiement, …)
+*.zip
+
+# === Bruit OS / éditeur ===
+.DS_Store
+Thumbs.db
+*.log
+
+# NB : le dossier Maven `target/` est volontairement versionné (choix projet).

@@ -45,7 +45,7 @@ public class LinkCommand implements CommandExecutor {
                 Bukkit.getScheduler().runTask(plugin, () -> {
                     player.sendMessage("§8[§6Cantale§8] §cTon compte est déjà lié à Discord !");
                     player.sendMessage("§7ID Discord : §f" + existingDiscordId);
-                    player.sendMessage("§7Si tu veux changer de compte Discord, contacte un administrateur.");
+                    player.sendMessage("§7Pour changer de compte : §e/unlink confirm §7puis §e/link §7à nouveau.");
                 });
                 return;
             }

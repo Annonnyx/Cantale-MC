@@ -11,6 +11,11 @@ import java.util.concurrent.ConcurrentHashMap;
  * Gère les violations anti-cheat pour tous les joueurs.
  * Chaque violation est comptée par joueur et par type de check.
  * Les violations décroissent automatiquement au fil du temps (decay).
+ *
+ * Thread-safety : les maps internes sont synchronisées — le decay tourne sur le
+ * thread principal (tâche sync) mais des violations peuvent remonter du bridge
+ * Grim après hop sur le main thread ; la synchronisation protège tout accès
+ * concurrent résiduel.
  */
 public class ViolationManager {
 
@@ -25,9 +30,11 @@ public class ViolationManager {
     public int addViolation(UUID playerId, CheckType type) {
         Map<CheckType, Integer> playerViolations = violations.computeIfAbsent(playerId,
                 k -> new EnumMap<>(CheckType.class));
-        int current = playerViolations.getOrDefault(type, 0) + 1;
-        playerViolations.put(type, current);
-        return current;
+        synchronized (playerViolations) {
+            int current = playerViolations.getOrDefault(type, 0) + 1;
+            playerViolations.put(type, current);
+            return current;
+        }
     }
 
     /**
@@ -36,7 +43,9 @@ public class ViolationManager {
     public int getViolations(UUID playerId, CheckType type) {
         Map<CheckType, Integer> playerViolations = violations.get(playerId);
         if (playerViolations == null) return 0;
-        return playerViolations.getOrDefault(type, 0);
+        synchronized (playerViolations) {
+            return playerViolations.getOrDefault(type, 0);
+        }
     }
 
     /**
@@ -45,14 +54,20 @@ public class ViolationManager {
     public int getTotalViolations(UUID playerId) {
         Map<CheckType, Integer> playerViolations = violations.get(playerId);
         if (playerViolations == null) return 0;
-        return playerViolations.values().stream().mapToInt(Integer::intValue).sum();
+        synchronized (playerViolations) {
+            return playerViolations.values().stream().mapToInt(Integer::intValue).sum();
+        }
     }
 
     /**
-     * Retourne toutes les violations d'un joueur.
+     * Retourne une copie des violations d'un joueur.
      */
     public Map<CheckType, Integer> getAllViolations(UUID playerId) {
-        return violations.getOrDefault(playerId, new EnumMap<>(CheckType.class));
+        Map<CheckType, Integer> playerViolations = violations.get(playerId);
+        if (playerViolations == null) return new EnumMap<>(CheckType.class);
+        synchronized (playerViolations) {
+            return new EnumMap<>(playerViolations);
+        }
     }
 
     /**
@@ -64,17 +79,17 @@ public class ViolationManager {
 
     /**
      * Applique la décroissance (decay) des violations.
-     * Appelé périodiquement pour réduire les compteurs et éviter l'accumulation.
+     * Appelé périodiquement (thread principal) pour réduire les compteurs.
      * Retire 1 violation par type toutes les X secondes.
      */
     public void decayAll() {
         for (Map.Entry<UUID, Map<CheckType, Integer>> entry : violations.entrySet()) {
             Map<CheckType, Integer> playerViolations = entry.getValue();
-            playerViolations.replaceAll((type, count) -> Math.max(0, count - 1));
-            // Nettoyer les entrées à 0
-            playerViolations.entrySet().removeIf(e -> e.getValue() <= 0);
+            synchronized (playerViolations) {
+                playerViolations.replaceAll((type, count) -> Math.max(0, count - 1));
+                playerViolations.entrySet().removeIf(e -> e.getValue() <= 0);
+            }
         }
-        // Nettoyer les joueurs sans violations
         violations.entrySet().removeIf(e -> e.getValue().isEmpty());
     }
 

@@ -1,0 +1,148 @@
+# ─── config/paper-world-defaults.yml — extraits optimisation (Paper 1.21.x) ──
+# Fusionner dans config/paper-world-defaults.yml (chemins complets indiqués).
+# Valeurs calibrées pour simulation-distance: 4 / view-distance: 7 (server.properties).
+
+# ── chunks ──
+chunks:
+  # Garde un chunk en mémoire 10 s après le départ du joueur : retour en arrière instantané.
+  delay-chunk-unloads-by: 10s
+  # Étale l'auto-save : plus de pic de lag toutes les 5 min. Défaut : 24.
+  max-auto-save-chunks-per-tick: 8
+  # Empêche les joueurs d'entrer dans des chunks non chargés (kill les sync-loads en lag spike).
+  prevent-moving-into-unloaded-chunks: true
+  # Plafond d'entités sauvegardées par chunk et par type (anti chunk-ban / save bloat).
+  entity-per-chunk-save-limit:
+    arrow: 16
+    spectral_arrow: 16
+    trident: 16
+    experience_orb: 16
+    fireball: 8
+    small_fireball: 8
+    dragon_fireball: 3
+    firework_rocket: 8
+    egg: 8
+    ender_pearl: 8
+    experience_bottle: 3
+    eye_of_ender: 8
+    llama_spit: 3
+    shulker_bullet: 8
+    snowball: 8
+    splash_potion: 8
+    lingering_potion: 8
+    area_effect_cloud: 8
+    breeze_wind_charge: 8
+    wind_charge: 8
+    wither_skull: 4
+
+# ── collisions ──
+collisions:
+  # Une entité ne traite que 2 collisions à la fois (cramming massif = lag). Défaut : 8.
+  max-entity-collisions: 2
+  # Les entités qui grimpent comptent dans le cramming (anti stacking absurd d'araignées).
+  fix-climbing-bypassing-cramming-rule: true
+
+# ── entities ──
+entities:
+  armor-stands:
+    do-collision-entity-lookups: false
+    # OPTIONNEL : les armor stands ne sont plus tickés (pas de gravité/poussée).
+    # Sûr pour la déco ; les hologrammes Cantale sont des TextDisplay (non affectés).
+    # tick: false
+  spawning:
+    # Mobcap compté par joueur : distribution équitable, permet les spawn-limits bas.
+    per-player-mob-spawns: true
+    # Despawn rapide hors de portée. hard = (simulation-distance × 16) + 8 = 72 avec sim 4.
+    despawn-ranges:
+      ambient:        { hard: 72, soft: 30 }
+      axolotls:       { hard: 72, soft: 30 }
+      creature:       { hard: 72, soft: 30 }
+      misc:           { hard: 72, soft: 30 }
+      monster:        { hard: 72, soft: 30 }
+      underground_water_creature: { hard: 72, soft: 30 }
+      water_ambient:  { hard: 72, soft: 30 }
+      water_creature: { hard: 72, soft: 30 }
+    # Les items "junk" despawnent en 15 s (300 ticks) au lieu de 5 min : complète le
+    # ClearLag Cantale (qui garde la grâce loot de mort sur les VRAIS items).
+    alt-item-despawn-rate:
+      enabled: true
+      items:
+        cobblestone: 300
+        netherrack: 300
+        dirt: 300
+        gravel: 300
+        sand: 300
+        red_sand: 300
+        diorite: 300
+        granite: 300
+        andesite: 300
+        short_grass: 300
+        oak_leaves: 300
+        spruce_leaves: 300
+        birch_leaves: 300
+        jungle_leaves: 300
+        acacia_leaves: 300
+        dark_oak_leaves: 300
+        mangrove_leaves: 300
+        cherry_leaves: 300
+        pumpkin: 300
+        melon_slice: 300
+        kelp: 300
+        bamboo: 300
+        sugar_cane: 300
+        cactus: 300
+        twisting_vines: 300
+        weeping_vines: 300
+        scaffolding: 600
+    # Flèches non ramassables : 1 s. Défaut : default (1200).
+    non-player-arrow-despawn-rate: 20
+    creative-arrow-despawn-rate: 20
+  # OPTIONNEL anti-xray : coûte un peu de CPU, bloque les x-rayers. engine-mode 1 = léger.
+  # (La section complète se règle via anticheat.anti-xray en haut du fichier.)
+
+# ── environment ──
+environment:
+  # Algorithme d'explosion mis en cache : nettement plus rapide (TNT de raids Cantale).
+  optimize-explosions: true
+  # Les cartes au trésor cherchent des structures dans des chunks NON générés = freezes.
+  treasure-maps:
+    enabled: false
+    find-already-discovered:
+      loot-tables: true
+      villager-trade: true
+  # Plafonds de sécurité contre les usines à block/fluid ticks.
+  max-block-ticks: 65536
+  max-fluid-ticks: 65536
+
+# ── hopper ──
+hopper:
+  # InventoryMoveItemEvent : Cantale n'écoute PAS cet événement → l'événement ne se
+  # déclenche déjà pas. Laisser false (true casserait tout futur plugin de protection).
+  disable-move-event: false
+  # Ignore les conteneurs cachés dans des blocs opaques (hopper minecart dans du sable).
+  ignore-occluding-blocks: true
+
+# ── misc ──
+misc:
+  # OPTIONNEL (change la redstone) : implémentation Alternate Current, bien plus rapide
+  # sur la poudre de redstone. Circuits très techniques : tester avant d'adopter.
+  # redstone-implementation: ALTERNATE_CURRENT
+  # Moins de pathfinding recalculé à chaque update de bloc (farms). Défaut : true.
+  update-pathfinding-on-block-update: false
+
+# ── tick-rates ──
+tick-rates:
+  grass-spread: 4
+  container-update: 1
+  # Spawners VANILLA tickés 1 tick sur 2 (les spawners Cantale sont customs, non affectés).
+  mob-spawner: 2
+  behavior:
+    villager:
+      validatenearbypoi: 60
+      acquirepoi: 120
+  sensor:
+    villager:
+      secondarypoisensor: 80
+      nearestbedsensor: 80
+      villagerbabiessensor: 40
+      playersensor: 40
+      nearestlivingentitysensor: 40

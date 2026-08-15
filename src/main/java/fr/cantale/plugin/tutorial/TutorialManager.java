@@ -99,7 +99,7 @@ public class TutorialManager {
             case 10:
                 return "&1&lLes Factions\n&8Les factions te permettent de claim des terres et de te battre pour le territoire.\n&8Utilise &3/f claim &8pour claim ton chunk actuel.";
             case 20:
-                return "&1&lLe Pouvoir\n&8Le pouvoir de ta faction détermine tes limites : claims, fhomes, warps.\n&8Chaque membre apporte +5 de pouvoir (création : 60 de base + 5 pour le chef).";
+                return "&1&lLe Pouvoir\n&8Le pouvoir de ta faction détermine tes limites : claims, warps, hoppers.\n&8Chaque membre apporte +5 de pouvoir (création : 60 de base + 5 pour le chef).";
             case 30:
                 return "&c&lLes Vies\n&8Tu as 3 vies au départ. Si tu perds toutes tes vies, tu es banni !\n&8Gagne des vies en tuant des mobs, en votant ou via d'autres joueurs.";
             case 40:

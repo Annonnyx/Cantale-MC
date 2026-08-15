@@ -61,6 +61,7 @@ import fr.cantale.plugin.map.MapIntegrationListener;
 import fr.cantale.plugin.cooldown.CooldownManager;
 import fr.cantale.plugin.tasks.ClearLagTask;
 import fr.cantale.plugin.tasks.TerritoryTaxTask;
+import fr.cantale.plugin.tasks.SecretTaxTask;
 import fr.cantale.plugin.protection.SpawnProtection;
 import fr.cantale.plugin.moderation.ActionLogger;
 import fr.cantale.plugin.performance.ChunkLoader;
@@ -81,6 +82,8 @@ public class CantalePlugin extends JavaPlugin {
     private DatabaseManager databaseManager;
     private LifeManager lifeManager;
     private FactionManager factionManager;
+    private fr.cantale.plugin.factions.AdminBypassManager adminBypassManager;
+    private fr.cantale.plugin.rank.RankPermissionBridge rankPermissionBridge;
     private EconomyManager economyManager;
     private AuctionManager auctionManager;
     private BankManager bankManager;
@@ -88,6 +91,7 @@ public class CantalePlugin extends JavaPlugin {
     private HomeManager homeManager;
     private WarpManager warpManager;
     private MapUI mapUI;
+    private fr.cantale.plugin.map.ClientMapBridge clientMapBridge;
     private SpawnCommand spawnCommand;
     private RtpCommand rtpCommand;
     private SpawnProtection spawnProtection;
@@ -105,6 +109,10 @@ public class CantalePlugin extends JavaPlugin {
     private WantedCommand wantedCommand;
     private PrivateChestCommand privateChestCommand;
     private PasdicCommand pasdicCommand;
+    private fr.cantale.plugin.factions.pasdic.PasdicService pasdicService;
+    private fr.cantale.plugin.factions.secret.SecretTaxManager secretTaxManager;
+    private fr.cantale.plugin.factions.raid.RaidManager raidManager;
+    private fr.cantale.plugin.discord.DiscordLinkService discordLinkService;
     private VanishCommand vanishCommand;
     private PermissionManager permissionManager;
     private RankManager rankManager;
@@ -114,7 +122,9 @@ public class CantalePlugin extends JavaPlugin {
     private fr.cantale.plugin.crate.LegendaryTicketManager legendaryTicketManager;
     private CustomItemManager customItemManager;
     private ServerOptimizer serverOptimizer;
+    private fr.cantale.plugin.optimization.PerformanceGovernor performanceGovernor;
     private fr.cantale.plugin.optimization.MobStackManager mobStackManager;
+    private fr.cantale.plugin.optimization.ItemMergeManager itemMergeManager;
     private fr.cantale.plugin.database.FortifiedChunkDAO fortifiedChunkDAO;
     private fr.cantale.plugin.vote.VoteDAO voteDAO;
     private fr.cantale.plugin.vote.VoteRewardManager voteRewardManager;
@@ -134,6 +144,9 @@ public class CantalePlugin extends JavaPlugin {
     private fr.cantale.plugin.web.WebFactionBridge webFactionBridge;
     private fr.cantale.plugin.web.WebChatBridge webChatBridge;
     private fr.cantale.plugin.web.WebAdminBridge webAdminBridge;
+    private fr.cantale.plugin.spawners.SpawnerManager spawnerManager;
+    private fr.cantale.plugin.quests.QuestEngine questEngine;
+    private fr.cantale.plugin.collections.CollectionManager collectionManager;
 
     @Override
     public void onEnable() {
@@ -213,8 +226,16 @@ public class CantalePlugin extends JavaPlugin {
                 }
             }.runTaskTimerAsynchronously(this, 20L * 5, 20L * 10);
         }
-        this.mapUI = new MapUI(this);
+        // Carte in-game (tuiles FILLED_MAP) : module conservé mais dormant par défaut.
+        // La visualisation carte est assurée par le mod client Cantale (bridge cantale:map,
+        // toujours actif) — l'ancienne map d'items n'est plus utile en jeu.
+        if (getConfig().getBoolean("map.enabled", false)) {
+            this.mapUI = new MapUI(this);
+        } else {
+            getLogger().info("[Map] Module in-game désactivé (carte fournie par le mod client).");
+        }
         this.cooldownManager = new CooldownManager();
+        this.adminBypassManager = new fr.cantale.plugin.factions.AdminBypassManager(this);
         this.spawnCommand = new SpawnCommand(this);
         this.rtpCommand = new RtpCommand(this);
         this.spawnProtection = new SpawnProtection(this);
@@ -223,6 +244,8 @@ public class CantalePlugin extends JavaPlugin {
         this.actionLogger = new ActionLogger(this);
         this.chunkLoader = new ChunkLoader(this);
         this.asyncTaskManager = new AsyncTaskManager(this);
+        // Préchauffage async des chunks du spawn, décalé pour laisser le boot finir
+        Bukkit.getScheduler().runTaskLater(this, () -> this.chunkLoader.prewarmSpawn(), 40L);
         this.tutorialManager = new TutorialManager(this);
         this.npcManager = new NPCManager(this);
         if (this.databaseManager.getConnection() != null) {
@@ -278,6 +301,14 @@ public class CantalePlugin extends JavaPlugin {
                 }
             }.runTaskTimerAsynchronously(this, 20L * 5, 20L * 10);
         }
+        // Bridge vers le mod client Cantale (canal cantale:map) — nécessite FactionManager,
+        // DiplomacyManager, WarpManager et HomeManager déjà initialisés (utilisés à l'envoi)
+        this.clientMapBridge = new fr.cantale.plugin.map.ClientMapBridge(this);
+        this.clientMapBridge.register();
+        this.discordLinkService = new fr.cantale.plugin.discord.DiscordLinkService(this);
+        this.secretTaxManager = new fr.cantale.plugin.factions.secret.SecretTaxManager(this);
+        this.raidManager = new fr.cantale.plugin.factions.raid.RaidManager(this);
+        this.raidManager.startTracking();
         this.redisCache = new RedisCache(this);
         this.redisCache.init();
         this.adminCommand = new AdminCommand(this);
@@ -336,6 +367,7 @@ public class CantalePlugin extends JavaPlugin {
             }.runTaskTimerAsynchronously(this, 20L * 5, 20L * 10);
         }
         this.privateChestCommand = new PrivateChestCommand(this);
+        this.pasdicService = new fr.cantale.plugin.factions.pasdic.PasdicService(this);
         this.pasdicCommand = new PasdicCommand(this);
         this.vanishCommand = new VanishCommand(this.moderationCommand.getVanishManager());
         this.permissionManager = new PermissionManager(this);
@@ -357,6 +389,23 @@ public class CantalePlugin extends JavaPlugin {
         this.serverOptimizer.startTasks();
         this.mobStackManager = new fr.cantale.plugin.optimization.MobStackManager(this);
         this.mobStackManager.start();
+        this.itemMergeManager = new fr.cantale.plugin.optimization.ItemMergeManager(this);
+        this.itemMergeManager.start();
+        this.spawnerManager = new fr.cantale.plugin.spawners.SpawnerManager(this);
+        this.spawnerManager.start();
+        this.performanceGovernor = new fr.cantale.plugin.optimization.PerformanceGovernor(this);
+        this.performanceGovernor.start();
+        saveResource("quests.yml", false);
+        saveResource("collections.yml", false);
+        fr.cantale.plugin.quests.QuestConfig questConfig = new fr.cantale.plugin.quests.QuestConfig(this);
+        questConfig.load();
+        fr.cantale.plugin.quests.QuestDAO questDAO = new fr.cantale.plugin.quests.QuestDAO(this);
+        fr.cantale.plugin.quests.SeasonManager seasonManager = new fr.cantale.plugin.quests.SeasonManager(this, questConfig);
+        this.questEngine = new fr.cantale.plugin.quests.QuestEngine(this, questConfig, questDAO, seasonManager);
+        fr.cantale.plugin.collections.CollectionConfig collectionConfig = new fr.cantale.plugin.collections.CollectionConfig(this);
+        collectionConfig.load();
+        this.collectionManager = new fr.cantale.plugin.collections.CollectionManager(
+                this, collectionConfig, new fr.cantale.plugin.collections.CollectionDAO(this));
         this.antiCheatManager = new fr.cantale.plugin.anticheat.AntiCheatManager(this);
         this.combatTagManager = new fr.cantale.plugin.combat.CombatTagManager(this);
 
@@ -392,11 +441,17 @@ public class CantalePlugin extends JavaPlugin {
         // Démarrer Taxe de territoire (tous les jours = 24 heures)
         new TerritoryTaxTask(this).runTaskTimer(this, 20L * 60 * 5, 20L * 60 * 60 * 24);
 
+        // Démarrer taxe du mode secret (intervalle configuré, par défaut 20 min)
+        int secretIntervalMinutes = configManager.getSecretChargeIntervalMinutes();
+        new SecretTaxTask(this).runTaskTimer(this, 20L * 60 * 2, 20L * 60 * secretIntervalMinutes);
+
         // Démarrer Wanted Tracker (toutes les 5 min pour palier 5M+)
         new fr.cantale.plugin.discord.tasks.WantedTrackerTask(this).schedule();
 
         // Démarrer les planificateurs d'événements
         this.eventSystemsManager.start();
+        this.questEngine.start();
+        this.collectionManager.start();
 
         // BossBar infos joueur (rotation)
         this.rotatingBossBarManager.start();
@@ -422,8 +477,32 @@ public class CantalePlugin extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        if (clientMapBridge != null) {
+            // Désenregistre le canal cantale:map et oublie les clients du mod
+            clientMapBridge.shutdown();
+        }
+        if (mapUI != null) {
+            // Flush le cache terrain sur disque + stoppe les tâches carte
+            mapUI.shutdown();
+        }
+        if (collectionManager != null) {
+            collectionManager.stop();
+        }
+        if (questEngine != null) {
+            questEngine.stop();
+        }
+        if (performanceGovernor != null) {
+            // Restaure distances de base et cadences nominales avant l'arrêt des managers
+            performanceGovernor.shutdown();
+        }
+        if (spawnerManager != null) {
+            spawnerManager.stop();
+        }
         if (mobStackManager != null) {
             mobStackManager.stop();
+        }
+        if (itemMergeManager != null) {
+            itemMergeManager.stop();
         }
         if (webAdminBridge != null) {
             webAdminBridge.stop();
@@ -464,6 +543,12 @@ public class CantalePlugin extends JavaPlugin {
         }
         if (tpaManager != null) {
             tpaManager.shutdown();
+        }
+        if (voteListener != null) {
+            voteListener.shutdown();
+        }
+        if (actionLogger != null) {
+            actionLogger.shutdown();
         }
         unregisterPluginMessageChannels();
         getLogger().info("Cantale désactivé.");
@@ -513,8 +598,12 @@ public class CantalePlugin extends JavaPlugin {
         getCommand("perm").setExecutor(new PermissionCommand(this));
         getCommand("unbanip").setExecutor(new UnbanIpCommand(this));
         getCommand("leaderboard").setExecutor(new LeaderboardCommand(this));
-        getCommand("lastdeath").setExecutor(new LastDeathCommand(this));
+        LastDeathCommand lastDeathCommand = new LastDeathCommand(this);
+        getCommand("lastdeath").setExecutor(lastDeathCommand);
+        getCommand("lastdeath").setTabCompleter(lastDeathCommand);
         getCommand("optimize").setExecutor(new OptimizeCommand(this));
+        // La commande /carte n'existe plus (retirée du plugin.yml) : la carte est
+        // fournie par le mod client. MapCommand reste dans le code, dormant.
         getCommand("rank").setExecutor(new RankCommand(this));
         getCommand("ec").setExecutor(new EnderChestCommand(this));
         getCommand("pc2").setExecutor(new Pc2Command(this));
@@ -522,9 +611,23 @@ public class CantalePlugin extends JavaPlugin {
         getCommand("day").setExecutor(new DayCommand(this));
         getCommand("daily").setExecutor(new fr.cantale.plugin.commands.DailyCommand(this));
         getCommand("bvn").setExecutor(welcomeCommand);
+        fr.cantale.plugin.commands.ParrainCommand parrainCommand = new fr.cantale.plugin.commands.ParrainCommand(this);
+        getCommand("parrain").setExecutor(parrainCommand);
+        getCommand("parrain").setTabCompleter(parrainCommand);
         fr.cantale.plugin.commands.CrateCommand crateCommand = new fr.cantale.plugin.commands.CrateCommand(this);
         getCommand("crate").setExecutor(crateCommand);
         getCommand("crate").setTabCompleter(crateCommand);
+        fr.cantale.plugin.spawners.SpawnerCommand spawnerCommand =
+                new fr.cantale.plugin.spawners.SpawnerCommand(this);
+        getCommand("spawner").setExecutor(spawnerCommand);
+        getCommand("spawner").setTabCompleter(spawnerCommand);
+        fr.cantale.plugin.commands.QuetesCommand quetesCommand = new fr.cantale.plugin.commands.QuetesCommand(this);
+        getCommand("quetes").setExecutor(quetesCommand);
+        getCommand("quetes").setTabCompleter(quetesCommand);
+        getCommand("quete").setExecutor(quetesCommand);
+        getCommand("quete").setTabCompleter(quetesCommand);
+        getCommand("collections").setExecutor(new fr.cantale.plugin.commands.CollectionsCommand(this));
+        getCommand("saison").setExecutor(new fr.cantale.plugin.commands.SaisonCommand(this));
         getCommand("profile").setExecutor(new ProfileCommand(this));
         getCommand("listemorts").setExecutor(new ListCommand(this));
         getCommand("vote").setExecutor(new fr.cantale.plugin.commands.VoteCommand(this));
@@ -532,6 +635,12 @@ public class CantalePlugin extends JavaPlugin {
         getCommand("web").setExecutor(new fr.cantale.plugin.commands.WebCommand(this));
         getCommand("web").setTabCompleter(new fr.cantale.plugin.commands.WebCommand(this));
         getCommand("link").setExecutor(new fr.cantale.plugin.commands.LinkCommand(this));
+        fr.cantale.plugin.commands.UnlinkCommand unlinkCommand = new fr.cantale.plugin.commands.UnlinkCommand(this);
+        getCommand("unlink").setExecutor(unlinkCommand);
+        getCommand("unlink").setTabCompleter(unlinkCommand);
+        fr.cantale.plugin.commands.ForceUnlinkCommand forceUnlinkCommand = new fr.cantale.plugin.commands.ForceUnlinkCommand(this);
+        getCommand("forceunlink").setExecutor(forceUnlinkCommand);
+        getCommand("forceunlink").setTabCompleter(forceUnlinkCommand);
         fr.cantale.plugin.commands.LinkForceCommand linkForceCommand = new fr.cantale.plugin.commands.LinkForceCommand(this);
         getCommand("linkforce").setExecutor(linkForceCommand);
         getCommand("linkforce").setTabCompleter(linkForceCommand);
@@ -552,6 +661,9 @@ public class CantalePlugin extends JavaPlugin {
     }
 
     private void registerListeners() {
+        getServer().getPluginManager().registerEvents(adminBypassManager, this);
+        rankPermissionBridge = new fr.cantale.plugin.rank.RankPermissionBridge(this);
+        getServer().getPluginManager().registerEvents(rankPermissionBridge, this);
         getServer().getPluginManager().registerEvents(new ClaimListener(this), this);
         getServer().getPluginManager().registerEvents(new PlayerListener(this), this);
         getServer().getPluginManager().registerEvents(new ResourcePackStatusListener(this), this);
@@ -562,18 +674,30 @@ public class CantalePlugin extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new fr.cantale.plugin.listeners.LifeItemListener(this), this);
         getServer().getPluginManager().registerEvents(new fr.cantale.plugin.listeners.TotemBlockListener(this), this);
         getServer().getPluginManager().registerEvents(new fr.cantale.plugin.listeners.HopperLimitListener(this), this);
+        getServer().getPluginManager().registerEvents(new fr.cantale.plugin.listeners.DeathLootProtectListener(this), this);
+        getServer().getPluginManager().registerEvents(new fr.cantale.plugin.listeners.WitherSkullDropListener(), this);
         getServer().getPluginManager().registerEvents(new fr.cantale.plugin.custom.RuneFortificationListener(this), this);
         getServer().getPluginManager().registerEvents(new MapIntegrationListener(this), this);
+        // Raccourci minimap (clic droit / F) : uniquement si le module carte in-game est actif
+        if (mapUI != null) {
+            getServer().getPluginManager().registerEvents(new fr.cantale.plugin.ui.map.MinimapHotkeyListener(this), this);
+        }
         getServer().getPluginManager().registerEvents(new fr.cantale.plugin.optimization.VillagerSpawnBlocker(this), this);
         getServer().getPluginManager().registerEvents(
                 new fr.cantale.plugin.optimization.MobStackListener(this, mobStackManager), this);
+        getServer().getPluginManager().registerEvents(itemMergeManager, this);
+        getServer().getPluginManager().registerEvents(
+                new fr.cantale.plugin.spawners.SpawnerListener(this, spawnerManager), this);
+        getServer().getPluginManager().registerEvents(
+                new fr.cantale.plugin.quests.QuestTrackListener(this), this);
         // Vote system : enregistre PlayerJoinEvent + tente de cabler VotifierEvent par réflexion
         getServer().getPluginManager().registerEvents(voteListener, this);
         boolean votifierOk = voteListener.tryRegisterVotifier();
         if (votifierOk) {
-            getLogger().info("[Vote] Système de vote activé avec Votifier.");
+            getLogger().info("[Vote] Système de vote activé avec Votifier (Top-Serveurs). Sites 2 et 3 = API.");
         } else {
-            getLogger().warning("[Vote] Votifier non détecté — les votes entrants ne seront pas traités.");
+            getLogger().warning("[Vote] Votifier non détecté — Top-Serveurs silencieux. "
+                    + "Serveur-Prive / ServeurListe récompensent via API. Voir docs/Votes.md.");
         }
         getServer().getPluginManager().registerEvents(teleportDelayManager, this);
         getServer().getPluginManager().registerEvents(new fr.cantale.plugin.privatechest.PrivateChestListener(this, privateChestCommand.getChestService()), this);
@@ -639,6 +763,18 @@ public class CantalePlugin extends JavaPlugin {
         return factionManager;
     }
 
+    public fr.cantale.plugin.factions.AdminBypassManager getAdminBypassManager() {
+        return adminBypassManager;
+    }
+
+    public fr.cantale.plugin.rank.RankPermissionBridge getRankPermissionBridge() {
+        return rankPermissionBridge;
+    }
+
+    public fr.cantale.plugin.factions.pasdic.PasdicService getPasdicService() {
+        return pasdicService;
+    }
+
     public LifeManager getLifeManager() {
         return lifeManager;
     }
@@ -653,6 +789,10 @@ public class CantalePlugin extends JavaPlugin {
 
     public MapUI getMapUI() {
         return mapUI;
+    }
+
+    public fr.cantale.plugin.map.ClientMapBridge getClientMapBridge() {
+        return clientMapBridge;
     }
 
     public SpawnProtection getSpawnProtection() {
@@ -671,8 +811,16 @@ public class CantalePlugin extends JavaPlugin {
         return serverOptimizer;
     }
 
+    public fr.cantale.plugin.optimization.PerformanceGovernor getPerformanceGovernor() {
+        return performanceGovernor;
+    }
+
     public fr.cantale.plugin.optimization.MobStackManager getMobStackManager() {
         return mobStackManager;
+    }
+
+    public fr.cantale.plugin.optimization.ItemMergeManager getItemMergeManager() {
+        return itemMergeManager;
     }
 
     public PermissionManager getPermissionManager() {
@@ -709,6 +857,22 @@ public class CantalePlugin extends JavaPlugin {
 
     public BankManager getBankManager() {
         return bankManager;
+    }
+
+    public fr.cantale.plugin.database.FactionDAO getFactionDAO() {
+        return new fr.cantale.plugin.database.FactionDAO(this);
+    }
+
+    public fr.cantale.plugin.factions.secret.SecretTaxManager getSecretTaxManager() {
+        return secretTaxManager;
+    }
+
+    public fr.cantale.plugin.factions.raid.RaidManager getRaidManager() {
+        return raidManager;
+    }
+
+    public fr.cantale.plugin.discord.DiscordLinkService getDiscordLinkService() {
+        return discordLinkService;
     }
 
     public HomeManager getHomeManager() {
@@ -825,5 +989,17 @@ public class CantalePlugin extends JavaPlugin {
 
     public fr.cantale.plugin.ui.bossbar.RotatingBossBarManager getRotatingBossBarManager() {
         return rotatingBossBarManager;
+    }
+
+    public fr.cantale.plugin.spawners.SpawnerManager getSpawnerManager() {
+        return spawnerManager;
+    }
+
+    public fr.cantale.plugin.quests.QuestEngine getQuestEngine() {
+        return questEngine;
+    }
+
+    public fr.cantale.plugin.collections.CollectionManager getCollectionManager() {
+        return collectionManager;
     }
 }

@@ -10,10 +10,20 @@ import org.bukkit.entity.Player;
 /**
  * Détection de ChestStealer.
  *
- * Vérifie si le joueur vide un coffre trop rapidement (clics trop fréquents).
- * Un joueur normal met au minimum 1-2 ticks entre chaque clic dans un coffre.
+ * Compte les clics de prise d'item dans un contenant vanilla sur une fenêtre
+ * glissante. Un humain atteint difficilement {@value #ACTIONS_NEEDED} clics
+ * utiles en {@value #WINDOW_MS} ms (~12 clics/s soutenus) ; un stealer le fait
+ * systématiquement.
+ *
+ * Ne se déclenche que sur les contenants vanilla (coffre, barrel, shulker…) —
+ * les GUIs Cantale et l'ender chest sont exclus (voir InventoryListener).
  */
 public class ChestStealerCheck extends Check {
+
+    /** Fenêtre glissante de comptage des clics (ms) */
+    private static final int WINDOW_MS = 500;
+    /** Nombre de prises dans la fenêtre pour flag */
+    private static final int ACTIONS_NEEDED = 6;
 
     public ChestStealerCheck(AntiCheatConfig config) {
         super(CheckType.CHEST_STEALER, config);
@@ -25,27 +35,15 @@ public class ChestStealerCheck extends Check {
     }
 
     /**
-     * Vérifie la vitesse de clic dans un coffre.
-     *
-     * @param player le joueur
-     * @param data   les données du joueur
-     * @return le résultat du check
+     * Vérifie la cadence de vidage d'un contenant vanilla.
      */
     public CheckResult checkClick(Player player, PlayerData data) {
         long now = System.currentTimeMillis();
-        long lastClick = data.getLastInventoryClick();
-        data.setLastInventoryClick(now);
+        int count = data.addChestClick(now, WINDOW_MS);
 
-        if (lastClick == 0) {
-            return CheckResult.pass(type);
-        }
-
-        long elapsed = now - lastClick;
-        long minTime = (long) config.getMinClickTicks() * 50; // ticks → ms
-
-        if (elapsed < minTime) {
-            String details = String.format("elapsed=%dms min=%dms", elapsed, minTime);
-            return CheckResult.violation(type, 1.0, details);
+        if (count >= ACTIONS_NEEDED) {
+            String details = String.format("clicks=%d window=%dms", count, WINDOW_MS);
+            return CheckResult.violation(type, count, details);
         }
 
         return CheckResult.pass(type);

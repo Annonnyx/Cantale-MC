@@ -1,8 +1,8 @@
 package fr.cantale.plugin.commands;
 
 import fr.cantale.plugin.CantalePlugin;
-import fr.cantale.plugin.cooldown.CooldownManager;
 import org.bukkit.Location;
+import org.bukkit.World;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -11,50 +11,27 @@ import org.bukkit.entity.Player;
 public class SpawnCommand implements CommandExecutor {
 
     private final CantalePlugin plugin;
-    private final CooldownManager cooldownManager;
-    private static final long COOLDOWN_MS = 20000; // 20 secondes
 
     public SpawnCommand(CantalePlugin plugin) {
         this.plugin = plugin;
-        this.cooldownManager = plugin.getCooldownManager();
     }
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
-        if (!(sender instanceof Player)) {
+        if (!(sender instanceof Player player)) {
             sender.sendMessage("§cCette commande est réservée aux joueurs.");
             return true;
         }
 
-        Player player = (Player) sender;
-
-        // Vérifier le cooldown
-        if (cooldownManager.hasCooldown(player, "spawn", COOLDOWN_MS)) {
-            long remaining = cooldownManager.getRemainingCooldown(player, "spawn", COOLDOWN_MS);
-            player.sendMessage("§cCooldown ! Attendez encore " + (remaining / 1000) + " secondes.");
+        World world = plugin.getServer().getWorld("world");
+        if (world == null) {
+            player.sendMessage("§8[§6Cantale§8] §cLe monde du spawn est introuvable.");
             return true;
         }
 
-        Location spawn = plugin.getServer().getWorld("world").getSpawnLocation();
-
-        int delay = plugin.getTeleportDelayManager().getTeleportDelay(player);
-        if (spawn != null) {
-            if (delay > 0) {
-                long ticksBefore = Math.max(0, (delay - 1) * 20L);
-                plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
-                    if (spawn.getWorld() != null) spawn.getChunk().load(true);
-                }, ticksBefore);
-            } else {
-                spawn.getChunk().load(true);
-            }
-        }
-
-        plugin.getTeleportDelayManager().delayTeleport(player, () -> {
-            player.teleport(spawn);
-            player.sendMessage("§8[§6Cantale§8] §aTéléportation au spawn !");
-            cooldownManager.setCooldown(player, "spawn");
-        });
-        
+        Location spawn = world.getSpawnLocation();
+        plugin.getTeleportDelayManager().requestTeleport(player, spawn, false, () ->
+                player.sendMessage("§8[§6Cantale§8] §aTéléportation au spawn !"));
         return true;
     }
 }

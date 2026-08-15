@@ -1,0 +1,22 @@
+# Gradle
+.gradle/
+build/
+out/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+eclipse/
+*.launch
+.classpath
+.project
+.settings/
+bin/
+
+# Fabric Loom
+run/
+remappedSrc/
+
+# macOS
+.DS_Store

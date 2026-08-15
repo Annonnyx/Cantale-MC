@@ -5,6 +5,7 @@ import fr.cantale.plugin.database.PlayerDAO;
 import org.bukkit.ChatColor;
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
+import org.bukkit.inventory.ItemStack;
 
 import java.util.UUID;
 
@@ -50,12 +51,19 @@ public class LifeManager {
     }
 
     public void handleDeath(Player player) {
+        handleDeath(player, null);
+    }
+
+    /**
+     * @param inventorySnapshot inventaire cloné à la mort (stockage+armure+offhand), ou null
+     */
+    public void handleDeath(Player player, ItemStack[] inventorySnapshot) {
         UUID uuid = player.getUniqueId();
         Location deathLoc = player.getLocation();
         
-        // Les admins ont des vies illimitées
+        // Les admins ont des vies illimitées (pas de keepInventory forcé ici)
         if (player.hasPermission("cantale.admin")) {
-            playerDAO.incrementDeaths(uuid, deathLoc);
+            playerDAO.incrementDeaths(uuid, deathLoc, inventorySnapshot);
             player.sendMessage(formatMessage("&cVous êtes mort ! En tant qu'admin, vous avez des vies illimitées."));
             return;
         }
@@ -64,11 +72,11 @@ public class LifeManager {
 
         if (currentLives <= 1) {
             playerDAO.setLives(uuid, 0);
-            playerDAO.incrementDeaths(uuid, deathLoc);
+            playerDAO.incrementDeaths(uuid, deathLoc, inventorySnapshot);
             banPlayer(player);
         } else {
             playerDAO.decrementLives(uuid);
-            playerDAO.incrementDeaths(uuid, deathLoc);
+            playerDAO.incrementDeaths(uuid, deathLoc, inventorySnapshot);
             int remaining = getLives(uuid);
             player.sendMessage(formatMessage("&cVous êtes mort ! Il vous reste " + remaining + " vie(s)."));
         }
@@ -110,6 +118,17 @@ public class LifeManager {
     private void banPlayer(Player player) {
         String message = ChatColor.translateAlternateColorCodes('&', plugin.getConfigManager().getBanMessage());
         String reason = ChatColor.translateAlternateColorCodes('&', "&cVous n'avez plus de vies sur Cantale !");
+
+        // Empêcher le bannissement avec l'inventaire : drop le stuff (hors EC/PC) puis clear.
+        if (player.isOnline()) {
+            Location loc = player.getLocation();
+            for (ItemStack item : player.getInventory().getContents()) {
+                if (item != null && !item.getType().isAir()) {
+                    player.getWorld().dropItemNaturally(loc, item.clone());
+                }
+            }
+            player.getInventory().clear();
+        }
 
         // Ban UUID/profil en premier — résiste au changement de pseudo.
         // player.ban(..., kickPlayer=false) : on kick avec le message config ensuite.

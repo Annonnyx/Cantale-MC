@@ -155,7 +155,7 @@ public class CantalameManager {
             meta.addEnchant(getEnchantment("looting"), 5, true);
             meta.addEnchant(getEnchantment("fire_aspect"), 3, true);
             meta.addEnchant(getEnchantment("sweeping_edge"), 10, true);
-            meta.addEnchant(getEnchantment("unbreaking"), 10, true);
+            meta.addEnchant(getEnchantment("unbreaking"), 7, true);
         }
         
         // Mettre à jour le nom avec le pallier
@@ -221,8 +221,13 @@ public class CantalameManager {
         ));
         
         meta.setUnbreakable(true);
-        
+
         item.setItemMeta(meta);
+
+        // Identité Cantale (tag PDC + hash anti-fake + CustomModelData) : sans elle,
+        // l'épée échappait aux protections enclume/meule et n'avait pas sa texture.
+        new CustomItemManager().applyCustomIdentity(item, CustomItemType.CANTALAME);
+
         return item;
     }
 

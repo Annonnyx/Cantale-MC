@@ -8,8 +8,10 @@ import fr.cantale.plugin.factions.Faction;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Chunk;
+import org.bukkit.Location;
 import org.bukkit.Sound;
 import org.bukkit.block.Block;
+import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -17,7 +19,13 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockExplodeEvent;
+import org.bukkit.event.block.BlockIgniteEvent;
+import org.bukkit.event.block.TNTPrimeEvent;
+import org.bukkit.event.entity.EntityChangeBlockEvent;
+import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.EntityExplodeEvent;
+import org.bukkit.event.entity.ExplosionPrimeEvent;
+import org.bukkit.event.hanging.HangingBreakEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
@@ -30,18 +38,23 @@ import java.util.Iterator;
  * Comportement (refonte) :
  * - 1 rune = 1 chunk fortifié.
  * - Les blocks d'un chunk fortifié ne peuvent être cassés que par les membres
- *   de la faction propriétaire (et empêche la destruction par explosions).
+ *   de la faction propriétaire. Aucune explosion n'y fonctionne (TNT, cristaux,
+ *   wither, lits, ancres, minecarts, etc.).
+ * - Le claim du f-spawn ({@code FactionManager#isExplosionImmune}) a la même
+ *   immunité explosions, sans bloquer la casse des membres.
  * - Les coffres et inventaires restent piables (pas de blocage d'interaction).
  * - Chaque chunk fortifié ajoute un coût à la taxe journalière de la faction
  *   (calculé dans TerritoryTaxManager).
  */
 public class RuneFortificationListener implements Listener {
 
+    private final CantalePlugin plugin;
     private final FactionManager factionManager;
     private final FortifiedChunkDAO fortifiedChunkDAO;
     private final CustomItemManager customItemManager;
 
     public RuneFortificationListener(CantalePlugin plugin) {
+        this.plugin = plugin;
         this.factionManager = plugin.getFactionManager();
         this.fortifiedChunkDAO = plugin.getFortifiedChunkDAO();
         this.customItemManager = new CustomItemManager();
@@ -118,6 +131,10 @@ public class RuneFortificationListener implements Listener {
             player.sendMessage("§8[§6Cantale§8] §cCe chunk n'est pas claim par votre faction. §7(/f claim)");
             return;
         }
+        if (claim.isPasdic()) {
+            player.sendMessage("§8[§6Cantale§8] §cImpossible de fortifier un chunk PASDIC.");
+            return;
+        }
         if (fortifiedChunkDAO.isFortified(world, chunkX, chunkZ)) {
             player.sendMessage("§8[§6Cantale§8] §cCe chunk est déjà fortifié.");
             return;
@@ -163,6 +180,8 @@ public class RuneFortificationListener implements Listener {
 
         Player player = event.getPlayer();
         if (player.hasPermission("cantale.admin")) return;
+        // Bypass admin (/f bypass) : la casse est aussi permise en chunk fortifié.
+        if (plugin.getAdminBypassManager().isBypassing(player)) return;
 
         Faction playerFaction = factionManager.getPlayerFaction(player.getUniqueId());
 
@@ -172,23 +191,100 @@ public class RuneFortificationListener implements Listener {
         }
     }
 
-    /** Empêche les explosions de détruire les blocks dans un chunk fortifié. */
+    /**
+     * Sous une rune ou dans le claim du f-spawn : aucune explosion (TNT, cristaux,
+     * wither, lits, ancres, minecarts TNT, creepers, fireballs, wind charges…).
+     * Origine dans le chunk → explosion entièrement annulée. Origine à côté →
+     * blocs immunisés retirés de la liste, dégâts d'explosion aux entités du
+     * chunk annulés à part.
+     */
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onEntityExplode(EntityExplodeEvent event) {
-        filterExplosionBlocks(event.getLocation().getWorld().getName(), event.blockList().iterator());
+        Location origin = event.getLocation();
+        if (isExplosionImmune(origin)) {
+            event.setCancelled(true);
+            event.blockList().clear();
+            return;
+        }
+        if (origin.getWorld() == null) return;
+        filterExplosionBlocks(origin.getWorld().getName(), event.blockList().iterator());
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onBlockExplode(BlockExplodeEvent event) {
-        filterExplosionBlocks(event.getBlock().getWorld().getName(), event.blockList().iterator());
+        Block block = event.getBlock();
+        if (isExplosionImmune(block.getLocation())) {
+            event.setCancelled(true);
+            event.blockList().clear();
+            return;
+        }
+        filterExplosionBlocks(block.getWorld().getName(), event.blockList().iterator());
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onExplosionPrime(ExplosionPrimeEvent event) {
+        if (isExplosionImmune(event.getEntity().getLocation())) {
+            event.setCancelled(true);
+        }
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onTntPrime(TNTPrimeEvent event) {
+        if (isExplosionImmune(event.getBlock().getLocation())) {
+            event.setCancelled(true);
+        }
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onExplosionDamage(EntityDamageEvent event) {
+        EntityDamageEvent.DamageCause cause = event.getCause();
+        if (cause != EntityDamageEvent.DamageCause.BLOCK_EXPLOSION
+                && cause != EntityDamageEvent.DamageCause.ENTITY_EXPLOSION) {
+            return;
+        }
+        if (isExplosionImmune(event.getEntity().getLocation())) {
+            event.setCancelled(true);
+        }
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onWitherChangeBlock(EntityChangeBlockEvent event) {
+        EntityType type = event.getEntityType();
+        if (type != EntityType.WITHER && type != EntityType.WITHER_SKULL && type != EntityType.ENDER_DRAGON) {
+            return;
+        }
+        if (isExplosionImmune(event.getBlock().getLocation())) {
+            event.setCancelled(true);
+        }
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onHangingBreak(HangingBreakEvent event) {
+        if (event.getCause() != HangingBreakEvent.RemoveCause.EXPLOSION) return;
+        if (isExplosionImmune(event.getEntity().getLocation())) {
+            event.setCancelled(true);
+        }
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onExplosionIgnite(BlockIgniteEvent event) {
+        if (event.getCause() != BlockIgniteEvent.IgniteCause.EXPLOSION) return;
+        if (isExplosionImmune(event.getBlock().getLocation())) {
+            event.setCancelled(true);
+        }
     }
 
     private void filterExplosionBlocks(String world, Iterator<Block> it) {
         while (it.hasNext()) {
             Block b = it.next();
-            if (fortifiedChunkDAO.isFortified(world, b.getChunk().getX(), b.getChunk().getZ())) {
+            if (factionManager.isExplosionImmune(world, b.getChunk().getX(), b.getChunk().getZ())) {
                 it.remove();
             }
         }
+    }
+
+    /** Rune active sur le chunk, ou claim du f-spawn. Casse membres inchangée. */
+    private boolean isExplosionImmune(Location loc) {
+        return factionManager.isExplosionImmune(loc);
     }
 }

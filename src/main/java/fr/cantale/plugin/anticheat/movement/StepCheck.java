@@ -31,6 +31,11 @@ public class StepCheck extends Check {
             return CheckResult.pass(type);
         }
 
+        // Knockback / explosion récent : deltaY non fiable
+        if (data.isVelocityExempt() || data.isMovementExempt()) {
+            return CheckResult.pass(type);
+        }
+
         // Ignorer si le joueur est en vol ou en élytre
         if (player.isFlying() || player.isGliding() || player.getAllowFlight()) {
             return CheckResult.pass(type);

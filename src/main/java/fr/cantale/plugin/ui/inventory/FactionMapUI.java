@@ -320,6 +320,17 @@ public class FactionMapUI extends BaseUI {
         int[] coords = slotToChunk.get(slot);
         if (coords == null) return;
 
+        // Shift+clic gauche sur un claim de sa faction : conversion PASDIC
+        if (event.isShiftClick() && event.isLeftClick()) {
+            Claim clickedClaim = factionManager.getClaimAt(worldName, coords[0], coords[1]);
+            Faction playerFaction = factionManager.getPlayerFaction(player.getUniqueId());
+            if (clickedClaim != null && playerFaction != null && clickedClaim.getFactionId() == playerFaction.getId()) {
+                player.performCommand("f pasdic");
+                close();
+                return;
+            }
+        }
+
         if (event.isRightClick()) {
             tryUnclaim(coords[0], coords[1]);
         } else if (event.isLeftClick()) {

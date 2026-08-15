@@ -3,6 +3,8 @@ package fr.cantale.plugin.tag;
 import fr.cantale.plugin.CantalePlugin;
 import fr.cantale.plugin.factions.Faction;
 import fr.cantale.plugin.rank.PlayerRank;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.entity.Player;
@@ -14,13 +16,24 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class TagManager {
 
+    private static final LegacyComponentSerializer LEGACY = LegacyComponentSerializer.legacySection();
+
     private final CantalePlugin plugin;
+    /** Préfixe déjà calculé (évite du SQL main-thread à chaque refresh TAB). */
+    private final Map<UUID, String> prefixCache = new ConcurrentHashMap<>();
 
     public TagManager(CantalePlugin plugin) {
         this.plugin = plugin;
+    }
+
+    public void invalidatePrefixCache(UUID uuid) {
+        if (uuid != null) {
+            prefixCache.remove(uuid);
+        }
     }
 
     // --- Database Custom Tags Admin ---
@@ -203,6 +216,7 @@ public class TagManager {
         } catch (SQLException e) {
             plugin.getLogger().severe("Erreur setRankTagShown: " + e.getMessage());
         }
+        invalidatePrefixCache(uuid);
     }
 
     public String getActiveCustomTag(UUID uuid) {
@@ -247,6 +261,7 @@ public class TagManager {
         } catch (SQLException e) {
             plugin.getLogger().severe("Erreur setActiveCustomTag: " + e.getMessage());
         }
+        invalidatePrefixCache(uuid);
     }
 
     // --- Prefix Generation & Scoreboard Updates ---
@@ -258,6 +273,11 @@ public class TagManager {
      */
     public String getPlayerPrefix(Player player) {
         UUID uuid = player.getUniqueId();
+        String cached = prefixCache.get(uuid);
+        if (cached != null) {
+            return cached;
+        }
+
         StringBuilder prefix = new StringBuilder();
 
         // 1. Tag de Faction (Mandatoire/Par défaut)
@@ -292,35 +312,48 @@ public class TagManager {
             }
         }
 
-        return prefix.toString();
+        String result = prefix.toString();
+        prefixCache.put(uuid, result);
+        return result;
     }
 
     /**
-     * Met à jour le nametag (au-dessus de la tête) et le TAB du joueur via le Scoreboard.
+     * Met à jour le nametag (au-dessus de la tête) et le TAB.
+     * Équipes sur le scoreboard principal (les boards par joueur masquent les préfixes TAB).
+     * playerListName couvre le TAB même si un client ignore le préfixe d'équipe.
      */
     public void updatePlayerNametag(Player player) {
+        if (player == null || !player.isOnline()) return;
+
+        invalidatePrefixCache(player.getUniqueId());
         String prefix = getPlayerPrefix(player);
         Scoreboard scoreboard = Bukkit.getScoreboardManager().getMainScoreboard();
-        
-        // Nom de l'équipe unique basé sur le joueur pour éviter les conflits
-        String teamName = "tag_" + player.getName();
-        if (teamName.length() > 16) {
-            teamName = teamName.substring(0, 16);
-        }
 
+        unregisterLegacyNameTeam(scoreboard, player);
+
+        String teamName = teamNameFor(player.getUniqueId());
         Team team = scoreboard.getTeam(teamName);
         if (team == null) {
             team = scoreboard.registerNewTeam(teamName);
         }
 
-        team.setPrefix(prefix);
+        Component prefixComponent = prefix.isEmpty() ? Component.empty() : LEGACY.deserialize(prefix);
+        team.prefix(prefixComponent);
+        team.suffix(Component.empty());
         if (!team.hasEntry(player.getName())) {
             team.addEntry(player.getName());
         }
 
-        // Assigner le scoreboard au joueur s'il ne l'a pas déjà
         if (player.getScoreboard() != scoreboard) {
             player.setScoreboard(scoreboard);
+        }
+
+        // TAB : playerListName (indépendant du scoreboard du viewer).
+        // Nametag tête : préfixe d'équipe uniquement — pas de double affichage.
+        if (prefix.isEmpty()) {
+            player.playerListName(null);
+        } else {
+            player.playerListName(prefixComponent.append(Component.text(player.getName())));
         }
     }
 
@@ -328,11 +361,31 @@ public class TagManager {
      * Supprime l'équipe temporaire du joueur du scoreboard (appelé à la déconnexion).
      */
     public void removePlayerTeam(Player player) {
+        if (player == null) return;
+        invalidatePrefixCache(player.getUniqueId());
         Scoreboard scoreboard = Bukkit.getScoreboardManager().getMainScoreboard();
-        String teamName = "tag_" + player.getName();
-        if (teamName.length() > 16) {
-            teamName = teamName.substring(0, 16);
+        unregisterTeam(scoreboard, teamNameFor(player.getUniqueId()));
+        unregisterLegacyNameTeam(scoreboard, player);
+        if (player.isOnline()) {
+            player.playerListName(null);
         }
+    }
+
+    /** Équipe stable 16 car. (UUID) — l'ancien schéma tag_+pseudo collisionnait. */
+    static String teamNameFor(UUID uuid) {
+        String hex = uuid.toString().replace("-", "");
+        return "c" + hex.substring(0, 15);
+    }
+
+    private static void unregisterLegacyNameTeam(Scoreboard scoreboard, Player player) {
+        String legacy = "tag_" + player.getName();
+        if (legacy.length() > 16) {
+            legacy = legacy.substring(0, 16);
+        }
+        unregisterTeam(scoreboard, legacy);
+    }
+
+    private static void unregisterTeam(Scoreboard scoreboard, String teamName) {
         Team team = scoreboard.getTeam(teamName);
         if (team != null) {
             team.unregister();

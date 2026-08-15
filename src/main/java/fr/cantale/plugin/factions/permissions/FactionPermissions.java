@@ -37,7 +37,10 @@ public final class FactionPermissions {
             FactionPermission.BAN,
             FactionPermission.UNBAN,
             FactionPermission.BANK_TAKE,
-            FactionPermission.SECRET
+            FactionPermission.SECRET,
+            FactionPermission.RAID,
+            FactionPermission.PASDIC,
+            FactionPermission.WAR
         ));
 
         Set<FactionPermission> leader = EnumSet.allOf(FactionPermission.class);

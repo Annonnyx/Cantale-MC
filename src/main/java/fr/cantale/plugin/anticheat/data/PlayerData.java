@@ -64,16 +64,34 @@ public class PlayerData {
     private float lastPitch;
 
     // ── Inventaire ──
-    /** Timestamp du dernier clic dans un inventaire */
-    private long lastInventoryClick;
-    /** Timestamp du dernier équipement d'armure */
-    private long lastArmorEquip;
+    /** Timestamps des clics récents dans un contenant vanilla (ChestStealer) */
+    private final Deque<Long> chestClickTimestamps = new ArrayDeque<>();
+    /** Timestamps des équipements d'armure récents (AutoArmor) */
+    private final Deque<Long> armorEquipTimestamps = new ArrayDeque<>();
+    /** Début de la consommation en cours (FastUse) — 0 = aucune */
+    private long consumeStartTime;
 
     // ── NoFall ──
     /** Distance de chute calculée manuellement */
     private double fallDistance;
     /** Le joueur est-il en train de tomber */
     private boolean falling;
+    /** Y maximal atteint depuis le décollage (pic de la chute) */
+    private double fallPeakY;
+    /** Un dégât de chute est attendu suite à un atterrissage */
+    private boolean expectFallDamage;
+    /** Hauteur de chute mesurée à l'atterrissage */
+    private double expectedFallHeight;
+    /** Timestamp de l'atterrissage en attente de dégât */
+    private long fallDamageExpectSince;
+
+    // ── Vélocité / knockback ──
+    /** Jusqu'à quand ignorer les checks sensibles à la vélocité (knockback, explosion…) */
+    private long velocityExemptUntil;
+
+    // ── Divers ──
+    /** Le dernier move event incluait-il un changement de position (vs rotation seule) */
+    private boolean lastMoveChangedPosition = true;
 
     // ── Exemptions / buffers ──
     /** Jusqu'à quand ignorer les checks de mouvement (après TP, etc.) */
@@ -353,20 +371,30 @@ public class PlayerData {
     //  Inventaire
     // ═══════════════════════════════════════════════════
 
-    public long getLastInventoryClick() {
-        return lastInventoryClick;
+    /** Enregistre un clic contenant et retourne le nombre de clics dans la fenêtre. */
+    public int addChestClick(long timestamp, int windowMs) {
+        chestClickTimestamps.addLast(timestamp);
+        while (!chestClickTimestamps.isEmpty() && timestamp - chestClickTimestamps.peekFirst() > windowMs) {
+            chestClickTimestamps.pollFirst();
+        }
+        return chestClickTimestamps.size();
     }
 
-    public void setLastInventoryClick(long lastInventoryClick) {
-        this.lastInventoryClick = lastInventoryClick;
+    /** Enregistre un équipement d'armure et retourne le nombre d'équipements dans la fenêtre. */
+    public int addArmorEquip(long timestamp, int windowMs) {
+        armorEquipTimestamps.addLast(timestamp);
+        while (!armorEquipTimestamps.isEmpty() && timestamp - armorEquipTimestamps.peekFirst() > windowMs) {
+            armorEquipTimestamps.pollFirst();
+        }
+        return armorEquipTimestamps.size();
     }
 
-    public long getLastArmorEquip() {
-        return lastArmorEquip;
+    public long getConsumeStartTime() {
+        return consumeStartTime;
     }
 
-    public void setLastArmorEquip(long lastArmorEquip) {
-        this.lastArmorEquip = lastArmorEquip;
+    public void setConsumeStartTime(long consumeStartTime) {
+        this.consumeStartTime = consumeStartTime;
     }
 
     // ═══════════════════════════════════════════════════
@@ -389,6 +417,40 @@ public class PlayerData {
         this.falling = falling;
     }
 
+    public double getFallPeakY() {
+        return fallPeakY;
+    }
+
+    public void setFallPeakY(double fallPeakY) {
+        this.fallPeakY = fallPeakY;
+    }
+
+    /** Marque qu'un dégât de chute est attendu (atterrissage depuis une hauteur significative). */
+    public void expectFallDamage(double fallHeight) {
+        this.expectFallDamage = true;
+        this.expectedFallHeight = fallHeight;
+        this.fallDamageExpectSince = System.currentTimeMillis();
+    }
+
+    /** Le dégât de chute attendu a été reçu (ou doit être abandonné). */
+    public void clearFallExpectation() {
+        this.expectFallDamage = false;
+        this.expectedFallHeight = 0;
+        this.fallDamageExpectSince = 0;
+    }
+
+    public boolean isExpectingFallDamage() {
+        return expectFallDamage;
+    }
+
+    public double getExpectedFallHeight() {
+        return expectedFallHeight;
+    }
+
+    public long getFallDamageExpectSince() {
+        return fallDamageExpectSince;
+    }
+
     // ═══════════════════════════════════════════════════
     //  Exemptions / buffers
     // ═══════════════════════════════════════════════════
@@ -402,6 +464,26 @@ public class PlayerData {
 
     public boolean isMovementExempt() {
         return System.currentTimeMillis() < movementExemptUntil;
+    }
+
+    /** Exemption courte après un knockback / explosion / changement de vélocité serveur. */
+    public void exemptVelocity(long durationMs) {
+        long until = System.currentTimeMillis() + Math.max(0L, durationMs);
+        if (until > this.velocityExemptUntil) {
+            this.velocityExemptUntil = until;
+        }
+    }
+
+    public boolean isVelocityExempt() {
+        return System.currentTimeMillis() < velocityExemptUntil;
+    }
+
+    public boolean isLastMoveChangedPosition() {
+        return lastMoveChangedPosition;
+    }
+
+    public void setLastMoveChangedPosition(boolean lastMoveChangedPosition) {
+        this.lastMoveChangedPosition = lastMoveChangedPosition;
     }
 
     public int getAimBuffer() {

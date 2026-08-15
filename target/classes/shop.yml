@@ -13,9 +13,9 @@
 # Repères économiques connus (pour calibrer) :
 #  - Solde de départ  : 10 000 Cantox (config.yml: economy.start-balance)
 #  - /daily (journalier) : 1000 Cantox de base + bonus de grade payant
-#    (Aventurier +2500, VIP +10000, Chèvre/Staff +100000). Ces bonus sont
-#    jugés très généreux (voir TODO.md) : un prix seul ne peut pas empêcher
-#    un Chèvre de tout acheter avec un seul /daily. C'est pourquoi les
+#    (Aventurier +2500, VIP +10000, Chèvre +100000 ; staff = base seule).
+#    Ces bonus sont jugés très généreux (voir TODO.md) : un prix seul ne peut
+#    pas empêcher un Chèvre de tout acheter avec un seul /daily. C'est pourquoi les
 #    ressources rares utilisent des PLAFONDS QUOTIDIENS (daily-sell-cap /
 #    daily-buy-cap) en plus du prix. Shulker / Netherite : prix d'achat
 #    massifs (centaines de milliers) + plafonds serrés.
@@ -134,6 +134,8 @@ items:
   # Shulker : pas d'End → 300k–500k + caps (trophée Cantox, pas farm)
   SHULKER_SHELL: {category: NETHER_END, buy: 350000, sell: 1800, daily-buy-cap: 4}
   SHULKER_BOX: {category: NETHER_END, buy: 500000, sell: 3200, daily-buy-cap: 2}
+  # Élytra : sink endgame (mobilité PvP / exploration). Très cher, 1/jour, pas de revente shop.
+  ELYTRA: {category: NETHER_END, buy: 2000000, sell-enabled: false, daily-buy-cap: 1}
 
   # ── Agriculture & nourriture (revenu de base nouveaux joueurs/solo) ──
   # Ventes farm / nourriture cuite plafonnées à 1 Cantox (anti-farm Cantox).
@@ -174,12 +176,17 @@ items:
   OBSERVER: {category: REDSTONE, buy: 88, sell-enabled: false}
   DROPPER: {category: REDSTONE, buy: 64, sell-enabled: false}
   DISPENSER: {category: REDSTONE, buy: 96, sell-enabled: false}
-  # HOPPER retiré de la vente (lag serveur si achat en masse). Ne pas réintroduire
-  # sans prix extrême + daily-buy-cap serré.
-  # HOPPER: {category: REDSTONE, buy: 140, sell-enabled: false}
+  # HOPPER — réintroduit volontairement cher + cap serré (lag si mass buy).
+  # Repère économie : END_CRYSTAL 100k/cap8, SHULKER_SHELL 350k/cap4, ANCIENT_DEBRIS 120k/cap4.
+  # 150k + cap 4/j ≈ entre cristal et coquille ; sell off (pas de farm shop).
+  # Craft vanilla bloqué (HopperLimitListener) ; pose plafonnée par pouvoir de fac.
+  HOPPER: {category: REDSTONE, buy: 150000, sell-enabled: false, daily-buy-cap: 4}
 
   # ── Guerre & PvP (cœur économique du sink de guerre) ──
   TNT: {category: GUERRE, buy: 1320, sell-enabled: false}
   OBSIDIAN: {category: GUERRE, buy: 5040, sell: 40, daily-sell-cap: 128}
+  # Tête de Wither : plus de drop vanilla. Seul moyen de raid obsidienne (plus de lits).
+  # 3 têtes = 150 000 Cantox / wither. Cap 6/j = 2 withers shop. Pas de revente.
+  WITHER_SKELETON_SKULL: {category: GUERRE, buy: 50000, sell-enabled: false, daily-buy-cap: 6}
   ARROW: {category: GUERRE, buy: 60, sell-enabled: false}
   SHIELD: {category: GUERRE, buy: 3480, sell-enabled: false}

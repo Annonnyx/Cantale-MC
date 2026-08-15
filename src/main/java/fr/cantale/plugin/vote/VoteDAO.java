@@ -26,8 +26,14 @@ public class VoteDAO {
     /** Enregistre un vote (delivered=0 si offline). Retourne l'ID inséré ou -1. */
     public long recordVote(UUID playerUuid, String playerName, String site, String address,
                            String tier, String rewardSummary, boolean delivered) {
-        String sql = "INSERT INTO votes (player_uuid, player_name, site, address, tier, reward_summary, delivered, delivered_at) " +
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+        return recordVote(playerUuid, playerName, site, address, tier, rewardSummary, delivered,
+                System.currentTimeMillis() / 1000L);
+    }
+
+    public long recordVote(UUID playerUuid, String playerName, String site, String address,
+                           String tier, String rewardSummary, boolean delivered, long votedAtSeconds) {
+        String sql = "INSERT INTO votes (player_uuid, player_name, site, address, tier, reward_summary, delivered, delivered_at, voted_at) " +
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
         try (Connection conn = plugin.getDatabaseManager().getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             stmt.setString(1, playerUuid.toString());
@@ -37,8 +43,10 @@ public class VoteDAO {
             stmt.setString(5, tier);
             stmt.setString(6, rewardSummary);
             stmt.setInt(7, delivered ? 1 : 0);
-            if (delivered) stmt.setLong(8, System.currentTimeMillis() / 1000L);
+            long now = System.currentTimeMillis() / 1000L;
+            if (delivered) stmt.setLong(8, now);
             else stmt.setNull(8, Types.INTEGER);
+            stmt.setLong(9, votedAtSeconds > 0 ? votedAtSeconds : now);
             stmt.executeUpdate();
             ResultSet rs = stmt.getGeneratedKeys();
             if (rs.next()) return rs.getLong(1);
@@ -210,23 +218,46 @@ public class VoteDAO {
     }
 
     /**
-     * Vérifie si la même IP a déjà voté sur ce site dans les dernières heures.
+     * Vérifie si le joueur a déjà été récompensé sur ce site dans la fenêtre de cooldown.
+     * Empêche un double grant Votifier + API Serveur-Prive.
      */
-    public boolean hasRecentVoteFromIp(String address, VoteSite site, int cooldownHours) {
-        if (address == null || address.isBlank() || cooldownHours <= 0) return false;
+    public boolean hasRecentVoteOnSite(UUID playerUuid, String site, int cooldownHours) {
+        if (playerUuid == null || site == null || site.isBlank() || cooldownHours <= 0) return false;
         long since = System.currentTimeMillis() / 1000L - (cooldownHours * 3600L);
-        String sql = "SELECT COUNT(*) FROM votes WHERE address = ? AND site = ? AND voted_at > ?";
+        String sql = "SELECT COUNT(*) FROM votes WHERE player_uuid = ? AND site = ? AND voted_at > ?";
         try (Connection conn = plugin.getDatabaseManager().getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setString(1, address);
-            stmt.setString(2, site.displayName());
+            stmt.setString(1, playerUuid.toString());
+            stmt.setString(2, site);
             stmt.setLong(3, since);
             ResultSet rs = stmt.executeQuery();
             if (rs.next()) return rs.getInt(1) > 0;
         } catch (SQLException e) {
-            plugin.getLogger().severe("VoteDAO.hasRecentVoteFromIp : " + e.getMessage());
+            plugin.getLogger().severe("VoteDAO.hasRecentVoteOnSite : " + e.getMessage());
         }
         return false;
+    }
+
+    /**
+     * Marque un identifiant de vote externe comme traité.
+     * @return true si c'est un nouveau vote (à récompenser), false s'il était déjà vu
+     */
+    public boolean tryMarkExternalVoteProcessed(String site, String externalId, String playerName) {
+        if (site == null || site.isBlank() || externalId == null || externalId.isBlank()) return false;
+        String sql = isMariaDB()
+                ? "INSERT IGNORE INTO vote_external_ids (site, external_id, player_name, claimed_at) VALUES (?, ?, ?, ?)"
+                : "INSERT OR IGNORE INTO vote_external_ids (site, external_id, player_name, claimed_at) VALUES (?, ?, ?, ?)";
+        try (Connection conn = plugin.getDatabaseManager().getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, site);
+            stmt.setString(2, externalId);
+            stmt.setString(3, playerName);
+            stmt.setLong(4, System.currentTimeMillis() / 1000L);
+            return stmt.executeUpdate() > 0;
+        } catch (SQLException e) {
+            plugin.getLogger().severe("VoteDAO.tryMarkExternalVoteProcessed : " + e.getMessage());
+            return false;
+        }
     }
 
     /**
@@ -304,14 +335,7 @@ public class VoteDAO {
      * Détecte si la base de données utilise le dialecte MariaDB/MySQL.
      */
     private boolean isMariaDB() {
-        try (Connection conn = plugin.getDatabaseManager().getConnection()) {
-            DatabaseMetaData meta = conn.getMetaData();
-            String name = meta.getDatabaseProductName();
-            return name != null && (name.toLowerCase().contains("mariadb") || name.toLowerCase().contains("mysql"));
-        } catch (SQLException e) {
-            plugin.getLogger().warning("VoteDAO.isMariaDB : " + e.getMessage());
-            return false;
-        }
+        return plugin.getDatabaseManager() != null && plugin.getDatabaseManager().isMariaDB();
     }
 
     /** Vote livré au joueur quand il revient en ligne. */

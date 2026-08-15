@@ -6,7 +6,14 @@ import org.bukkit.scheduler.BukkitScheduler;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
+/**
+ * Pool partagé pour les tâches lourdes hors thread principal
+ * (analyse de hotspots, scans préparatoires du governor, etc.).
+ * Ne JAMAIS toucher à l'API Bukkit depuis ces threads : re-synchroniser via
+ * {@link #runAsyncThenSync} ou le scheduler.
+ */
 public class AsyncTaskManager {
 
     private final CantalePlugin plugin;
@@ -16,7 +23,11 @@ public class AsyncTaskManager {
     public AsyncTaskManager(CantalePlugin plugin) {
         this.plugin = plugin;
         this.scheduler = Bukkit.getScheduler();
-        this.executorService = Executors.newFixedThreadPool(4); // 4 threads pour les tâches lourdes
+        this.executorService = Executors.newFixedThreadPool(4, runnable -> {
+            Thread thread = new Thread(runnable, "Cantale-Async");
+            thread.setDaemon(true);
+            return thread;
+        });
     }
 
     /**
@@ -60,8 +71,17 @@ public class AsyncTaskManager {
 
     /**
      * Ferme l'executor service lors de la désactivation du plugin
+     * (attend brièvement les tâches en cours, puis force).
      */
     public void shutdown() {
         executorService.shutdown();
+        try {
+            if (!executorService.awaitTermination(3, TimeUnit.SECONDS)) {
+                executorService.shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            executorService.shutdownNow();
+            Thread.currentThread().interrupt();
+        }
     }
 }

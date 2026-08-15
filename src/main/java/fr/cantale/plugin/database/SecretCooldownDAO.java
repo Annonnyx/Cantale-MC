@@ -2,7 +2,10 @@ package fr.cantale.plugin.database;
 
 import fr.cantale.plugin.CantalePlugin;
 
-import java.sql.*;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.UUID;
 
 public class SecretCooldownDAO {
@@ -30,15 +33,24 @@ public class SecretCooldownDAO {
         return 0;
     }
 
-    public void setLastUsed(UUID playerUuid, long timestamp) {
-        String sql = "INSERT OR REPLACE INTO secret_cooldowns (player_uuid, last_used) VALUES (?, ?)";
+    /**
+     * Persiste le cooldown {@code /f secret}.
+     * @return {@code true} si l'écriture a réussi (MariaDB {@code ON DUPLICATE KEY} / SQLite {@code INSERT OR REPLACE})
+     */
+    public boolean setLastUsed(UUID playerUuid, long timestamp) {
+        String sql = databaseManager.upsertSql(
+                "secret_cooldowns (player_uuid, last_used)",
+                "?, ?",
+                "last_used = VALUES(last_used)");
         try (Connection conn = databaseManager.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setString(1, playerUuid.toString());
             stmt.setLong(2, timestamp);
             stmt.executeUpdate();
+            return true;
         } catch (SQLException e) {
             plugin.getLogger().severe("Erreur setLastUsed : " + e.getMessage());
+            return false;
         }
     }
 

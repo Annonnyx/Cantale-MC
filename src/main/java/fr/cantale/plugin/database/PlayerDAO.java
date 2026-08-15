@@ -1,7 +1,9 @@
 package fr.cantale.plugin.database;
 
 import fr.cantale.plugin.CantalePlugin;
+import fr.cantale.plugin.util.ItemStackSerializer;
 import org.bukkit.Location;
+import org.bukkit.inventory.ItemStack;
 
 import java.sql.*;
 import java.util.UUID;
@@ -112,15 +114,46 @@ public class PlayerDAO {
     }
 
     public void setBalance(UUID uuid, double balance) {
-        String sql = "UPDATE players SET balance = ? WHERE uuid = ?";
+        String sql = "UPDATE players SET balance = ?, balance_peak = CASE WHEN ? > COALESCE(balance_peak, 0) THEN ? ELSE balance_peak END WHERE uuid = ?";
         try (Connection conn = databaseManager.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setDouble(1, balance);
-            stmt.setString(2, uuid.toString());
+            stmt.setDouble(2, balance);
+            stmt.setDouble(3, balance);
+            stmt.setString(4, uuid.toString());
             stmt.executeUpdate();
+            if (plugin.getCollectionManager() != null) {
+                plugin.getCollectionManager().set(uuid, "money", "PEAK", (long) balance);
+            }
         } catch (SQLException e) {
             plugin.getLogger().severe("Erreur setBalance : " + e.getMessage());
         }
+    }
+
+    public double getBalancePeak(UUID uuid) {
+        String sql = "SELECT COALESCE(balance_peak, 0) FROM players WHERE uuid = ?";
+        try (Connection conn = databaseManager.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, uuid.toString());
+            ResultSet rs = stmt.executeQuery();
+            if (rs.next()) return rs.getDouble(1);
+        } catch (SQLException e) {
+            plugin.getLogger().severe("Erreur getBalancePeak : " + e.getMessage());
+        }
+        return 0;
+    }
+
+    public long getPlaytime(UUID uuid) {
+        String sql = "SELECT COALESCE(playtime, 0) FROM players WHERE uuid = ?";
+        try (Connection conn = databaseManager.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, uuid.toString());
+            ResultSet rs = stmt.executeQuery();
+            if (rs.next()) return rs.getLong(1);
+        } catch (SQLException e) {
+            plugin.getLogger().severe("Erreur getPlaytime : " + e.getMessage());
+        }
+        return 0;
     }
 
     public void setLastIp(UUID uuid, String ip) {
@@ -176,37 +209,70 @@ public class PlayerDAO {
     }
 
     public void incrementDeaths(UUID uuid) {
-        incrementDeaths(uuid, null);
+        incrementDeaths(uuid, null, null);
+    }
+
+    public void incrementDeaths(UUID uuid, Location location) {
+        incrementDeaths(uuid, location, null);
     }
 
     /**
      * Incrémente les morts et horodate {@code last_death}.
-     * Si {@code location} est fournie, enregistre aussi world+x+y+z ; sinon les coords existantes sont conservées.
+     * Si {@code location} est fournie, enregistre aussi world+x+y+z.
+     * Si {@code inventorySnapshot} est fourni, sérialise l'inventaire (stockage+armure+offhand)
+     * pour la vue staff {@code /lastdeath} — migration-safe (colonne TEXT nullable).
      */
-    public void incrementDeaths(UUID uuid, Location location) {
-        String sql;
-        if (location != null && location.getWorld() != null) {
-            sql = "UPDATE players SET deaths = deaths + 1, last_death = ?, kill_streak = 0, "
-                    + "last_death_world = ?, last_death_x = ?, last_death_y = ?, last_death_z = ? WHERE uuid = ?";
-        } else {
-            sql = "UPDATE players SET deaths = deaths + 1, last_death = ?, kill_streak = 0 WHERE uuid = ?";
+    public void incrementDeaths(UUID uuid, Location location, ItemStack[] inventorySnapshot) {
+        boolean hasLoc = location != null && location.getWorld() != null;
+        String invData = inventorySnapshot != null ? ItemStackSerializer.toBase64(inventorySnapshot) : null;
+        boolean hasInv = invData != null && !invData.isEmpty();
+
+        StringBuilder sql = new StringBuilder(
+                "UPDATE players SET deaths = deaths + 1, last_death = ?, kill_streak = 0");
+        if (hasLoc) {
+            sql.append(", last_death_world = ?, last_death_x = ?, last_death_y = ?, last_death_z = ?");
         }
+        if (hasInv) {
+            sql.append(", last_death_inventory = ?");
+        }
+        sql.append(" WHERE uuid = ?");
+
         try (Connection conn = databaseManager.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setLong(1, System.currentTimeMillis() / 1000);
-            if (location != null && location.getWorld() != null) {
-                stmt.setString(2, location.getWorld().getName());
-                stmt.setDouble(3, location.getX());
-                stmt.setDouble(4, location.getY());
-                stmt.setDouble(5, location.getZ());
-                stmt.setString(6, uuid.toString());
-            } else {
-                stmt.setString(2, uuid.toString());
+             PreparedStatement stmt = conn.prepareStatement(sql.toString())) {
+            int i = 1;
+            stmt.setLong(i++, System.currentTimeMillis() / 1000);
+            if (hasLoc) {
+                stmt.setString(i++, location.getWorld().getName());
+                stmt.setDouble(i++, location.getX());
+                stmt.setDouble(i++, location.getY());
+                stmt.setDouble(i++, location.getZ());
             }
+            if (hasInv) {
+                stmt.setString(i++, invData);
+            }
+            stmt.setString(i, uuid.toString());
             stmt.executeUpdate();
         } catch (SQLException e) {
             plugin.getLogger().severe("Erreur incrementDeaths : " + e.getMessage());
         }
+    }
+
+    /**
+     * Inventaire à la dernière mort (null si jamais enregistré — morts avant migration).
+     */
+    public ItemStack[] getLastDeathInventory(UUID uuid) {
+        String sql = "SELECT last_death_inventory FROM players WHERE uuid = ?";
+        try (Connection conn = databaseManager.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, uuid.toString());
+            ResultSet rs = stmt.executeQuery();
+            if (rs.next()) {
+                return ItemStackSerializer.fromBase64(rs.getString("last_death_inventory"));
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().severe("Erreur getLastDeathInventory : " + e.getMessage());
+        }
+        return null;
     }
 
     public long getLastDeath(UUID uuid) {
@@ -269,6 +335,24 @@ public class PlayerDAO {
             }
         } catch (SQLException e) {
             plugin.getLogger().severe("Erreur getUuidByUsername : " + e.getMessage());
+        }
+        return null;
+    }
+
+    /** Pseudo connu en DB pour cet UUID, ou {@code null} si inconnu. */
+    public String getUsername(UUID uuid) {
+        if (uuid == null) return null;
+        String sql = "SELECT username FROM players WHERE uuid = ?";
+        try (Connection conn = databaseManager.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, uuid.toString());
+            ResultSet rs = stmt.executeQuery();
+            if (rs.next()) {
+                String name = rs.getString("username");
+                if (name != null && !name.isBlank()) return name;
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().severe("Erreur getUsername : " + e.getMessage());
         }
         return null;
     }
@@ -470,6 +554,42 @@ public class PlayerDAO {
         } catch (SQLException e) {
             plugin.getLogger().severe("Erreur updatePlaytime : " + e.getMessage());
         }
+    }
+
+    /** True si le joueur a déjà utilisé /parrain avec succès. */
+    public boolean hasUsedReferral(UUID uuid) {
+        String sql = "SELECT referral_used FROM players WHERE uuid = ?";
+        try (Connection conn = databaseManager.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, uuid.toString());
+            ResultSet rs = stmt.executeQuery();
+            if (rs.next()) {
+                return rs.getInt("referral_used") != 0;
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().severe("Erreur hasUsedReferral : " + e.getMessage());
+        }
+        return false;
+    }
+
+    /**
+     * Marque atomiquement l'utilisation de /parrain (une seule fois).
+     * @return true si le marquage a réussi (première utilisation)
+     */
+    public boolean tryMarkReferralUsed(UUID inviteeUuid, UUID sponsorUuid) {
+        String sql = "UPDATE players SET referral_used = 1, referred_by = ?, referral_at = ? "
+                + "WHERE uuid = ? AND (referral_used IS NULL OR referral_used = 0)";
+        try (Connection conn = databaseManager.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, sponsorUuid.toString());
+            // Epoch en secondes (convention du plugin) : referral_at est un INTEGER
+            stmt.setLong(2, System.currentTimeMillis() / 1000L);
+            stmt.setString(3, inviteeUuid.toString());
+            return stmt.executeUpdate() > 0;
+        } catch (SQLException e) {
+            plugin.getLogger().severe("Erreur tryMarkReferralUsed : " + e.getMessage());
+        }
+        return false;
     }
 
     /** Coordonnées persistées de la dernière mort. */

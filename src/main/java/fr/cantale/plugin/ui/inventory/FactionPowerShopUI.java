@@ -51,7 +51,6 @@ public class FactionPowerShopUI extends BaseUI {
         setItem(SLOT_INFO, Material.NETHER_STAR, "§b§lPouvoir de faction",
                 "§7Pouvoir actuel : §b" + power,
                 "§7Claims : §e" + faction.getClaimCount() + "§7/§e" + faction.getMaxClaims(),
-                "§7F-homes max / joueur : §e" + faction.getMaxFhomes(),
                 "§7Warps max : §e" + faction.getMaxWarps(),
                 "§7Hoppers max (claims) : §e" + hopperMax,
                 "§7Solde banque : §6" + FactionPowerShop.formatMoney(balance) + " §7Cantox",
@@ -66,20 +65,14 @@ public class FactionPowerShopUI extends BaseUI {
                 "§7Prochain slot à §b" + faction.powerRequiredForNextClaimSlot() + " §7pouvoir",
                 "§7→ encore §b" + faction.powerUntilNextClaimSlot() + " §7points");
 
-        setItem(13, Material.RED_BED, "§e§lF-homes",
-                "§7Formule : §emax(1, pouvoir / 20)",
-                "§7Quota actuel : §e" + faction.getMaxFhomes() + " §7par joueur",
-                "§7Prochain palier à §b" + faction.powerRequiredForNextFhome() + " §7pouvoir",
-                "§7→ encore §b" + faction.powerUntilNextFhome() + " §7points");
-
-        setItem(15, Material.ENDER_PEARL, "§d§lWarps de faction",
+        setItem(13, Material.ENDER_PEARL, "§d§lWarps de faction",
                 "§7Formule : §e1 si pouvoir < 60",
                 "§7sinon §e1 + (pouvoir − 60) / 30",
                 "§7Quota actuel : §e" + faction.getMaxWarps(),
                 "§7Prochain warp à §b" + faction.powerRequiredForNextWarp() + " §7pouvoir",
                 "§7→ encore §b" + faction.powerUntilNextWarp() + " §7points");
 
-        setItem(20, Material.HOPPER, "§6§lHoppers (anti-lag)",
+        setItem(15, Material.HOPPER, "§6§lHoppers (anti-lag)",
                 "§7Formule : §emax(0, pouvoir / " + hopperDivisor + ")",
                 "§7Quota actuel : §e" + hopperMax + " §7dans les claims de la fac",
                 "§7Craft vanilla interdit — achat §e/shop §7uniquement",
@@ -88,7 +81,7 @@ public class FactionPowerShopUI extends BaseUI {
 
         setItem(22, Material.PAPER, "§6§lÀ quoi sert le pouvoir ?",
                 "§7Plus de pouvoir = plus de territoire,",
-                "§7TP (homes / warps) et hoppers.",
+                "§7warps de faction et hoppers.",
                 "§7Sources : membres, PvP, events,",
                 "§7achat banque (/f bank power).",
                 "§eAcheter 1 → +" + perUnit + " pouvoir");
@@ -223,7 +216,6 @@ public class FactionPowerShopUI extends BaseUI {
                         + FactionPowerShop.formatMoney(q.totalCost()) + " §aCantox.");
                 player.sendMessage("§7Nouveau pouvoir : §b" + faction.getPower()
                         + " §7· claims max : §e" + faction.getMaxClaims()
-                        + " §7· f-homes : §e" + faction.getMaxFhomes()
                         + " §7· warps : §e" + faction.getMaxWarps()
                         + " §7· hoppers : §e" + plugin.getConfigManager().getMaxHoppersForPower(faction.getPower())
                         + " §7· prochaine unité : §6"
