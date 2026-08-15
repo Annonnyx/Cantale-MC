@@ -3,11 +3,13 @@ import { cookies } from "next/headers";
 import { env } from "./env";
 import {
   getGuildMemberRoles,
+  getGuildOwnerId,
   mapDiscordCapabilities,
   type DiscordCapabilities,
   type DiscordUser,
 } from "./discord";
 import { getMinecraftLinkByDiscordId } from "./repo/discord-links";
+import { getStaffMcRoleByUuid, isMcOwnerOrAdmin } from "./repo/staff";
 
 /**
  * Session maison : cookie httpOnly signé en HMAC-SHA256 (AUTH_SECRET).
@@ -174,9 +176,40 @@ export type SessionUser = {
 
 const NO_CAPABILITIES: DiscordCapabilities = {
   isDirection: false,
+  isDiscordAdmin: false,
   isLeader: false,
   hasFaction: false,
 };
+
+export type SessionIdentity = {
+  discordUser: DiscordUser | null;
+  mc: { uuid: string; username: string | null } | null;
+};
+
+/**
+ * Cookie + liaison Minecraft — sans appel API Discord.
+ * Pour les pages publiques (classements, profil, header) où les rôles guild
+ * ne servent pas : un GET Discord de 2–8 s ne doit pas bloquer le HTML.
+ */
+export async function getSessionIdentity(): Promise<SessionIdentity> {
+  const session = await getSession();
+  if (!session) return { discordUser: null, mc: null };
+  const link = await getMinecraftLinkByDiscordId(session.user.id).catch(() => null);
+  return {
+    discordUser: session.user,
+    mc: link ? { uuid: link.uuid, username: link.username } : null,
+  };
+}
+
+/**
+ * True si le Discord ID est dans la allowlist env
+ * (ADMIN_DISCORD_ID(S) / OWNER_DISCORD_ID(S) / DIRECTION_DISCORD_ID(S)).
+ */
+export function isSiteAdminDiscordId(discordId: string | null | undefined): boolean {
+  if (!discordId) return false;
+  const allowed = env.adminDiscordIds;
+  return allowed.length > 0 && allowed.includes(discordId);
+}
 
 /**
  * Utilisateur courant avec son palier d'accès :
@@ -188,11 +221,15 @@ export async function getSessionUser(): Promise<SessionUser> {
     return { tier: "anonymous", discordUser: null, mc: null, capabilities: NO_CAPABILITIES };
   }
 
-  const [link, roles] = await Promise.all([
+  const [link, roles, guildOwnerId] = await Promise.all([
     getMinecraftLinkByDiscordId(session.user.id).catch(() => null),
     getGuildMemberRoles(session.user.id),
+    getGuildOwnerId().catch(() => null),
   ]);
   const capabilities = mapDiscordCapabilities(roles);
+  if (guildOwnerId && guildOwnerId === session.user.id) {
+    capabilities.isDirection = true;
+  }
   const mc = link ? { uuid: link.uuid, username: link.username } : null;
 
   const tier: SessionTier = !mc ? "discord" : capabilities.isLeader ? "leader" : "linked";
@@ -229,24 +266,42 @@ export async function requireLeader(): Promise<AuthCheck> {
   return check;
 }
 
-/** Garde API / page : Discord ID présent dans ADMIN_DISCORD_ID (env Vercel). */
+/**
+ * Garde API / page : mêmes personnes que /admin —
+ * allowlist env, Direction Discord, Admin Discord, Owner/Admin Minecraft.
+ * Pas les modos ni le reste du staff.
+ */
 export async function requireSiteAdmin(): Promise<AuthCheck> {
   const user = await getSessionUser();
   if (user.tier === "anonymous" || !user.discordUser) {
     return { ok: false, response: jsonError(401, "Connexion Discord requise.") };
   }
-  if (!isSiteAdmin(user)) {
-    if (env.adminDiscordIds.length === 0) {
-      return { ok: false, response: jsonError(503, "ADMIN_DISCORD_ID non configuré.") };
-    }
+  if (!(await canAccessSiteAdmin(user))) {
     return { ok: false, response: jsonError(403, "Accès admin refusé.") };
   }
   return { ok: true, user };
 }
 
-/** True si le Discord ID est dans ADMIN_DISCORD_ID (Direction / Anox26 / etc.). */
+/**
+ * Accès /admin + PASDIC carte (sans aller-retour DB).
+ * Env IDs, Direction (fondateur / co-fondateur / directeur / owner guilde),
+ * rôle Discord Admin. Pas modo / support / builder.
+ */
 export function isSiteAdmin(user: SessionUser | null | undefined): boolean {
   if (!user?.discordUser) return false;
-  const allowed = env.adminDiscordIds;
-  return allowed.length > 0 && allowed.includes(user.discordUser.id);
+  if (isSiteAdminDiscordId(user.discordUser.id)) return true;
+  if (user.capabilities.isDirection) return true;
+  if (user.capabilities.isDiscordAdmin) return true;
+  return false;
+}
+
+/** isSiteAdmin + grade Minecraft OWNER ou ADMIN (player_permissions). */
+export async function canAccessSiteAdmin(
+  user: SessionUser | null | undefined,
+): Promise<boolean> {
+  if (isSiteAdmin(user)) return true;
+  const uuid = user?.mc?.uuid;
+  if (!uuid) return false;
+  const role = await getStaffMcRoleByUuid(uuid).catch(() => null);
+  return isMcOwnerOrAdmin(role);
 }

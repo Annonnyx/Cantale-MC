@@ -3,6 +3,9 @@ import { resolveDatabaseConfig } from "./env";
 
 let pool: mysql.Pool | null = null;
 
+/** Timeout par requête : une MySQL distante muette ne doit pas geler le SSR Vercel. */
+const QUERY_TIMEOUT_MS = 8_000;
+
 function getPool(): mysql.Pool {
   if (!pool) {
     const config = resolveDatabaseConfig();
@@ -13,7 +16,12 @@ function getPool(): mysql.Pool {
     }
 
     const shared = {
-      connectionLimit: 5,
+      connectionLimit: 4,
+      connectTimeout: 5_000,
+      waitForConnections: true,
+      queueLimit: 10,
+      enableKeepAlive: true,
+      keepAliveInitialDelay: 0,
       namedPlaceholders: true,
       supportBigNumbers: true,
     } as const;
@@ -37,10 +45,14 @@ export type SqlValue = string | number | bigint | boolean | Date | null;
 
 /**
  * Lecture seule sur les tables du plugin.
- * Règle d'or : toute requête touchant factions/claims exclut
- * `secret_until > NOW()` au niveau SQL — jamais côté client.
+ * Règle d'or /f secret : une faction secrète reste visible (nom, page,
+ * membres, stats) ; seuls ses CLAIMS sont exclus de la carte — au niveau SQL
+ * (`secret_until > UNIX_TIMESTAMP()` dans repo/map.ts), jamais côté client.
  */
 export async function query<T>(sql: string, params: Record<string, SqlValue> = {}): Promise<T[]> {
-  const [rows] = await getPool().execute(sql, params);
+  const timeout = new Promise<never>((_, reject) => {
+    setTimeout(() => reject(new Error("MySQL query timeout")), QUERY_TIMEOUT_MS);
+  });
+  const [rows] = await Promise.race([getPool().execute(sql, params), timeout]);
   return rows as T[];
 }

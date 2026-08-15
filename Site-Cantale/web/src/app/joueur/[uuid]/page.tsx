@@ -8,7 +8,7 @@ import { Stamp } from "@/components/ui/stamp";
 import { getFactionByMemberUuid } from "@/server/repo/factions";
 import { getPlayerByName, getPlayerByUuid, type Player } from "@/server/repo/players";
 import { getOnlinePlayersFromStatus, lookupPlayer } from "@/server/repo/admin";
-import { getSessionUser, isSiteAdmin } from "@/server/session";
+import { canAccessSiteAdmin, getSessionUser } from "@/server/session";
 import { playerProfilePath } from "@/lib/player-profile";
 
 export const dynamic = "force-dynamic";
@@ -89,7 +89,7 @@ export default async function JoueurProfilePage({ params }: { params: Params }) 
     getOnlinePlayersFromStatus().catch(() => null),
   ]);
 
-  const admin = isSiteAdmin(session);
+  const admin = session ? await canAccessSiteAdmin(session) : false;
   const adminRow = admin
     ? await lookupPlayer(player.uuid).catch(() => null)
     : null;

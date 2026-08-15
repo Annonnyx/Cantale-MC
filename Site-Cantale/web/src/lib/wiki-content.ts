@@ -70,13 +70,14 @@ export const WIKI_CATEGORIES: WikiCategory[] = [
           "creer-gerer-faction",
           "trois-vies",
           "coffres-inventaires",
+          "quetes-collections",
         ],
         sections: [
           {
             id: "lecture",
             title: "Comment lire cette page",
             paragraphs: [
-              "Sauf note contraire, les commandes listées ici sont utilisables par tout joueur (pas de permission dans plugin.yml). Les grades VIP / Chèvre ouvrent des commandes ou lèvent des cooldowns — voir Grades & permissions.",
+              "Sauf note contraire, les commandes listées ici sont utilisables par tout joueur (pas de permission dans plugin.yml). Les grades VIP / Chèvre ouvrent des commandes (ex. /feed, coffres) — voir Grades & permissions. Les cooldowns de téléportation s'appliquent à tous sauf admin et mode trace.",
               "Les sous-commandes de faction (/f …, /fc, /recolte) sont documentées dans la catégorie Factions : pas de doublon ici.",
             ],
           },
@@ -104,6 +105,12 @@ export const WIKI_CATEGORIES: WikiCategory[] = [
                 syntax: "/bvn <pseudo>",
                 description: "Souhaite la bienvenue à un nouveau joueur.",
                 note: "Tous les joueurs",
+              },
+              {
+                syntax: "/parrain <joueur>",
+                description:
+                  "Remercie le joueur qui t'a invité. Une seule fois ; le parrain gagne +1 vie.",
+                note: "Tous les joueurs · cible online ou offline si connue en BDD",
               },
               {
                 syntax: "/lastdeath [joueur]",
@@ -201,33 +208,33 @@ export const WIKI_CATEGORIES: WikiCategory[] = [
               {
                 syntax: "/spawn",
                 description: "Téléporte au spawn.",
-                note: "Cooldown commande 20 s",
+                note: "Cooldown 30 s · warmup 3 s",
               },
               {
                 syntax: "/rtp",
                 description: "Téléportation aléatoire (500–5000 blocs, dans la border).",
-                note: "Cooldown 2 min Joueur/Aventurier ; aucun VIP+",
+                note: "Cooldown 5 min + 30 s global · warmup 3 s",
               },
               {
                 syntax: "/home …",
                 description: "Homes personnels (liste, set, delete, téléport).",
-                note: "Cooldown téléport 20 s — limite selon le grade",
+                note: "Cooldown 30 s · warmup 3 s",
               },
               {
                 syntax: "/warp [nom]",
                 description: "Warps publics.",
-                note: "Cooldown 20 s. set/delete/toggle : cantale.admin",
+                note: "Cooldown 30 s · warmup 3 s. set/delete/toggle : cantale.admin",
               },
               {
                 syntax: "/tpa <joueur> · /tpahere <joueur>",
                 description: "Demande de TP joueur ↔ joueur.",
-                note: "Expire 60 s. /tpyes (/tpaccept) · /tpno (/tpdeny)",
+                note: "Expire 60 s · cooldown 30 s · warmup 3 s. /tpyes (/tpaccept) · /tpno (/tpdeny)",
               },
               {
                 syntax: "/events",
                 description:
                   "Liste les warps d'événement actifs (pas le calendrier faction auto).",
-                note: "Tous les joueurs",
+                note: "TP : cooldown 30 s · warmup 3 s",
               },
             ],
           },
@@ -269,6 +276,33 @@ export const WIKI_CATEGORIES: WikiCategory[] = [
                 syntax: "/listemorts",
                 description: "Joueurs morts définitivement (La Liste).",
                 note: "Alias : /list, /morts, /bans",
+              },
+            ],
+          },
+          {
+            id: "quetes-collections",
+            title: "Quêtes & collections",
+            commands: [
+              {
+                syntax: "/quetes",
+                description:
+                  "GUI jour / semaine / saison. Une quête acceptée à la fois par période.",
+                note: "Alias : /quests — tous les joueurs",
+              },
+              {
+                syntax: "/quetes fac",
+                description: "Courses de faction partagées (première fac arrivée gagne).",
+                note: "Aussi depuis /f",
+              },
+              {
+                syntax: "/collections",
+                description: "Paliers long terme (cultures, minage, mobs, votes, quêtes, pic /bal…).",
+                note: "Alias : /collection — jamais reset",
+              },
+              {
+                syntax: "/saison",
+                description: "Saison en cours (75 jours, calendrier auto).",
+                note: "/saison start : cantale.admin",
               },
             ],
           },
@@ -323,15 +357,16 @@ export const WIKI_CATEGORIES: WikiCategory[] = [
         slug: "teleportation",
         title: "Téléportation",
         summary:
-          "Spawn, homes, warps, /rtp et /events : délais, cooldowns par grade et warps d'événement.",
+          "Spawn, homes, warps, /rtp et /events : warmup 3 s, cooldown global 30 s, RTP 5 min.",
         related: ["commandes-joueur", "grades-permissions", "vie-de-faction", "events-faction"],
         sections: [
           {
             id: "fonctionnement",
             title: "Comment ça marche",
             paragraphs: [
-              "Les téléportations (spawn, warp, home, home de faction, /rtp) passent par un délai de 3 secondes pour les grades Joueur et Aventurier. VIP, Chèvre, Modérateur, Admin et Owner partent immédiatement. Si tu bouges d'un bloc ou subis des dégâts pendant le compte à rebours, la téléportation est annulée. Impossible de se téléporter pendant un tag de combat.",
-              "Le chunk de destination est préchargé avant l'arrivée. /rtp cherche une position sûre de façon asynchrone.",
+              "Toute téléportation joueur (spawn, warp, /events, home, /rtp, /tpa, /f spawn, /f go, /f warp, GUI claims) passe par un warmup de 3 secondes immobile. Si tu bouges d'un bloc ou subis des dégâts pendant le compte à rebours, la téléportation est annulée. Impossible de se téléporter pendant un tag de combat.",
+              "Cooldown global : 30 secondes entre deux téléportations, quel que soit le type. /rtp attend en plus 5 minutes (le plus long des deux). Le chunk de destination est préchargé pendant le warmup. /rtp cherche une position sûre de façon asynchrone.",
+              "Exemptés (TP instantanée, sans cooldown ni warmup) : permission cantale.admin, et staff en mode trace (/moderation). VIP, Chèvre et modos hors mode trace ne sont pas exemptés. Les TP staff (/moderation tp, /adminhome) restent hors de ce circuit.",
             ],
           },
           {
@@ -341,16 +376,16 @@ export const WIKI_CATEGORIES: WikiCategory[] = [
               "La commande tire une position dans le même monde, entre environ 500 et 5 000 blocs de ta position actuelle (borné par la world border), sur un sol sûr (pas d'eau, lave, cactus, feu, neige poudreuse, etc.). Jusqu'à 16 tentatives ; si aucune position n'est trouvée, réessaie plus tard.",
             ],
             list: [
-              "Cooldown : 2 minutes pour Joueur et Aventurier (le cooldown démarre après une téléportation réussie).",
-              "Pas de cooldown /rtp pour VIP, Chèvre, Modérateur, Admin, Owner, ni avec la permission cantale.cooldown.bypass.",
-              "Le délai de 3 s avant départ s'applique toujours aux grades Joueur / Aventurier (même règles d'annulation que les autres TP).",
+              "Cooldown RTP : 5 minutes après une téléportation RTP réussie, en plus du cooldown global 30 s (tu attends le plus long des deux).",
+              "Warmup 3 s immobile pour tout le monde (sauf admin et mode trace /moderation).",
+              "VIP, Chèvre et cantale.cooldown.bypass n'annulent ni le warmup ni les cooldowns de téléportation.",
             ],
             commands: [
               {
                 syntax: "/rtp",
                 description:
                   "Téléportation aléatoire dans ton monde actuel.",
-                note: "Cooldown 2 min sauf VIP+",
+                note: "Cooldown 5 min + 30 s global",
               },
             ],
           },
@@ -362,20 +397,21 @@ export const WIKI_CATEGORIES: WikiCategory[] = [
               "/events ne liste que les warps d'événement actuellement actifs (cliquables). Ce n'est pas le calendrier des événements de faction automatiques (récolte / minage / PvP).",
             ],
             list: [
-              "Cooldown /warp : 20 secondes après une téléportation réussie.",
-              "Même délai de 3 s (Joueur / Aventurier) et blocage en combat.",
+              "Cooldown global 30 s après une téléportation réussie (partagé avec spawn, home, rtp, tpa, f spawn…).",
+              "Warmup 3 s immobile (annulé si tu bouges ou prends des dégâts) et blocage en combat.",
             ],
             commands: [
               {
                 syntax: "/warp [nom]",
                 description:
                   "Sans nom : liste les warps. Avec nom : s'y téléporte.",
-                note: "Cooldown 20 s",
+                note: "Cooldown 30 s",
               },
               {
                 syntax: "/events",
                 description:
                   "Liste les warps d'événement actifs et permet d'y aller en un clic.",
+                note: "Même cooldown 30 s / warmup 3 s que /warp",
               },
             ],
           },
@@ -383,15 +419,15 @@ export const WIKI_CATEGORIES: WikiCategory[] = [
             id: "commandes",
             title: "Spawn, homes & TPA",
             list: [
-              "/spawn et /home <nom> : cooldown commande 20 s après une TP réussie (sauf cantale.cooldown.bypass).",
+              "/spawn, /home <nom>, /tpa : cooldown global 30 s après une TP réussie (partagé avec warp, rtp, f spawn…). Warmup 3 s.",
               "Limite de homes personnels (PlayerRank) : Joueur 3 · Aventurier 5 · VIP 10 · Chèvre / staff 999.",
-              "/tpa et /tpahere : demande valable 60 s ; /tpyes (alias /tpaccept) · /tpno (alias /tpdeny).",
+              "/tpa et /tpahere : demande valable 60 s ; /tpyes (alias /tpaccept) · /tpno (alias /tpdeny). Le joueur qui se déplace subit le cooldown et le warmup.",
             ],
             commands: [
               {
                 syntax: "/spawn",
                 description: "Téléporte au spawn du monde world.",
-                note: "Cooldown 20 s · warmup selon grade",
+                note: "Cooldown 30 s · warmup 3 s",
               },
               {
                 syntax: "/home",
@@ -409,17 +445,17 @@ export const WIKI_CATEGORIES: WikiCategory[] = [
               {
                 syntax: "/home <nom>",
                 description: "Téléporte au home nommé.",
-                note: "Cooldown 20 s · warmup selon grade",
+                note: "Cooldown 30 s · warmup 3 s",
               },
               {
                 syntax: "/tpa <joueur>",
                 description: "Demande à te téléporter vers un joueur.",
-                note: "Expire 60 s",
+                note: "Expire 60 s · cooldown 30 s (celui qui se tp)",
               },
               {
                 syntax: "/tpahere <joueur>",
                 description: "Demande à un joueur de venir vers toi.",
-                note: "Expire 60 s",
+                note: "Expire 60 s · cooldown 30 s (celui qui se tp)",
               },
               {
                 syntax: "/tpyes",
@@ -437,8 +473,8 @@ export const WIKI_CATEGORIES: WikiCategory[] = [
             id: "bon-a-savoir",
             title: "Bon à savoir",
             list: [
-              "VIP+ : pas de warmup 3 s. Le cooldown 20 s de /spawn /home /warp n'est levé que par cantale.cooldown.bypass (pas automatiquement par Chèvre).",
-              "Homes de faction / f spawn : voir Vie de faction.",
+              "VIP / Chèvre : même warmup 3 s et mêmes cooldowns 30 s / 5 min RTP que les autres joueurs. Exemptés uniquement : cantale.admin et mode trace /moderation.",
+              "Homes de faction / f spawn : voir Vie de faction (même cooldown global 30 s).",
               "Zones protégées (spawn, warps) : pas de claim.",
             ],
           },
@@ -477,18 +513,18 @@ export const WIKI_CATEGORIES: WikiCategory[] = [
                 ],
                 rows: [
                   ["Joueur", "+0 (base 1 000)", "0", "3", "3", "/pc 27", "10 min"],
-                  ["Aventurier", "+2 500", "1", "5", "5", "/pc 54", "30 min"],
-                  ["VIP", "+10 000", "2", "10", "12", "/pc + /pc2 (54)", "1 h"],
-                  ["Chèvre", "+100 000", "3", "999", "20", "/pc+/pc2+/pc3", "Illimité"],
+                  ["Aventurier", "+2 500", "1", "5", "5", "/pc 54", "15 min"],
+                  ["VIP", "+10 000", "2", "10", "12", "/pc + /pc2 (54)", "30 min"],
+                  ["Chèvre", "+100 000", "3", "999", "20", "/pc+/pc2+/pc3", "60 min"],
                 ],
               },
               {
                 caption: "Commandes & téléportation",
                 headers: ["Grade", "/feed", "/rtp", "Warmup TP", "Vol en claim"],
                 rows: [
-                  ["Joueur / Aventurier", "Non", "Cooldown 2 min", "3 s", "Non"],
-                  ["VIP", "Oui (3 min)", "Sans cooldown", "0", "Non"],
-                  ["Chèvre", "Oui (1 min)", "Sans cooldown", "0", "Oui"],
+                  ["Joueur / Aventurier", "Non", "5 min + 30 s", "3 s", "Non"],
+                  ["VIP", "Oui (3 min)", "5 min + 30 s", "3 s", "Non"],
+                  ["Chèvre", "Oui (1 min)", "5 min + 30 s", "3 s", "Oui"],
                 ],
               },
             ],
@@ -508,8 +544,8 @@ export const WIKI_CATEGORIES: WikiCategory[] = [
             id: "staff",
             title: "Grades staff",
             list: [
-              "Modérateur — cantale.moderator : /moderation, /vanish, /tag, /modhelp, /adminhome, /adminec, /adminpc. Coffres ×3, homes 999, /ah 20, pas d'AFK, warmup 0. Pas de vol en claim (ni vol créatif, ni fouille coffres étrangers).",
-              "Admin / Owner — cantale.admin (enfants : givevie, moderator, feed, anticheat…). Mêmes avantages coffres/homes/AFK côté rank ; pas de vol en claim via le grade. Bypass claim (op / cantale.admin) = outil de modération, pas un perk « vol ».",
+              "Modérateur — cantale.moderator : /moderation, /vanish, /tag, /modhelp, /adminhome, /adminec, /adminpc. Coffres ×3, homes 999, /ah 20, AFK 60 min, warmup 0. Pas de vol en claim (ni vol créatif, ni fouille coffres étrangers).",
+              "Admin / Owner — cantale.admin (enfants : givevie, moderator, feed, anticheat…). Mêmes avantages coffres/homes ; jamais kick AFK. Pas de vol en claim via le grade. Bypass claim (op / cantale.admin) = outil de modération, pas un perk « vol ».",
             ],
             commands: [
               {
@@ -559,7 +595,7 @@ export const WIKI_CATEGORIES: WikiCategory[] = [
               "cantale.moderator — modération.",
               "cantale.givevie — /givevie.",
               "cantale.feed — /feed sans être VIP+.",
-              "cantale.cooldown.bypass — ignore les cooldowns CooldownManager (spawn, home, warp, rtp…).",
+              "cantale.cooldown.bypass — ignore les cooldowns CooldownManager hors téléportation (ex. /feed). Les TP (30 s / 5 min RTP / warmup 3 s) ne sont pas bypassés.",
             ],
           },
         ],
@@ -628,14 +664,12 @@ export const WIKI_CATEGORIES: WikiCategory[] = [
                   ["/f map", "GUI inventaire 9×5 : claim/unclaim au clic (gris/vert), couleurs diplomatie", "Sans cooldown"],
                   ["/f map chat", "Ancienne grille chat 11×11 (+ # @ X = P -)", "Cooldown 30 s"],
                   ["/f secret", "Cache claims/spawn 1 h", "SECRET (Officier+) · CD 24 h"],
-                  ["/f spawn", "TP f-spawn", "Cooldown 20 s"],
-                  ["/f go", "TP f-spawn sans cooldown spawn", "Membre"],
+                  ["/f spawn", "TP f-spawn", "Cooldown global 30 s · warmup 3 s"],
+                  ["/f go", "Même TP f-spawn (même cooldown 30 s)", "Membre"],
                   ["/f setspawn", "Pose f-spawn (dans un claim)", "Chef"],
-                  ["/f warp [nom]", "Liste / TP warp de fac", "FWARP (Membre+)"],
+                  ["/f warp [nom]", "Liste / TP warp de fac", "FWARP (Membre+) · CD 30 s"],
                   ["/f setwarp <nom>", "Crée warp (dans un claim)", "FWARP · quota warps"],
                   ["/f delwarp <nom>", "Supprime un warp", "FWARP"],
-                  ["/f home [nom]", "Liste / TP tes f-homes", "Membre"],
-                  ["/f sethome <nom>", "Crée f-home perso (dans un claim)", "Pas Recrue · quota fhomes"],
                 ],
               },
               {
@@ -706,13 +740,12 @@ export const WIKI_CATEGORIES: WikiCategory[] = [
                   ["FKICK / BAN / UNBAN", "—", "—", "—", "oui", "oui"],
                   ["BANK_TAKE / power buy", "—", "—", "—", "oui", "oui"],
                   ["SECRET", "—", "—", "—", "oui", "oui"],
-                  ["SET_PERMS / CULTURES / FHOME (flags)", "—", "—", "—", "—", "oui"],
+                  ["SET_PERMS / CULTURES (flags)", "—", "—", "—", "—", "oui"],
                 ],
               },
             ],
             list: [
               "Promouvoir : Recrue → Membre → Vétéran → Officier (chef seul).",
-              "/f sethome : bloqué pour Recrue (check hardcodé), pas via le flag FHOME.",
               "CULTURES (fermes publiques) : activé seulement si Recrue a CULTURES — ce n'est pas le cas → récolte publique off.",
               "Alliés (diplomatie) : build / portes comme membres ; conteneurs (coffres…) réservés aux membres + grade Chèvre (vol). Pose de stockage toujours réservée au claim de sa propre fac.",
             ],
@@ -741,7 +774,6 @@ export const WIKI_CATEGORIES: WikiCategory[] = [
                 headers: ["Quota", "Formule"],
                 rows: [
                   ["Claims max", "max(5, pouvoir / 10) — division entière"],
-                  ["F-homes max / joueur", "max(1, pouvoir / 20)"],
                   ["Warps de fac", "si pouvoir < 60 → 1 ; sinon 1 + (pouvoir − 60) / 30"],
                   [
                     "Hoppers posables (claims de la fac)",
@@ -764,14 +796,14 @@ export const WIKI_CATEGORIES: WikiCategory[] = [
               },
             ],
             list: [
-              "Exemple fac neuve (pouvoir 65) : claims max 6, fhomes 3, warps 1, hoppers 3.",
+              "Exemple fac neuve (pouvoir 65) : claims max 6, warps 1, hoppers 3.",
               "PowerManager (gains/pertes quotidiens) existe mais n'est pas branché → pas une source active.",
             ],
             commands: [
               {
                 syntax: "/f power",
                 description:
-                  "GUI : pouvoir actuel, formules claims/fhomes/warps/hoppers, paliers suivants, achat 1/2/3/5/max unités (1 → +10 pouvoir).",
+                  "GUI : pouvoir actuel, formules claims/warps/hoppers, paliers suivants, achat 1/2/3/5/max unités (1 → +10 pouvoir).",
                 note: "Tous les membres voient l'info ; achat réservé officiers / chef (ou BANK_TAKE). Alias : /f pouvoir",
               },
               {
@@ -864,7 +896,7 @@ export const WIKI_CATEGORIES: WikiCategory[] = [
             id: "pvp-claims",
             title: "PvP dans les claims",
             paragraphs: [
-              "ClaimListener#onEntityDamage (joueurs + projectiles). Position = claim sous la victime.",
+              "ClaimListener#onEntityDamage (joueurs, projectiles, nuages de potion, pets). Position = claim sous la victime. Indépendant du tag combat.",
             ],
             tables: [
               {
@@ -872,17 +904,18 @@ export const WIKI_CATEGORIES: WikiCategory[] = [
                 rows: [
                   ["Wilderness (pas de claim)", "Libre"],
                   ["Claim PASDIC (spawn/warp)", "Annulé — pas de PvP (impossible d'initier)"],
-                  ["Victime dans le claim de SA propre faction", "Annulé — message « protégé dans le claim de sa faction »"],
+                  ["Étranger → membre dans le claim de SA fac", "Toujours annulé (tag combat ou non)"],
+                  ["Membre / allié → étranger dans ce claim", "Autorisé (one-way)"],
                   ["Victime dans un claim ennemi / sans fac / intrus chez toi", "Autorisé"],
                   ["Attaquant op ou cantale.admin", "Pas de restriction claim"],
                 ],
               },
             ],
             list: [
-              "Être chez soi = safe (même un ennemi ne peut pas te tuer dans ton claim).",
-              "Un intrus dans ton claim n'est pas safe : tu peux le tuer.",
+              "Être chez soi = safe : un étranger ne peut pas te frapper dans ton claim, même s'il (ou toi) est en tag combat.",
+              "Un intrus dans ton claim n'est pas safe : tu (et tes alliés) pouvez le tuer.",
               "Friendly fire entre membres hors de leur claim : non géré ici (wilderness = libre).",
-              "Tag combat (15 s) : impossible d'entrer en zone no-PvP (PASDIC / ton claim) tant que tu es tagué — voir Combat & Vies.",
+              "Tag combat (20 s) : impossible d'entrer en zone no-PvP (PASDIC / ton claim) tant que tu es tagué — voir Combat & Vies. Le tag ne contourne jamais le PvP one-way.",
             ],
           },
           {
@@ -897,12 +930,14 @@ export const WIKI_CATEGORIES: WikiCategory[] = [
                 rows: [
                   ["Casser stockage / cultures", "Non"],
                   ["Casser autre bloc", "Oui"],
-                  ["Poser TNT, obsidienne, cristal End, ancre, lit, seau d'eau", "Oui (liste explosive-place-blocks)"],
+                  ["Poser TNT, lodestone, obsidienne, cristal End, ancre, seaux, wither (têtes)", "Oui (explosive-place-blocks + défauts Java)"],
+                  ["Poser un lit", "Non — le wither est le seul moyen de casser l'obsidienne"],
+                  ["Allumer TNT / poser cristal / vider seau d'eau ou lave", "Oui (hors PASDIC)"],
                   ["Poser tout autre bloc", "Non"],
                   ["Ouvrir conteneurs lootables (coffres, fours, hoppers, shulkers…)", "Non — sauf grade Chèvre (vol)"],
                   ["Ateliers (craft, enclume…)", "Non (étrangers) ; alliés oui"],
                   ["Interagir portes / boutons…", "Non (étrangers) ; alliés oui"],
-                  ["Explosions", "Oui (sauf blocs en claim PASDIC)"],
+                  ["Explosions", "Oui (sauf blocs en claim PASDIC, chunks fortifiés par rune, et le claim du f-spawn : aucune explosion, comme une rune)"],
                 ],
               },
               {
@@ -929,6 +964,44 @@ export const WIKI_CATEGORIES: WikiCategory[] = [
               "Pose de stockage : refusée en wilderness, claim ennemi et claim allié — uniquement claim de ta fac (sauf op/admin).",
               "Exception wilderness : CRAFTING_TABLE, FURNACE, BLAST_FURNACE, SMOKER posables hors claim (restent protégés à la casse dans les claims via storage-blocks). Autres ateliers (smithing, loom, etc.) et conteneurs (coffres, shulkers, hoppers…) : toujours réservés au claim de ta fac.",
               "Hoppers (anti-lag) : craft vanilla interdit (hopper + wagonnet à hopper). Achat au /shop uniquement (150 000 Cantox, cap 4/j, pas de revente). Pose limitée par le pouvoir de fac : max(0, pouvoir / 20) hoppers dans les claims de la fac (comptage des hoppers déjà posés). Place-only : unclaim / dépassement ne retire pas les hoppers existants.",
+              "Spawners Cantale : pose uniquement dans tes claims, interdits en PASDIC. Empilement palier 1–8 (clic droit, même mob ; refuse si total > 8). Touché de soie (toute pioche, bois inclus) = 1 item du palier ; sans soie = rien. Vendables à l'/ah, pas au /shop.",
+            ],
+          },
+          {
+            id: "spawners",
+            title: "Spawners Cantale",
+            paragraphs: [
+              "Items custom (PDC : type, palier 1–8, rareté). Nom FR du type « Spawner à Cochon x3 ». Hologramme au-dessus du bloc. Cadence linéaire : N mobs toutes les (8/N) s. T1 : 1/8 s ≈ 7,5/min. T8 cheat : 8 mobs / 1 s (480/min). Golem de fer : intervalle ×2. Spawn ignore lumière / biome / cap vanilla ; uniquement dans le chunk claimé d'origine. 14 mobs. Pas de bosses, pas de ghast.",
+            ],
+            tables: [
+              {
+                caption: "Mobs",
+                headers: ["Rareté", "Mobs"],
+                rows: [
+                  ["Rare", "Vache, cochon, mouton, poulet, zombie, squelette, araignée, creeper"],
+                  ["Épique", "Enderman, blaze, sorcière, slime"],
+                  ["Mythique", "Cube de magma, golem de fer"],
+                ],
+              },
+              {
+                caption: "Cadence linéaire (intervalle = 8 s / palier)",
+                headers: ["Palier", "Mobs / cycle", "Intervalle", "Débit"],
+                rows: [
+                  ["1", "1", "8 s", "7,5/min"],
+                  ["2", "2", "4 s", "30/min"],
+                  ["3", "3", "≈2,67 s", "67,5/min"],
+                  ["4", "4", "2 s", "120/min"],
+                  ["5", "5", "1,6 s", "187,5/min"],
+                  ["6", "6", "≈1,33 s", "270/min"],
+                  ["7", "7", "≈1,14 s", "367,5/min"],
+                  ["8", "8", "1 s", "480/min (8/s)"],
+                ],
+              },
+            ],
+            list: [
+              "Clic droit même mob : additionne les paliers, refuse si total > 8.",
+              "Caisses : Rare 5 %, Épique 3 %, Mythique/Légendaire 1,5 % (pas Vote).",
+              "Staff : /spawner give <joueur> <mob> [tier].",
             ],
           },
           {
@@ -943,11 +1016,13 @@ export const WIKI_CATEGORIES: WikiCategory[] = [
               "Tag combat actif : entrée refusée (mouvement / pearl / portail) ; sortie libre.",
               "Explosions : blocs PASDIC retirés de la liste de destruction.",
               "Visible sur la carte site (layer PASDIC).",
+              "Impossible d'activer un PASDIC sur un claim qui contient des spawners ou du stockage (coffres, barrels, shulkers, hoppers, fours et autres tile entities à inventaire) — erreur, rien n'est détruit. Les autres chunks propres d'une sélection peuvent passer.",
+              "Direction / owner / admin site (allowlist Discord + rôles Direction/Admin + grade Minecraft OWNER/ADMIN) : sur /carte, bouton Mode admin → cliquer les claims (multi-sélection) → Définir PASDIC. Feedback : N ok, M refusés avec coords chunk. Le plugin charge le chunk, scanne, puis écrit claims.pasdic comme /pasdic. Pas les modos ni le reste du staff.",
             ],
             commands: [
               {
                 syntax: "/pasdic set <true|false>",
-                description: "Marque le claim sous le joueur comme PASDIC.",
+                description: "Marque le claim sous le joueur comme PASDIC. Refusé si spawners ou stockage.",
                 note: "Admin",
               },
             ],
@@ -956,7 +1031,7 @@ export const WIKI_CATEGORIES: WikiCategory[] = [
             id: "secret",
             title: "Mode secret",
             list: [
-              "Durée 1 h : claims et spawn cachés aux autres (site : secret_until).",
+              "Durée 1 h : claims et spawn cachés aux autres (site : secret_until — la faction, elle, reste visible partout).",
               "Annonce serveur à l'activation.",
               "Cooldown 24 h par joueur (SecretCooldownDAO).",
             ],
@@ -972,11 +1047,12 @@ export const WIKI_CATEGORIES: WikiCategory[] = [
             id: "carte-site",
             title: "Carte site (/carte)",
             paragraphs: [
-              "Sur cantale.world/carte : une seule vue — tuiles Squaremap (relief live) + overlays Cantale (claims, PASDIC, warps). Aucun joueur live n'est affiché (Leaflet n'ajoute pas la couche players ; le proxy /map-provider remplace tiles/players.json par un JSON vide). Rafraîchissement silencieux toutes les 30 s. Les factions en /f secret sont exclues en SQL (secret_until).",
+              "Sur cantale.world/carte : une seule vue — tuiles Squaremap (relief live) + overlays Cantale (claims, PASDIC, warps). Aucun joueur live n'est affiché (Leaflet n'ajoute pas la couche players ; le proxy /map-provider remplace tiles/players.json par un JSON vide). Rafraîchissement silencieux toutes les 30 s. Les claims des factions en /f secret sont exclus en SQL (secret_until) — la faction reste listée dans l'annuaire /factions et garde sa page publique.",
               "Si MAP_PROVIDER_URL est en HTTP, les tuiles passent par le proxy same-origin /map-provider/* (évite le mixed content). Plein écran, lien externe Squaremap, recherche faction/tag/warp et champs X/Z (blocs). Centre par défaut : spawn /spawn (−67 · −144).",
             ],
             list: [
               "En jeu : /f map = carte inventaire 9×5 (claim/unclaim au clic) ; /f map chat = grille ASCII 11×11 (cooldown 30 s). Secret masqué aux non-membres.",
+              "Admins : bouton Mode admin pour sélectionner des claims et les passer PASDIC (refus stockage / spawners, le reste passe).",
               "Spawn serveur (−67 · −144) : injecté comme marqueur warp « Spawn » (API markers + recherche /carte), pas stocké en table warps.",
               "Ops Squaremap : world-settings.default.player-tracker.enabled: false (recommandé) pour couper la source côté serveur.",
             ],
@@ -987,8 +1063,8 @@ export const WIKI_CATEGORIES: WikiCategory[] = [
         slug: "vie-de-faction",
         title: "Vie de faction",
         summary:
-          "Chat, f-spawn, f-homes, warps, banque Cantox et achat de pouvoir — quotas et rangs.",
-        related: ["creer-gerer-faction", "claims-territoire", "discord-site"],
+          "Chat, f-spawn, warps, banque Cantox et achat de pouvoir — quotas et rangs.",
+        related: ["creer-gerer-faction", "claims-territoire", "discord-site", "quetes-collections"],
         sections: [
           {
             id: "chat",
@@ -1012,40 +1088,15 @@ export const WIKI_CATEGORIES: WikiCategory[] = [
               {
                 headers: ["Commande", "Règle"],
                 rows: [
-                  ["/f spawn", "TP au f-spawn · cooldown 20 s"],
-                  ["/f go", "Même TP · pas de cooldown fspawn"],
+                  ["/f spawn", "TP au f-spawn · cooldown 30 s · warmup 3 s"],
+                  ["/f go", "Même TP · même cooldown 30 s"],
                   ["/f setspawn", "Chef seul · doit être dans un claim de la fac"],
                 ],
               },
             ],
             list: [
               "Posé automatiquement à la création sur le chunk claimé.",
-            ],
-          },
-          {
-            id: "homes",
-            title: "Homes de faction (f-homes)",
-            tables: [
-              {
-                headers: ["Règle", "Détail"],
-                rows: [
-                  ["Portée", "Par joueur (player_uuid), pas un pool partagé"],
-                  ["Quota", "max(1, pouvoir / 20) homes par joueur"],
-                  ["sethome", "Dans un claim de la fac · Recrue interdite"],
-                  ["/f home", "Sans nom = liste ; avec nom = TP (délai téléport)"],
-                ],
-              },
-            ],
-            commands: [
-              {
-                syntax: "/f home [nom]",
-                description: "Liste ou téléporte vers un de tes f-homes.",
-              },
-              {
-                syntax: "/f sethome <nom>",
-                description: "Crée un f-home à ta position (claim de fac requis).",
-                note: "Membre et plus",
-              },
+              "Le claim qui contient le f-spawn est immunisé aux explosions comme une Rune de fortification (casse/pose des membres inchangées ; PASDIC est distinct).",
             ],
           },
           {
@@ -1115,7 +1166,7 @@ export const WIKI_CATEGORIES: WikiCategory[] = [
               },
               {
                 syntax: "/f power",
-                description: "GUI pouvoir : quotas claims/fhomes/warps/hoppers, paliers, achat 1/2/3/5/max (1 → +10 pouvoir).",
+                description: "GUI pouvoir : quotas claims/warps/hoppers, paliers, achat 1/2/3/5/max (1 → +10 pouvoir).",
               },
               {
                 syntax: "/f bank power [nombre]",
@@ -1230,7 +1281,7 @@ export const WIKI_CATEGORIES: WikiCategory[] = [
               {
                 syntax: "/ah sell <quantité|all> <prix>",
                 description:
-                  "Met en vente l'item en main (prix = Cantox par unité).",
+                  "Met en vente l'item en main (prix = Cantox par unité). Les spawners Cantale sont autorisés.",
               },
               {
                 syntax: "/ah buy <id> [quantité]",
@@ -1319,7 +1370,7 @@ export const WIKI_CATEGORIES: WikiCategory[] = [
             list: [
               "Achat toujours > revente shop.",
               "Ventes farm / drops basiques souvent à 1 Cantox.",
-              "Item absent du catalogue = non négociable. Blacklist code (bedrock, barrier, spawners…).",
+              "Item absent du catalogue = non négociable. Blacklist code (bedrock, barrier, spawners…). Les spawners Cantale ne sont pas au /shop (uniquement /ah et caisses).",
               "Hopper : craft bloqué ; /shop 150 000 Cantox, sell off, daily-buy-cap 4 (entre cristal End et coquille shulker). Pose plafonnée par pouvoir de fac.",
             ],
           },
@@ -1351,6 +1402,7 @@ export const WIKI_CATEGORIES: WikiCategory[] = [
                 headers: ["Item", "Achat", "Vente", "Cap achat/j"],
                 rows: [
                   ["End crystal", "100 000", "non", "8"],
+                  ["Tête de wither skeleton (Guerre)", "50 000", "non", "6"],
                   ["Hopper (Redstone)", "150 000", "non", "4"],
                   ["Coquille de shulker", "350 000", "1 800", "4"],
                   ["Boîte de shulker", "500 000", "3 200", "2"],
@@ -1359,7 +1411,7 @@ export const WIKI_CATEGORIES: WikiCategory[] = [
               },
             ],
             list: [
-              "Guerre : TNT 1 320 (achat seul), obsidienne 5 040 / vente 40 (cap vente 128), bouclier 3 480 (achat seul).",
+              "Guerre : TNT 1 320 (achat seul), obsidienne 5 040 / vente 40 (cap vente 128), tête de wither skeleton 50 000 (achat seul, cap 6/j, pas de drop vanilla), bouclier 3 480 (achat seul).",
               "Repères : diamant 1 000 / 150 (cap vente 64), émeraude 1 500 / 220 (cap vente 32).",
             ],
           },
@@ -1450,7 +1502,7 @@ export const WIKI_CATEGORIES: WikiCategory[] = [
         slug: "trois-vies",
         title: "Le système des trois vies",
         summary:
-          "Départ à 3 vies, −1 à chaque mort, ban PROFILE+IP à 0, item Vie, grades mensuels, déco combat 15 s.",
+          "Départ à 3 vies, −1 à chaque mort, ban PROFILE+IP à 0, item Vie, grades mensuels, déco combat 20 s.",
         featured: true,
         related: ["primes-wanted", "claims-territoire", "grades-permissions", "caisses-cles"],
         sections: [
@@ -1476,6 +1528,8 @@ export const WIKI_CATEGORIES: WikiCategory[] = [
               "Après respawn : invulnérabilité 10 s (noDamageTicks) + Saturation amp 0 pendant lives.respawn-saturation-seconds (défaut 150). Durée rafraîchie à chaque respawn.",
               "Kill PvP : +5 pouvoir à la fac du tueur, −5 à celle de la victime (si fac).",
               "Items Vie custom dans l'inventaire à la mort : détruits (ne droppent pas).",
+              "Dernière vie hors combat : ban immédiat, pas de drop d'inventaire (le kick coupe le spawn vanilla).",
+              "Dernière vie en tag combat : inventaire (stockage + armure + offhand) droppé au sol avant le ban.",
               "Totem vanilla : bloqué. L'item Vie custom n'est pas un totem de résurrection.",
             ],
           },
@@ -1489,6 +1543,8 @@ export const WIKI_CATEGORIES: WikiCategory[] = [
               "Ban PROFILE (UUID) en priorité — résiste au changement de pseudo ; fallback BanList NAME si l'API profil échoue.",
               "Ban IP (adresse du joueur) + enregistrement last_ip en BDD.",
               "Kick avec le message config : « Vous n'avez plus de vies ! Achetez-en une ou attendez qu'un ami vous en donne une. »",
+              "Hors tag combat : inventaire non droppé (kick avant spawn vanilla) — voulu.",
+              "En tag combat : stockage + armure + offhand droppés au lieu de mort avant le ban (pas de double drop).",
               "Gate AsyncPlayerPreLoginEvent : si lives ≤ 0 et ban-on-zero, connexion refusée (même message) — empêche le bypass NAME via nouveau pseudo.",
               "Apparition sur La Liste (/listemorts) : joueurs avec lives ≤ 0 et last_death > 0.",
               "Restauration : /addlife (ou /givevie console/admin) lève NAME + PROFILE + IP via pardonLifeBan (IP online ou last_ip).",
@@ -1501,7 +1557,7 @@ export const WIKI_CATEGORIES: WikiCategory[] = [
               {
                 headers: ["Règle", "Valeur"],
                 rows: [
-                  ["Durée du tag", "15 s (rafraîchi à chaque coup joueur↔joueur)"],
+                  ["Durée du tag", "20 s (config combat-tag-seconds, rafraîchi à chaque coup joueur↔joueur)"],
                   ["Déco pendant le tag", "−1 vie toujours (y compris cantale.admin / OP)"],
                   ["À 0 après déco", "Même ban PROFILE + IP"],
                   ["Téléport commandes", "Bloquées pendant le tag"],
@@ -1513,7 +1569,7 @@ export const WIKI_CATEGORIES: WikiCategory[] = [
             list: [
               "Broadcast serveur à la déco combat (pseudo + perte d'1 vie).",
               "Créatif / spectateur : pas de tag combat.",
-              "Impossible d'initier du PvP en PASDIC ou dans le claim de la victime (ClaimListener) — le tag ne s'applique que si le coup n'est pas annulé.",
+              "Impossible d'initier du PvP en PASDIC. Dans un claim : un étranger ne peut jamais frapper un membre chez lui (tag combat ou non) ; le membre peut frapper l'étranger. Le tag ne s'applique que si le coup n'est pas annulé.",
               "Pendant le tag : tu ne peux pas entrer en zone no-PvP (PASDIC spawn/warp, ou claim de ta propre faction). Sortie libre.",
               "Cas limite : si tu es déjà dans une zone no-PvP pendant un tag (pearl admin, claim devenu PASDIC, etc.) — le tag continue ; les coups restent bloqués ; la sortie est libre ; la ré-entrée est refusée tant que le tag est actif.",
             ],
@@ -1533,6 +1589,7 @@ export const WIKI_CATEGORIES: WikiCategory[] = [
                   ["Grades mensuels", "Items Vie à la connexion (1×/mois calendaire) — voir tableau grades"],
                   ["Caisses", "Loot tables Vote / Rare / Épique / Mythique peuvent donner 1–2 items Vie"],
                   ["Boutique site", "Packs catalogue : 1 / 5 / 10 / 30 / 50 / 100 (EUR). Checkout si SHOP_ENABLED"],
+                  ["/parrain <joueur>", "Invité remercie son parrain (1×) → parrain +1 vie (DB)"],
                   ["/addlife (admin/console)", "+N vies ; pardonne le ban vies si besoin"],
                 ],
               },
@@ -1568,6 +1625,12 @@ export const WIKI_CATEGORIES: WikiCategory[] = [
                 description:
                   "Joueur→joueur : transfert 1 vie (min. 2). Console / admin sans assez de vies : grant +1 sans coût + pardon ban.",
                 note: "Permission : cantale.givevie · cible online",
+              },
+              {
+                syntax: "/parrain <joueur>",
+                description:
+                  "Remercie ton parrain (une seule fois). Il gagne +1 vie ; pardon ban vies si il était à 0.",
+                note: "Permission cantale.parrain (défaut true) · cible online/offline BDD",
               },
               {
                 syntax: "/addlife <joueur> <nombre>",
@@ -1688,11 +1751,12 @@ export const WIKI_CATEGORIES: WikiCategory[] = [
         slug: "events-faction",
         title: "Événements de faction",
         summary:
-          "Récolte, minage et PvP : 3–4 rendez-vous d'1 h/semaine, top 5 pouvoir + Cantox (events.yml).",
+          "Récolte, minage et PvP : 2–3 rendez-vous d'1 h/jour (10 h–minuit), top 5 pouvoir + Cantox (events.yml).",
         featured: true,
         related: [
           "reactions-chat",
           "recompenses-regulieres",
+          "quetes-collections",
           "creer-gerer-faction",
           "teleportation",
         ],
@@ -1705,11 +1769,11 @@ export const WIKI_CATEGORIES: WikiCategory[] = [
                 caption: "faction-events",
                 headers: ["Paramètre", "Valeur"],
                 rows: [
-                  ["Par semaine", "3 à 4 (aléatoire)"],
+                  ["Par semaine", "14 à 21 (≈ 2–3 / jour)"],
                   ["Durée", "60 minutes"],
-                  ["Fenêtre de démarrage", "14 h–22 h Europe/Paris"],
-                  ["Max par jour civil", "1"],
-                  ["Gap fin → début suivant", "8 heures minimum"],
+                  ["Fenêtre de démarrage", "10 h–minuit Europe/Paris (créneaux 10 h–23 h)"],
+                  ["Max par jour civil", "3"],
+                  ["Gap fin → début suivant", "2 heures minimum"],
                   ["Types", "HARVEST / MINING / PVP (poids égaux)"],
                 ],
               },
@@ -1861,7 +1925,7 @@ export const WIKI_CATEGORIES: WikiCategory[] = [
         title: "Récompenses régulières",
         summary:
           "/daily par grade et drop de clé hebdomadaire Rare / Épique / Mythique.",
-        related: ["vote", "caisses-cles", "grades-permissions", "cantox", "reactions-chat"],
+        related: ["vote", "caisses-cles", "grades-permissions", "cantox", "reactions-chat", "quetes-collections"],
         sections: [
           {
             id: "daily",
@@ -1907,6 +1971,121 @@ export const WIKI_CATEGORIES: WikiCategory[] = [
                   ["Exclus", "LEGENDARY et VOTE"],
                   ["Personne online", "Nouvel essai ~30 min plus tard"],
                 ],
+              },
+            ],
+          },
+        ],
+      },
+      {
+        slug: "quetes-collections",
+        title: "Quêtes & collections",
+        summary:
+          "Quêtes solo et courses de faction (quests.yml), collections long terme (collections.yml), saison 75 jours.",
+        related: [
+          "events-faction",
+          "recompenses-regulieres",
+          "caisses-cles",
+          "vie-de-faction",
+          "cantox",
+        ],
+        sections: [
+          {
+            id: "solo",
+            title: "Quêtes solo (/quetes)",
+            paragraphs: [
+              "Chaque reset tire un pool identique pour tout le serveur. Tu acceptes une quête dans l'UI : 1 seule par période (jour, semaine et saison peuvent tourner en parallèle).",
+              "Reset : minuit Europe/Paris (jour), lundi 00:00 (hebdo), début de saison (saison). Progression abandonnée si non finie.",
+            ],
+            tables: [
+              {
+                caption: "Pools et récompenses (défauts quests.yml)",
+                headers: ["Période", "Pool", "Temps cible", "Clef", "Set complet"],
+                rows: [
+                  ["Journalière", "5", "~30–40 min", "Rare", "Épique"],
+                  ["Hebdomadaire", "3", "~3–4 h", "Épique", "Mythique"],
+                  ["Saisonnière", "2", "~5–6 j IG", "Mythique", "Ticket légendaire"],
+                ],
+              },
+            ],
+            list: [
+              "Objectifs (pool large, 5/3/2 solo) : cultures mûres (blé, nether wart, kelp, bambou, cactus, chorus, champignons, baies lumineuses…), minerais sans soie (dont or du Nether et débris), cuisson four (lingots, verre, charbon de bois, kelp séché…), kills joueurs, mobs passifs et hostiles (ghasts naturels OK, pas de spawner ghast), distance depuis l'accept.",
+              "Bonus rare (pas une 2e clef) : Cantox ou +1 vie.",
+              "Grant des clefs via CrateManager (comme votes /crate give).",
+            ],
+            commands: [
+              {
+                syntax: "/quetes",
+                description: "GUI 3 onglets Jour / Semaine / Saison.",
+                note: "Alias : /quests",
+              },
+            ],
+          },
+          {
+            id: "faction",
+            title: "Courses de faction",
+            paragraphs: [
+              "Toutes les factions voient les mêmes courses. Plusieurs en même temps (jour / hebdo / saison). Première faction à l'objectif gagne ; les autres rien.",
+            ],
+            tables: [
+              {
+                caption: "Récompenses faction (quests.yml)",
+                headers: ["Période", "Pool", "Pouvoir"],
+                rows: [
+                  ["Journalière", "12", "+1"],
+                  ["Hebdomadaire", "6", "+7"],
+                  ["Saisonnière", "3", "+200"],
+                ],
+              },
+            ],
+            list: [
+              "Gros lot : uniquement les membres de la fac gagnante qui ont contribué.",
+              "Tous les contributeurs de la fac gagnante : un peu de Cantox.",
+              "Top contributeurs : Cantox + clefs (paliers en config).",
+              "Hebdo : 15 % de chance d'un spawner (roll rareté existante) pour le meilleur contributeur en ligne.",
+            ],
+            commands: [
+              {
+                syntax: "/quetes fac",
+                description: "Classement live (qui mène, %).",
+                note: "Aussi bouton dans /f",
+              },
+            ],
+          },
+          {
+            id: "saison",
+            title: "Saison",
+            paragraphs: [
+              "Calendrier auto : durée season.duration-days (défaut 75). Les quêtes saisonnières sont tirées au début de saison.",
+            ],
+            commands: [
+              {
+                syntax: "/saison",
+                description: "Numéro et date de fin (Europe/Paris).",
+              },
+              {
+                syntax: "/saison start",
+                description: "Force une nouvelle saison.",
+                note: "cantale.admin",
+              },
+            ],
+          },
+          {
+            id: "collections",
+            title: "Collections (/collections)",
+            paragraphs: [
+              "Compteurs persistants inter-saisons, jamais reset. Mêmes hooks que les quêtes (cultures mûres / baies / fungi, minerais sans soie dont or du Nether, kills) + réactions chat, caisses ouvertes, votes, pic /bal, temps de jeu, quêtes complétées (solo + contributeurs de la fac gagnante).",
+            ],
+            list: [
+              "Paliers exponentiels par catégorie (ex. cultures : 1k → 5k → 25k → 100k → 500k → 2,5M → 10M).",
+              "Récompenses modestes au début (Cantox / clefs / vies / spawner), de mieux en mieux.",
+              "Pic d'argent = plus haut /bal jamais atteint (colonne balance_peak).",
+              "Catégorie Events masquée jusqu'aux events perso.",
+            ],
+            commands: [
+              {
+                syntax: "/collections",
+                description: "Catégories → sous-catégories → paliers à réclamer.",
+                note: "Alias : /collection",
               },
             ],
           },
@@ -2305,7 +2484,7 @@ export const WIKI_CATEGORIES: WikiCategory[] = [
         slug: "rune-de-fortification",
         title: "Rune de Fortification",
         summary:
-          "1 rune = 1 chunk fortifié : casse réservée aux membres, explosions annulées, taxe 50 Cantox/jour.",
+          "1 rune = 1 chunk fortifié : casse réservée aux membres, aucune explosion, taxe 50 Cantox/jour.",
         related: ["claims-territoire", "vie-de-faction", "items-forges"],
         sections: [
           {
@@ -2324,7 +2503,7 @@ export const WIKI_CATEGORIES: WikiCategory[] = [
                   ],
                   [
                     "Protection",
-                    "Casse blocs : membres faction seulement ; explosions retirées du chunk fortifié",
+                    "Casse blocs : membres faction seulement ; aucune explosion (TNT, cristaux, wither, lits, ancres, minecarts, creepers…) — origine dans le chunk = explosion annulée ; blocs fortifiés immunisés même si l'explosion part d'à côté ; dégâts d'explosion aux entités annulés",
                   ],
                   [
                     "Interactions",
@@ -2339,8 +2518,9 @@ export const WIKI_CATEGORIES: WikiCategory[] = [
               },
             ],
             list: [
-              "Absente des tables de caisses (CrateRewardTable).",
-              "Obtention joueur : staff (/customitem, giveaway catégorie Autres) — pas d'autre source dans le code.",
+              "Caisses (tirage extra, comme les spawners) : Rare ~2 %, Épique ~4 %, Mythique ~6,5 % (`runes.crate.*-chance-percent` dans config.yml). Vote et Légendaire : 0.",
+              "Obtention aussi : staff (/customitem, giveaway catégorie Autres).",
+              "Le claim du f-spawn a la même immunité explosions (sans taxe rune ni restriction de casse).",
             ],
           },
         ],
@@ -2565,7 +2745,9 @@ export const WIKI_CATEGORIES: WikiCategory[] = [
             ],
             list: [
               "* Cantalame caisses : createCustomItem (voir article Cantalame).",
-              "Armure du Garde et Rune : absentes de ces tables.",
+              "Armure du Garde : absente de ces tables.",
+              "Spawners (en plus des tables, sans les remplacer) : Rare ~5 % (mobs rares) ; Épique ~3 % (surtout épiques) ; Mythique / Légendaire ~1,5 % (surtout mythiques). Palier 1. Vote : pas de spawner.",
+              "Rune de Fortification (tirage extra, sans remplacer la table) : Rare ~2 % ; Épique ~4 % ; Mythique ~6,5 %. Vote et Légendaire : 0. Config : `runes.crate.*-chance-percent`.",
             ],
           },
           {
@@ -2670,9 +2852,11 @@ export const WIKI_CATEGORIES: WikiCategory[] = [
             ],
             list: [
               "Joueur — 10 minutes.",
-              "Aventurier — 30 minutes.",
-              "VIP — 60 minutes.",
-              "Chèvre / Modérateur / Admin / Owner — pas de kick AFK.",
+              "Aventurier — 15 minutes.",
+              "VIP — 30 minutes.",
+              "Chèvre — 60 minutes.",
+              "Modérateur — 60 minutes (vanish : pas de kick).",
+              "Admin / Owner / permission cantale.admin — pas de kick AFK.",
             ],
           },
           {
@@ -2686,7 +2870,7 @@ export const WIKI_CATEGORIES: WikiCategory[] = [
               "À l'instant T : annonce du nombre d'items supprimés (items récents / loot de mort protégés quelques minutes).",
               "Le clear annoncé concerne les items au sol — pas l'inventaire.",
               "Au même moment (et aussi ~toutes les 60 s via l'optimiseur) : plafond de 15 entités par chunk pour hostiles, armor stands, bateaux, etc. — pas les animaux passifs (voir empilement).",
-              "Toujours protégés du plafond : joueurs, villageois, items, Animals, mobs nommés (hors stacks Cantale), bêtes apprivoisées (Tameable), NPCs Cantale.",
+              "Toujours protégés du plafond : joueurs, villageois, items, Animals, mobs nommés (hors stacks Cantale), bêtes apprivoisées (Tameable), NPCs Cantale, mobs issus d'un spawner Cantale (flag PDC) et hologrammes de spawners.",
             ],
           },
           {
@@ -2696,7 +2880,7 @@ export const WIKI_CATEGORIES: WikiCategory[] = [
               "Les animaux de ferme d'un même type (et même variante) proches sont empilés en une seule entité simulée, avec un libellé au-dessus du type « Mouton ×12 ». Cela remplace le cull des Animals : les fermes denses ne sont plus réduites à 15 têtes par chunk.",
             ],
             list: [
-              "Types empilés : mouton, vache, poulet, cochon, lapin, champimeuh, chèvre.",
+              "Types empilés : mouton, vache, poulet, cochon, lapin, champimeuh, chèvre — plus les mobs issus d'un spawner Cantale (passifs et hostiles, flag PDC, libellé du type « Zombie ×12 »).",
               "Moutons : même couleur et même état tondu/laine (un stack « tondu » reste séparé d'un stack « laine »).",
               "Non empilés (défaut) : bébés, mobs nommés par un joueur, Tameable apprivoisés, entités en laisse ou avec passager.",
               "Kill / dégâts létaux : le stack diminue de 1, loot + XP d'une mort vanilla ; l'entité reste jusqu'au dernier. Le dernier kill retire vraiment le mob.",

@@ -8,20 +8,27 @@ const VIEWER_HEIGHT = 420;
 
 /**
  * Rendu 3D du skin Minecraft (skinview3d, animation idle + rotation douce).
- * Texture via `/api/minecraft/skin` (proxy Mojang same-origin). Si WebGL
- * est indisponible ou si le chargement échoue, repli sur l'avatar 2D.
+ * Texture via `/api/minecraft/skin` (proxy same-origin). L'avatar 2D s'affiche
+ * tout de suite — le 3D ne bloque jamais le profil.
  */
 export function SkinViewer({ uuid, username }: { uuid: string; username: string }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [ready3d, setReady3d] = useState(false);
   const [fallback, setFallback] = useState(false);
   const [avatarSrc, setAvatarSrc] = useState(() =>
     minecraftAvatarUrl(uuid || username, 160),
   );
 
-  useEffect(() => {
+  // Réinitialisation quand l'identité change : pattern React « ajuster l'état
+  // pendant le rendu » plutôt qu'un setState dans un effet (cascade de rendus).
+  const identity = `${uuid}|${username}`;
+  const [trackedIdentity, setTrackedIdentity] = useState(identity);
+  if (trackedIdentity !== identity) {
+    setTrackedIdentity(identity);
     setAvatarSrc(minecraftAvatarUrl(uuid || username, 160));
     setFallback(false);
-  }, [uuid, username]);
+    setReady3d(false);
+  }
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -50,7 +57,6 @@ export function SkinViewer({ uuid, username }: { uuid: string; username: string 
         viewer.autoRotateSpeed = 0.6;
         viewer.zoom = 0.9;
 
-        // UUID d'abord (stable) ; repli pseudo si la résolution échoue.
         try {
           await viewer.loadSkin(minecraftSkinUrl(skinId), { model: "auto-detect" });
         } catch {
@@ -59,6 +65,7 @@ export function SkinViewer({ uuid, username }: { uuid: string; username: string 
           }
           await viewer.loadSkin(minecraftSkinUrl(username), { model: "auto-detect" });
         }
+        if (!cancelled) setReady3d(true);
       } catch {
         if (!cancelled) setFallback(true);
       }
@@ -71,37 +78,51 @@ export function SkinViewer({ uuid, username }: { uuid: string; username: string 
     };
   }, [uuid, username]);
 
+  const avatar = (
+    // eslint-disable-next-line @next/next/no-img-element -- avatar proxy local
+    <img
+      src={avatarSrc}
+      alt={`Avatar Minecraft de ${username}`}
+      width={160}
+      height={160}
+      className="mb-16 [image-rendering:pixelated]"
+      onError={() => {
+        if (username && username !== "Inconnu") {
+          const byName = minecraftAvatarUrl(username, 160);
+          setAvatarSrc((prev) => (prev === byName ? prev : byName));
+        }
+      }}
+    />
+  );
+
   if (fallback) {
     return (
       <div
         className="flex items-end justify-center border border-iron-line bg-ash-deep"
         style={{ width: VIEWER_WIDTH, height: VIEWER_HEIGHT }}
       >
-        {/* eslint-disable-next-line @next/next/no-img-element -- avatar proxy local */}
-        <img
-          src={avatarSrc}
-          alt={`Avatar Minecraft de ${username}`}
-          width={160}
-          height={160}
-          className="mb-16 [image-rendering:pixelated]"
-          onError={() => {
-            if (username && username !== "Inconnu") {
-              const byName = minecraftAvatarUrl(username, 160);
-              setAvatarSrc((prev) => (prev === byName ? prev : byName));
-            }
-          }}
-        />
+        {avatar}
       </div>
     );
   }
 
   return (
-    <canvas
-      ref={canvasRef}
-      width={VIEWER_WIDTH}
-      height={VIEWER_HEIGHT}
-      aria-label={`Skin Minecraft de ${username}`}
-      className="border border-iron-line bg-ash-deep"
-    />
+    <div
+      className="relative border border-iron-line bg-ash-deep"
+      style={{ width: VIEWER_WIDTH, height: VIEWER_HEIGHT }}
+    >
+      {!ready3d && (
+        <div className="absolute inset-0 flex items-end justify-center" aria-hidden={!ready3d}>
+          {avatar}
+        </div>
+      )}
+      <canvas
+        ref={canvasRef}
+        width={VIEWER_WIDTH}
+        height={VIEWER_HEIGHT}
+        aria-label={`Skin Minecraft de ${username}`}
+        className={ready3d ? "block" : "invisible absolute inset-0"}
+      />
+    </div>
   );
 }
