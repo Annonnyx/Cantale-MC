@@ -126,7 +126,7 @@ function clampLimit(limit: number, fallback = 50, max = 200): number {
 }
 
 /** Annuaire public des factions — toutes, y compris secrètes (exclusions de classement filtrées en SQL). */
-export async function listFactions(sort: FactionSort = "power", limit = 50): Promise<FactionSummary[]> {
+export async function listFactions(sort: FactionSort = "power", limit = 500): Promise<FactionSummary[]> {
   const orderBy = FACTION_SORTS[sort];
   const safeLimit = clampLimit(limit);
   return cachedQuery(["factions-list", sort, String(safeLimit)], 30, async () => {
