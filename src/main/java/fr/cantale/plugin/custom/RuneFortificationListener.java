@@ -98,14 +98,8 @@ public class RuneFortificationListener implements Listener {
 
         if (!isRune) return;
         event.setCancelled(true);
-
-        Faction faction = factionManager.getPlayerFaction(player.getUniqueId());
-        if (faction == null) {
-            player.sendMessage("§8[§6Cantale§8] §cVous devez être dans une faction pour utiliser une rune.");
-            return;
-        }
-
-        handleFortify(player, faction, item, world, chunkX, chunkZ);
+        player.sendMessage("§8[§6Cantale§8] §cLes runes de fortification ne sont plus utilisées. La protection de carte est désormais automatique.");
+        return;
     }
 
     private boolean isInteractableBlock(Block block) {

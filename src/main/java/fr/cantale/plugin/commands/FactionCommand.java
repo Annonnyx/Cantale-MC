@@ -1086,20 +1086,17 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
     }
 
     private void handleSecret(Player player) {
-        Faction faction = factionManager.getPlayerFaction(player.getUniqueId());
-        if (faction == null) {
-            player.sendMessage(formatMessage("&cVous devez être dans une faction pour utiliser cette commande."));
-            return;
-        }
+        player.sendMessage(formatMessage("&cLa commande /f secret n'existe plus. La protection de carte est désormais automatique (3 premiers jours de la faction et 24h après un raid)."));
+    }
 
-        FactionRank rank = faction.getMemberRank(player.getUniqueId());
-        if (!faction.isLeader(player.getUniqueId())
-                && !permissionManager.hasPermission(faction.getId(), rank, FactionPermission.SECRET)) {
-            player.sendMessage(formatMessage("&cVous n'avez pas la permission d'utiliser cette commande."));
-            return;
+    private boolean chunkHasStorage(org.bukkit.Chunk chunk) {
+        if (chunk == null) return false;
+        for (org.bukkit.block.BlockState state : chunk.getTileEntities()) {
+            if (state instanceof org.bukkit.block.Container) {
+                return true;
+            }
         }
-
-        plugin.getSecretTaxManager().toggleSecret(player);
+        return false;
     }
 
     private void handlePasdic(Player player, String[] args) {
@@ -1133,6 +1130,11 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
                 return;
             }
             if (conf.enable) {
+                if (chunkHasStorage(loc.getChunk())) {
+                    player.sendMessage(formatMessage("&cImpossible de protéger ce claim : il contient des éléments de stockage (coffres, barrels, etc.)."));
+                    pendingPasdic.remove(player.getUniqueId());
+                    return;
+                }
                 double cost = plugin.getConfigManager().getPasdicCost();
                 if (faction.getBalance() < cost) {
                     player.sendMessage(formatMessage("&cLa banque de faction n'a pas assez (" + String.format("%.0f", cost) + " Cantox requis)."));
@@ -1163,6 +1165,10 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
             pendingPasdic.put(player.getUniqueId(), new PasdicConfirmation(claim, false, System.currentTimeMillis()));
             player.sendMessage(formatMessage("&eTape &a/f pasdic confirm &epour retirer le PASDIC de ce chunk (gratuit)."));
         } else {
+            if (chunkHasStorage(loc.getChunk())) {
+                player.sendMessage(formatMessage("&cImpossible de protéger ce claim : il contient des éléments de stockage (coffres, barrels, etc.)."));
+                return;
+            }
             double cost = plugin.getConfigManager().getPasdicCost();
             pendingPasdic.put(player.getUniqueId(), new PasdicConfirmation(claim, true, System.currentTimeMillis()));
             player.sendMessage(formatMessage("&eTape &a/f pasdic confirm &epour convertir ce claim en PASDIC (&6"

@@ -80,33 +80,19 @@ public class LifeCommand implements CommandExecutor {
             return true;
         }
 
-        // Console / RCON : grant admin
-        if (isConsole(sender)) {
+        // Admin / Console / Op : stock infini (donne 1 vie sans prélèvement)
+        if (canAdmin(sender)) {
             ensurePlayerRow(target);
             lifeManager.addLife(target.getUniqueId(), 1);
-            // Si le joueur était à 0, le pardonner du ban vies
             pardonLifeBan(target);
-            sender.sendMessage(format("&a[Console] +1 vie pour &e" + target.getName()
+            sender.sendMessage(format("&a[Admin] +1 vie pour &e" + target.getName()
                 + " &7(total : &e" + lifeManager.getLives(target.getUniqueId()) + "&7)."));
-            target.sendMessage(format("&aTu as reçu &e1 &avie (console) !"));
+            target.sendMessage(format("&aTu as reçu &e1 &avie (admin) !"));
             return true;
         }
 
         if (!(sender instanceof Player player)) {
             sender.sendMessage(format("&cUsage console : givevie <joueur>"));
-            return true;
-        }
-
-        // Staff avec permission admin : grant sans coût
-        if (player.hasPermission("cantale.admin") && args.length >= 1
-            && !player.getUniqueId().equals(target.getUniqueId())
-            && !lifeManager.canGiveLife(player.getUniqueId(), target.getUniqueId())) {
-            // Si le staff n'a pas assez de vies perso, permettre le grant admin
-            ensurePlayerRow(target);
-            lifeManager.addLife(target.getUniqueId(), 1);
-            pardonLifeBan(target);
-            player.sendMessage(format("&a[Admin] +1 vie pour &e" + target.getName() + "&a."));
-            target.sendMessage(format("&aTu as reçu &e1 &avie (staff) !"));
             return true;
         }
 
@@ -116,8 +102,7 @@ public class LifeCommand implements CommandExecutor {
         }
 
         if (!lifeManager.canGiveLife(player.getUniqueId(), target.getUniqueId())) {
-            player.sendMessage(format("&cVous n'avez pas assez de vies pour en donner une (minimum 2 requis)."));
-            player.sendMessage(format("&7Astuce staff : utilise &e/addlife <joueur> <nombre>&7."));
+            player.sendMessage(format("&cVous n'avez pas assez de vies pour en donner une (minimum 2 requises)."));
             return true;
         }
 

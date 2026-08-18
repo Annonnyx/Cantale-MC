@@ -172,16 +172,29 @@ public class RtpCommand implements CommandExecutor {
 
     private Location inspectLoadedChunk(Chunk chunk, int x, int z) {
         World world = chunk.getWorld();
-        int y = world.getHighestBlockYAt(x, z);
-        if (y <= 0) {
-            return null;
-        }
-        if (y + 2 >= world.getMaxHeight()) {
+        int localX = x & 15;
+        int localZ = z & 15;
+
+        // Dans le Nether, scanner à l'intérieur des cavernes (y = 120 -> 35) pour ne JAMAIS atterrir sur le toit.
+        if (world.getEnvironment() == World.Environment.NETHER || world.getName().toLowerCase().contains("nether")) {
+            for (int y = 120; y >= 35; y--) {
+                Material ground = chunk.getBlock(localX, y, localZ).getType();
+                if (ground.isSolid() && !isUnsafeGround(ground) && ground != Material.BEDROCK) {
+                    Material above1 = chunk.getBlock(localX, y + 1, localZ).getType();
+                    Material above2 = chunk.getBlock(localX, y + 2, localZ).getType();
+                    if (above1.isAir() && above2.isAir()) {
+                        return new Location(world, x + 0.5, y + 1.0, z + 0.5);
+                    }
+                }
+            }
             return null;
         }
 
-        int localX = x & 15;
-        int localZ = z & 15;
+        int y = world.getHighestBlockYAt(x, z);
+        if (y <= 0 || y + 2 >= world.getMaxHeight()) {
+            return null;
+        }
+
         Material ground = chunk.getBlock(localX, y, localZ).getType();
         if (isUnsafeGround(ground)) {
             return null;

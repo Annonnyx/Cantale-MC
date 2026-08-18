@@ -45,6 +45,9 @@ commands:
     description: Commandes de faction (menu /f, banque, pouvoir, claims…)
     usage: /f [rename|bank|power|claim|…]
     aliases: [faction]
+  raid:
+    description: Déclarer un raid sur la faction du claim ennemi actuel
+    usage: /raid
   fc:
     description: Chat de faction
     usage: /fc [message]

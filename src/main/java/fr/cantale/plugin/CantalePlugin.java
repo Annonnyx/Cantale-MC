@@ -563,6 +563,7 @@ public class CantalePlugin extends JavaPlugin {
         getCommand("removelife").setExecutor(new LifeCommand(this));
         FactionCommand factionCommand = new FactionCommand(this);
         getCommand("f").setExecutor(factionCommand);
+        getCommand("raid").setExecutor(new fr.cantale.plugin.commands.RaidCommand(this));
         getCommand("fc").setExecutor(new fr.cantale.plugin.commands.FactionChatCommand(this, factionCommand));
         getCommand("ah").setExecutor(new AuctionCommand(this));
         getCommand("trade").setExecutor(new TradeCommand(this));

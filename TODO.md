@@ -1,5 +1,17 @@
 # TODO Cantale
 
+## Correctifs Plugin & Site Web (août 2026)
+- [x] **Compteur joueurs en ligne site web** : initialisation avec état et affichage fluide (fallback 0).
+- [x] **Liste des factions site web** : suppression du filtre parasite `"O"` dans `public-ranking-exclusions.ts` et `publicRankingExclusions.ts` (maintien de `Ø` / `∅`), et augmentation de la limite SQL à 500.
+- [x] **Commande `/f secret` & Protection Automatique** : suppression de `/f secret` ; `isSecret()` calculé automatiquement (3 jours post-création + 24h post-raid).
+- [x] **Runes de fortification** : désactivation de l'utilisation et des tirages dans les caisses.
+- [x] **Commande `/f protect`** : scan du chunk pour interdire la protection si le claim contient du stockage (coffres, barrels, etc.).
+- [x] **Commande `/raid`** : création de la commande autonome `/raid` (officiers+) ; alertes in-game (Chat/Title) et Discord aux défenseurs ; autorisations de poser/allumer la TNT et de poser de l'obsidienne durant le raid pour toute la faction attaquante.
+- [x] **Interface quêtes (`/quests`)** : restructuration en 2 catégories principales (Quêtes Solo vs Quêtes de Faction) puis 3 périodes (Journalières, Hebdomadaires, Saisonnières).
+- [x] **`/rtp` Nether** : scan des cavernes du Nether sous la bedrock ($Y \le 120$) pour éliminer les téléportations sur le toit du Nether.
+- [x] **Cantalame** : évolution à 100 kills au total, avec plafond anti-farm de 3 kills max par victime et par jour civil.
+- [x] **`/givevie`** : don d'1 vie depuis le stock illimité pour les administrateurs (op / `cantale.admin`).
+
 ## Factions secrètes sur le site (août 2026)
 - [x] **Cause** : le site excluait la faction secrète ENTIÈRE (annuaire, page publique,
      roster, profils joueurs) via le filtre SQL `secret_until` dans

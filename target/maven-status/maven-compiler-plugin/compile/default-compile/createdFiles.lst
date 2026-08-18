@@ -146,6 +146,7 @@ fr/cantale/plugin/web/WebAdminBridge.class
 fr/cantale/plugin/ui/inventory/QuestMainUI.class
 fr/cantale/plugin/events/EventsConfig.class
 fr/cantale/plugin/commands/RankCommand.class
+fr/cantale/plugin/commands/RaidCommand.class
 fr/cantale/plugin/listeners/PlayerListener.class
 fr/cantale/plugin/factions/raid/Raid.class
 fr/cantale/plugin/rank/RankManager.class
@@ -449,6 +450,7 @@ fr/cantale/plugin/util/OverworldDay.class
 fr/cantale/plugin/factions/FactionPowerShop$BuyResult.class
 fr/cantale/plugin/ui/inventory/MemberActionUI.class
 fr/cantale/plugin/commands/TpaCommand.class
+fr/cantale/plugin/ui/inventory/QuestCategorySelectUI.class
 fr/cantale/plugin/spawners/SpawnerCommand.class
 fr/cantale/plugin/database/ShopDAO.class
 fr/cantale/plugin/database/SecretCooldownDAO.class

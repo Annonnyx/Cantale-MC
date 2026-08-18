@@ -306,7 +306,14 @@ public class Faction {
     }
 
     public boolean isSecret() {
-        return System.currentTimeMillis() / 1000 < secretUntil;
+        long nowSec = System.currentTimeMillis() / 1000;
+        if (createdAt > 0 && (nowSec - createdAt < 3 * 86400L)) {
+            return true;
+        }
+        if (lastRaidAt > 0 && (nowSec - lastRaidAt < 86400L)) {
+            return true;
+        }
+        return false;
     }
 
     public long getSecretFreeUntil() {

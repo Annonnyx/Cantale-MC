@@ -355,6 +355,11 @@ public class DatabaseManager {
                 stmt.execute("ALTER TABLE factions ADD COLUMN last_raid_at INTEGER DEFAULT 0");
             } catch (java.sql.SQLException ignored) {}
 
+            // Nettoyage manuel/automatique des anciens secret_until pour ré-afficher toutes les factions
+            try {
+                stmt.execute("UPDATE factions SET secret_until = 0 WHERE secret_until > 0");
+            } catch (java.sql.SQLException ignored) {}
+
             // Diplomatie
             stmt.execute("""
                 CREATE TABLE IF NOT EXISTS diplomacy (

@@ -296,6 +296,7 @@
 /Users/Noe/Documents/Cantale/src/main/java/fr/cantale/plugin/factions/raid/Raid.java
 /Users/Noe/Documents/Cantale/src/main/java/fr/cantale/plugin/events/ChatReactionListener.java
 /Users/Noe/Documents/Cantale/src/main/java/fr/cantale/plugin/commands/ModHelpCommand.java
+/Users/Noe/Documents/Cantale/src/main/java/fr/cantale/plugin/commands/RaidCommand.java
 /Users/Noe/Documents/Cantale/src/main/java/fr/cantale/plugin/custom/GardeArmorListener.java
 /Users/Noe/Documents/Cantale/src/main/java/fr/cantale/plugin/custom/CustomItemListener.java
 /Users/Noe/Documents/Cantale/src/main/java/fr/cantale/plugin/quests/SeasonManager.java
@@ -318,6 +319,7 @@
 /Users/Noe/Documents/Cantale/src/main/java/fr/cantale/plugin/factions/pasdic/PasdicClaim.java
 /Users/Noe/Documents/Cantale/src/main/java/fr/cantale/plugin/moderation/ModerationListener.java
 /Users/Noe/Documents/Cantale/src/main/java/fr/cantale/plugin/privatechest/PrivateChestService.java
+/Users/Noe/Documents/Cantale/src/main/java/fr/cantale/plugin/ui/inventory/QuestCategorySelectUI.java
 /Users/Noe/Documents/Cantale/src/main/java/fr/cantale/plugin/vote/VoteReward.java
 /Users/Noe/Documents/Cantale/src/main/java/fr/cantale/plugin/database/PlayerDAO.java
 /Users/Noe/Documents/Cantale/src/main/java/fr/cantale/plugin/listeners/WitherSkullDropListener.java

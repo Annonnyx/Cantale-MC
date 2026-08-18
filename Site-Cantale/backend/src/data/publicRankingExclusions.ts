@@ -4,7 +4,7 @@
  */
 export const PUBLIC_RANKING_EXCLUDED_USERNAMES = ["Anox26"] as const;
 export const PUBLIC_RANKING_EXCLUDED_UUIDS = [] as const;
-export const PUBLIC_RANKING_EXCLUDED_FACTION_NAMES: readonly string[] = ["Ø", "O", "∅"];
+export const PUBLIC_RANKING_EXCLUDED_FACTION_NAMES: readonly string[] = ["Ø", "∅"];
 
 function sqlStringLiterals(values: readonly string[]): string {
   return values

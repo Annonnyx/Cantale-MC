@@ -67,12 +67,7 @@ public class CrateRewardTable {
      * Vote et Légendaire (ticket Discord) : 0.
      */
     private CrateReward tryRollRune(CrateType type) {
-        double chance = runeCrateChancePercent(type);
-        if (chance <= 0) return null;
-        if (random.nextDouble() * 100.0 >= chance) return null;
-        ItemStack rune = itemManager.createCustomItem(CustomItemType.RUNE_FORTIFICATION);
-        return new CrateReward("Rune de Fortification", 0, 0, List.of(rune), 0,
-                "§bTu as obtenu une Rune de Fortification !");
+        return null; // Fortification runes removed
     }
 
     private double runeCrateChancePercent(CrateType type) {

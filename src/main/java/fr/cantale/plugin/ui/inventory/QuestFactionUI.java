@@ -15,21 +15,23 @@ import java.util.Map;
 
 public class QuestFactionUI extends BaseUI {
 
+    private final QuestPeriod period;
     private List<GeneratedQuest> quests = List.of();
 
+    public QuestFactionUI(CantalePlugin plugin, Player player, QuestPeriod period) {
+        super(plugin, player, "§8[§6Cantale§8] §7Quêtes fac (" + period.shortLabel() + ")", 6);
+        this.period = period;
+    }
+
     public QuestFactionUI(CantalePlugin plugin, Player player) {
-        super(plugin, player, "§8[§6Cantale§8] §7Quêtes faction", 6);
+        this(plugin, player, QuestPeriod.DAILY);
     }
 
     @Override
     protected void init() {
         fillEmpty();
         QuestEngine engine = plugin.getQuestEngine();
-        List<GeneratedQuest> all = new ArrayList<>();
-        for (QuestPeriod p : QuestPeriod.values()) {
-            all.addAll(engine.pool(QuestScope.FACTION, p));
-        }
-        quests = all;
+        quests = engine.pool(QuestScope.FACTION, period);
         Faction fac = plugin.getFactionManager().getPlayerFaction(player.getUniqueId());
         int slot = 0;
         for (GeneratedQuest q : quests) {

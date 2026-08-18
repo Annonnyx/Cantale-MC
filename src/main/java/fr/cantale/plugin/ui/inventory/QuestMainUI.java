@@ -14,17 +14,14 @@ public class QuestMainUI extends BaseUI {
     @Override
     protected void init() {
         fillEmpty();
-        setItem(11, Material.SUNFLOWER, "§eJournalières",
-                "§7Une à la fois", "§7Récompense : §fclef rare",
-                "§7Set complet : §eclé épique");
-        setItem(13, Material.CLOCK, "§6Hebdomadaires",
-                "§7Une à la fois", "§7Récompense : §eclé épique",
-                "§7Set complet : §dclé mythique");
-        setItem(15, Material.NETHER_STAR, "§dSaisonnières",
-                "§7Une à la fois", "§7Récompense : §dclé mythique",
-                "§7Set complet : §6ticket légendaire");
-        setItem(4, Material.SHIELD, "§bQuêtes de faction",
-                "§7Courses partagées", "§7La plus rapide gagne");
+        setItem(11, Material.DIAMOND_SWORD, "§a🗡️ Quêtes Solo",
+                "§7Quêtes individuelles",
+                "§7• Journalières, Hebdomadaires, Saisonnières",
+                "§eClic pour ouvrir le menu Solo");
+        setItem(15, Material.SHIELD, "§b🛡️ Quêtes de Faction",
+                "§7Defis et courses de faction",
+                "§7• Journalières, Hebdomadaires, Saisonnières",
+                "§eClic pour ouvrir le menu Faction");
         addNavigationBar(true, true);
     }
 
@@ -44,10 +41,8 @@ public class QuestMainUI extends BaseUI {
             return;
         }
         switch (slot) {
-            case 4 -> nav.openUI(player, new QuestFactionUI(plugin, player));
-            case 11 -> nav.openUI(player, new QuestSoloUI(plugin, player, QuestPeriod.DAILY));
-            case 13 -> nav.openUI(player, new QuestSoloUI(plugin, player, QuestPeriod.WEEKLY));
-            case 15 -> nav.openUI(player, new QuestSoloUI(plugin, player, QuestPeriod.SEASONAL));
+            case 11 -> nav.openUI(player, new QuestCategorySelectUI(plugin, player, fr.cantale.plugin.quests.QuestScope.SOLO));
+            case 15 -> nav.openUI(player, new QuestCategorySelectUI(plugin, player, fr.cantale.plugin.quests.QuestScope.FACTION));
             default -> {
             }
         }

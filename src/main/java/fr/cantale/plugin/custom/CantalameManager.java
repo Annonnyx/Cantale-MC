@@ -9,7 +9,9 @@ import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataContainer;
 import org.bukkit.persistence.PersistentDataType;
 
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -20,11 +22,14 @@ public class CantalameManager {
     private final NamespacedKey killsKey;
     private final NamespacedKey victimsKey;
 
+    private final NamespacedKey dailyKillsKey;
+
     public CantalameManager(CantalePlugin plugin) {
         this.plugin = plugin;
         this.cantalameKey = new NamespacedKey(plugin, "cantalame");
         this.killsKey = new NamespacedKey(plugin, "cantalame_kills");
         this.victimsKey = new NamespacedKey(plugin, "cantalame_victims");
+        this.dailyKillsKey = new NamespacedKey(plugin, "cantalame_daily");
     }
 
     private Enchantment getEnchantment(String key) {
@@ -72,20 +77,41 @@ public class CantalameManager {
         
         if (!container.has(cantalameKey, PersistentDataType.STRING)) return;
         
-        Set<UUID> victims = getVictims(item);
-        int killCount = getKillCount(item);
+        String today = java.time.LocalDate.now().toString();
+        String dailyData = container.getOrDefault(dailyKillsKey, PersistentDataType.STRING, "");
         
-        // Ajouter la victime si elle n'est pas déjà dans la liste
-        if (!victims.contains(victim.getUniqueId())) {
-            victims.add(victim.getUniqueId());
-            killCount++;
+        String storedDate = "";
+        Map<UUID, Integer> dailyCounts = new HashMap<>();
+        if (!dailyData.isEmpty() && dailyData.contains("|")) {
+            String[] parts = dailyData.split("\\|", 2);
+            storedDate = parts[0];
+            if (storedDate.equals(today) && parts.length > 1) {
+                for (String entry : parts[1].split(";")) {
+                    if (entry.contains(":")) {
+                        String[] kv = entry.split(":");
+                        try {
+                            dailyCounts.put(UUID.fromString(kv[0]), Integer.parseInt(kv[1]));
+                        } catch (Exception ignored) {}
+                    }
+                }
+            }
         }
         
-        // Mettre à jour les données
-        container.set(killsKey, PersistentDataType.INTEGER, killCount);
+        int currentDaily = dailyCounts.getOrDefault(victim.getUniqueId(), 0);
+        if (currentDaily >= 3) {
+            // Déjà tué 3 fois aujourd'hui avec cette épée : pas d'incrément
+            return;
+        }
         
-        String victimsString = String.join(",", victims.stream().map(UUID::toString).toList());
-        container.set(victimsKey, PersistentDataType.STRING, victimsString);
+        dailyCounts.put(victim.getUniqueId(), currentDaily + 1);
+        int killCount = Math.min(100, getKillCount(item) + 1);
+        
+        // Sauvegarder les données quotidiennes
+        StringBuilder sb = new StringBuilder(today).append("|");
+        dailyCounts.forEach((u, c) -> sb.append(u.toString()).append(":").append(c).append(";"));
+        
+        container.set(killsKey, PersistentDataType.INTEGER, killCount);
+        container.set(dailyKillsKey, PersistentDataType.STRING, sb.toString());
         
         item.setItemMeta(meta);
         
@@ -164,7 +190,7 @@ public class CantalameManager {
         
         // Mettre à jour le lore
         meta.setLore(java.util.List.of(
-            "§7Kills uniques: §e" + tier + "/100",
+            "§7Kills: §e" + tier + "/100 §7(max 3/j/joueur)",
             "§7Puissance: " + getPowerDescription(tier)
         ));
         

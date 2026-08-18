@@ -120,7 +120,7 @@ function normalizeRank(rank: string | null): FactionRank {
 }
 
 /** Entier borné, sûr à inliner dans un LIMIT (jamais d'entrée brute). */
-function clampLimit(limit: number, fallback = 50, max = 200): number {
+function clampLimit(limit: number, fallback = 500, max = 1000): number {
   if (!Number.isFinite(limit)) return fallback;
   return Math.max(1, Math.min(max, Math.floor(limit)));
 }

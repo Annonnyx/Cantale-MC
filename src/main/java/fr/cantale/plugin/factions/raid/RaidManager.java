@@ -164,6 +164,29 @@ public class RaidManager {
                 + " §csur §e" + defender.getName() + " §c("
                 + (duration / 60) + " min).";
         Bukkit.broadcastMessage(msg);
+
+        // Alertes in-game aux officiers et membres de la faction attaquée
+        for (UUID memberUuid : defender.getMembers()) {
+            Player defPlayer = Bukkit.getPlayer(memberUuid);
+            if (defPlayer != null && defPlayer.isOnline()) {
+                defPlayer.sendTitle("§c§lRAID DÉCLARÉ !", "§7Par " + attacker.getName() + " sur votre territoire", 10, 70, 20);
+                defPlayer.sendMessage("§8[§6Cantale§8] §c§lATTENTION ! §cVotre faction est attaquée en raid par §e" + attacker.getName() + " §c!");
+            }
+        }
+
+        // Notification Discord
+        if (plugin.getDiscordBot() != null && plugin.getDiscordBot().isConnected()) {
+            long ch = plugin.getDiscordBot().getConfig().getMcFactionsChannelId();
+            if (ch != 0L) {
+                plugin.getDiscordBot().sendEmbedToChannel(
+                    ch,
+                    java.awt.Color.RED,
+                    "⚔️ RAID DÉCLARÉ !",
+                    "La faction **" + attacker.getName() + "** [" + attacker.getTag() + "] a déclaré un raid contre **" + defender.getName() + "** [" + defender.getTag() + "] ! (Durée: " + (duration / 60) + " min)"
+                );
+            }
+        }
+
         return true;
     }
 
@@ -187,19 +210,15 @@ public class RaidManager {
     }
 
     /**
-     * {@code true} si les règles de raid s'appliquent à ce claim : raid actif sur ce chunk
-     * précis, ou faction propriétaire en guerre (la guerre ouvre les claims des deux
-     * belligérants en permanence, sans {@code /raid}).
+     * {@code true} si les règles de raid s'appliquent à ce claim : raid actif sur la faction
+     * du claim, ou faction propriétaire en guerre.
      */
     public boolean isRaidActive(Claim claim) {
         if (claim == null) return false;
         long now = System.currentTimeMillis() / 1000;
         for (Raid raid : activeRaids.values()) {
             if (!raid.isActive(now)) continue;
-            if (raid.getDefenderFactionId() == claim.getFactionId()
-                    && raid.getWorld().equals(claim.getWorld())
-                    && raid.getChunkX() == claim.getChunkX()
-                    && raid.getChunkZ() == claim.getChunkZ()) {
+            if (raid.getDefenderFactionId() == claim.getFactionId()) {
                 return true;
             }
         }
@@ -209,9 +228,7 @@ public class RaidManager {
 
     /**
      * {@code true} si le joueur peut agir dans ce claim comme un assaillant de raid :
-     * raid actif de SA faction sur ce chunk, ou guerre entre sa faction et celle du claim
-     * (accès permanent dans les deux sens, mêmes permissions qu'en raid : casse, pose,
-     * TNT, seaux…). Les PASDIC restent exclus (géré dans ClaimListener).
+     * raid actif de SA faction sur la faction du claim, ou guerre entre sa faction et celle du claim.
      */
     public boolean isAttackingInRaid(Player player, Claim claim) {
         if (claim == null) return false;
@@ -225,14 +242,11 @@ public class RaidManager {
         for (Raid raid : activeRaids.values()) {
             if (!raid.isActive(now)) continue;
             if (raid.getAttackerFactionId() == attacker.getId()
-                    && raid.getDefenderFactionId() == claim.getFactionId()
-                    && raid.getWorld().equals(claim.getWorld())
-                    && raid.getChunkX() == claim.getChunkX()
-                    && raid.getChunkZ() == claim.getChunkZ()) {
+                    && raid.getDefenderFactionId() == claim.getFactionId()) {
                 return true;
             }
         }
-        // Guerre : pénétration permanente des claims ennemis (même chemin que le raid)
+        // Guerre : pénétration permanente des claims ennemis
         return atWar;
     }
 
