@@ -127,15 +127,21 @@ entries:
     triggers:
       - "warp faction"
       - "f warp"
+      - "fw"
+      - "fw create"
       - "comment faire un warp faction"
       - "teleportation faction"
       - "warp de faction"
       - "comment creer un warp faction"
       - "f setwarp"
+      - "faction warp public"
+      - "comment creer un fw"
     response: |
-      Les warps de faction : /f warp [nom], /f setwarp <nom>, /f delwarp <nom> (dans un claim).
-      Permission FWARP (Membre+). Quota : 1 si pouvoir < 60, sinon 1 + (pouvoir − 60) / 30.
-      TP : 3 s immobile puis cooldown 30 s (sauf admin / mode trace).
+      Les warps de faction publics (FW) : /fw create <nom> (dans un claim, Officier+), /fw delete <nom>, /fw pour la liste, /fw <nom> pour s'y TP (tout le serveur, warmup comme /warp).
+      Ce n'est PAS le spawn de fac (/f setspawn / /f spawn), réservé aux membres.
+      Alias conservés : /f setwarp, /f delwarp, /f warp.
+      Quota : 1 si pouvoir < 60, sinon 1 + (pouvoir − 60) / 30. Noms uniques sur tout le serveur.
+      UI faction → boussole « Warps publics (FW) » : créer, lister, TP, clic droit pour supprimer.
 
   - id: faction_home
     triggers:
@@ -149,7 +155,7 @@ entries:
     response: |
       Il n'y a plus de homes de faction.
       Homes perso : /home (set/delete selon ton grade).
-      Pour la fac : /f spawn (ou /f go) et les warps /f warp.
+      Pour la fac : /f spawn (ou /f go) et les warps publics /fw.
 
   - id: faction_bank
     triggers:

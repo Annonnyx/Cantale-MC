@@ -22,7 +22,9 @@ Format : /commande — usage — permission (si présente)
   - /f warend <facA> <facB> — Terminer une guerre de force (staff) — permission : cantale.faction.bypass. Log console d'audit.
   - /f ally <faction> — S'allier à une faction (Officier+). Annule la guerre si elle existait.
   - /f secret — Activer/désactiver le mode secret. Taxe journalière de 1 000 Cantox par intervalle (20 min par défaut) prélevée sur la banque. Gratuit pendant 3 jours pour les nouvelles factions et après un raid subi.
-  - /f spawn / /f setspawn / /f warp / /f setwarp / /f delwarp — Gestion des points de téléportation
+  - /f spawn / /f setspawn — Spawn interne de faction (membres)
+  - /fw / /fw <nom> / /fw create <nom> / /fw delete <nom> — Warps de faction publics (tout le serveur peut TP ; create/delete Officier+)
+  - /f warp / /f setwarp / /f delwarp — alias des FW (même table faction_warps)
   - /f bank — Gestion de la banque de faction
   - /f power / /f pouvoir — Achat de pouvoir
   - /f promote / /f demote — Gestion des grades
@@ -45,6 +47,7 @@ Format : /commande — usage — permission (si présente)
 - /adminec <joueur> (aliases : aec, seeec) — Voir/éditer l'ender chest d'un joueur — permission : cantale.moderator
 - /adminpc <joueur> [1|2|3] (aliases : apc, sepc) — Voir/éditer les PC d'un joueur — permission : cantale.moderator
 - /warp [nom|set|delete|toggle] — Téléportation aux warps publics (cooldown 30 s, warmup 3 s)
+- /fw [nom|create|delete|list] (aliases /fwarp, /fwarps) — Warps de faction publics : liste / TP tout le serveur ; create/delete officiers+ dans un claim (quota pouvoir)
 - /spawn — Téléportation au spawn (cooldown 30 s, warmup 3 s)
 - /rtp — Téléportation aléatoire (cooldown 5 min + 30 s global, warmup 3 s)
 - /moderation <kick|mute|tp|tphere|vanish> — Outils de modération — permission : cantale.moderator

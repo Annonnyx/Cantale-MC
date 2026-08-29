@@ -36,6 +36,7 @@ import fr.cantale.plugin.commands.ProfileCommand;
 import fr.cantale.plugin.commands.CustomItemCommand;
 import fr.cantale.plugin.commands.HomeCommand;
 import fr.cantale.plugin.commands.WarpCommand;
+import fr.cantale.plugin.commands.FwCommand;
 import fr.cantale.plugin.commands.EventsCommand;
 import fr.cantale.plugin.commands.SpawnCommand;
 import fr.cantale.plugin.commands.RtpCommand;
@@ -92,6 +93,7 @@ public class CantalePlugin extends JavaPlugin {
     private HomeManager homeManager;
     private WarpManager warpManager;
     private FWarpManager fWarpManager;
+    private fr.cantale.plugin.factions.FactionWarpManager factionWarpManager;
     private MapUI mapUI;
     private fr.cantale.plugin.map.ClientMapBridge clientMapBridge;
     private SpawnCommand spawnCommand;
@@ -149,6 +151,8 @@ public class CantalePlugin extends JavaPlugin {
     private fr.cantale.plugin.spawners.SpawnerManager spawnerManager;
     private fr.cantale.plugin.quests.QuestEngine questEngine;
     private fr.cantale.plugin.collections.CollectionManager collectionManager;
+    private fr.cantale.plugin.combattant.CombattantManager combattantManager;
+    private fr.cantale.plugin.moderation.PlayerLockManager playerLockManager;
 
     @Override
     public void onEnable() {
@@ -203,6 +207,7 @@ public class CantalePlugin extends JavaPlugin {
         this.homeManager = new HomeManager(this);
         this.warpManager = new WarpManager(this);
         this.fWarpManager = new FWarpManager(this);
+        this.factionWarpManager = new fr.cantale.plugin.factions.FactionWarpManager(this);
         if (this.databaseManager.getConnection() != null) {
             this.warpManager.loadWarps();
             this.fWarpManager.loadFWarps();
@@ -413,6 +418,8 @@ public class CantalePlugin extends JavaPlugin {
                 this, collectionConfig, new fr.cantale.plugin.collections.CollectionDAO(this));
         this.antiCheatManager = new fr.cantale.plugin.anticheat.AntiCheatManager(this);
         this.combatTagManager = new fr.cantale.plugin.combat.CombatTagManager(this);
+        this.combattantManager = new fr.cantale.plugin.combattant.CombattantManager(this);
+        this.playerLockManager = new fr.cantale.plugin.moderation.PlayerLockManager(this);
 
         // Bot FAQ
         saveResource("faq.yml", false);
@@ -568,6 +575,7 @@ public class CantalePlugin extends JavaPlugin {
         getCommand("removelife").setExecutor(new LifeCommand(this));
         FactionCommand factionCommand = new FactionCommand(this);
         getCommand("f").setExecutor(factionCommand);
+        getCommand("f").setTabCompleter(factionCommand);
         getCommand("raid").setExecutor(new fr.cantale.plugin.commands.RaidCommand(this));
         getCommand("fc").setExecutor(new fr.cantale.plugin.commands.FactionChatCommand(this, factionCommand));
         getCommand("ah").setExecutor(new AuctionCommand(this));
@@ -585,9 +593,9 @@ public class CantalePlugin extends JavaPlugin {
         getCommand("adminpc").setExecutor(adminPcCommand);
         getCommand("adminpc").setTabCompleter(adminPcCommand);
         getCommand("warp").setExecutor(new WarpCommand(this));
-        fr.cantale.plugin.commands.FWarpCommand fWarpCommand = new fr.cantale.plugin.commands.FWarpCommand(this);
-        getCommand("fw").setExecutor(fWarpCommand);
-        getCommand("fw").setTabCompleter(fWarpCommand);
+        FwCommand fwCommand = new FwCommand(this);
+        getCommand("fw").setExecutor(fwCommand);
+        getCommand("fw").setTabCompleter(fwCommand);
         getCommand("spawn").setExecutor(spawnCommand);
         getCommand("rtp").setExecutor(rtpCommand);
         fr.cantale.plugin.commands.TpaCommand tpaCommand = new fr.cantale.plugin.commands.TpaCommand(this);
@@ -600,6 +608,18 @@ public class CantalePlugin extends JavaPlugin {
         getCommand("moderation").setExecutor(moderationCommand);
         getCommand("vanish").setExecutor(vanishCommand);
         getCommand("modhelp").setExecutor(new ModHelpCommand(this));
+
+        fr.cantale.plugin.commands.CombattantCommand combattantCmd = new fr.cantale.plugin.commands.CombattantCommand(this);
+        getCommand("combattant").setExecutor(combattantCmd);
+        getCommand("combattant").setTabCompleter(combattantCmd);
+
+        fr.cantale.plugin.commands.LockCommand lockCmd = new fr.cantale.plugin.commands.LockCommand(this);
+        getCommand("lock").setExecutor(lockCmd);
+        getCommand("lock").setTabCompleter(lockCmd);
+
+        fr.cantale.plugin.commands.AdminInvCommand adminInvCmd = new fr.cantale.plugin.commands.AdminInvCommand(this);
+        getCommand("admininv").setExecutor(adminInvCmd);
+        getCommand("admininv").setTabCompleter(adminInvCmd);
         getCommand("wanted").setExecutor(wantedCommand);
         getCommand("pc").setExecutor(privateChestCommand);
         getCommand("pasdic").setExecutor(pasdicCommand);
@@ -682,6 +702,12 @@ public class CantalePlugin extends JavaPlugin {
         getServer().getPluginManager().registerEvents(afkListener, this);
         getServer().getPluginManager().registerEvents(new CustomItemListener(this), this);
         getServer().getPluginManager().registerEvents(new fr.cantale.plugin.moderation.ModerationListener(moderationCommand.getMuteManager(), moderationCommand.getVanishManager()), this);
+        if (combattantManager != null) {
+            getServer().getPluginManager().registerEvents(combattantManager, this);
+        }
+        if (playerLockManager != null) {
+            getServer().getPluginManager().registerEvents(playerLockManager, this);
+        }
         getServer().getPluginManager().registerEvents(new fr.cantale.plugin.listeners.LifeItemListener(this), this);
         getServer().getPluginManager().registerEvents(new fr.cantale.plugin.listeners.TotemBlockListener(this), this);
         getServer().getPluginManager().registerEvents(new fr.cantale.plugin.listeners.HopperLimitListener(this), this);
@@ -729,10 +755,9 @@ public class CantalePlugin extends JavaPlugin {
 
     private void registerPluginMessageChannels() {
         String[] outgoing = {
-            "journeymap:waypoint",
-            "journeymap:region",
-            "xaerominimap:waypoint",
-            "xaerominimap:region"
+            "journeymap:common",
+            "xaerominimap:main",
+            "voxelmap:main"
         };
         for (String channel : outgoing) {
             try {
@@ -745,10 +770,9 @@ public class CantalePlugin extends JavaPlugin {
 
     private void unregisterPluginMessageChannels() {
         String[] outgoing = {
-            "journeymap:waypoint",
-            "journeymap:region",
-            "xaerominimap:waypoint",
-            "xaerominimap:region"
+            "journeymap:common",
+            "xaerominimap:main",
+            "voxelmap:main"
         };
         for (String channel : outgoing) {
             try {
@@ -898,6 +922,10 @@ public class CantalePlugin extends JavaPlugin {
         return fWarpManager;
     }
 
+    public fr.cantale.plugin.factions.FactionWarpManager getFactionWarpManager() {
+        return factionWarpManager;
+    }
+
     public ModerationCommand getModerationCommand() {
         return moderationCommand;
     }
@@ -1016,5 +1044,13 @@ public class CantalePlugin extends JavaPlugin {
 
     public fr.cantale.plugin.collections.CollectionManager getCollectionManager() {
         return collectionManager;
+    }
+
+    public fr.cantale.plugin.combattant.CombattantManager getCombattantManager() {
+        return combattantManager;
+    }
+
+    public fr.cantale.plugin.moderation.PlayerLockManager getPlayerLockManager() {
+        return playerLockManager;
     }
 }

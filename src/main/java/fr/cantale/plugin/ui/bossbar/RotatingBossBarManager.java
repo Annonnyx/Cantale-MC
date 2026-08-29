@@ -225,10 +225,10 @@ public class RotatingBossBarManager implements Listener {
         boolean unlimited = player.hasPermission("cantale.admin");
         String livesText = unlimited
                 ? color("&8[&cVies&8] &7Vies : &aIllimitées &8(admin)")
-                : color("&8[&cVies&8] &7Vies restantes : &c" + lives + "&7/&c10");
+                : color("&8[&cVies&8] &7Vies restantes : &c" + lives + "&7/&c3");
         BarColor livesColor = unlimited ? BarColor.GREEN
-                : (lives <= 2 ? BarColor.RED : (lives <= 5 ? BarColor.YELLOW : BarColor.PINK));
-        double livesProgress = unlimited ? 1.0 : clamp(lives / 10.0);
+                : (lives <= 1 ? BarColor.RED : (lives <= 2 ? BarColor.YELLOW : BarColor.GREEN));
+        double livesProgress = unlimited ? 1.0 : clamp(lives / 3.0);
         slides.add(new Slide(livesText, livesColor, livesProgress));
 
         Faction faction = plugin.getFactionManager().getPlayerFaction(uuid);

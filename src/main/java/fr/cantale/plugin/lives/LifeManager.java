@@ -104,8 +104,31 @@ public class LifeManager {
 
     public void addLives(UUID uuid, int amount) {
         int current = getLives(uuid);
-        int newLives = Math.min(10, current + amount); // Max 10 vies
+        int newLives = Math.min(3, current + amount); // Max 3 vies
         playerDAO.setLives(uuid, newLives);
+    }
+
+    public void enforceMaxLives(Player player) {
+        if (player == null) return;
+        UUID uuid = player.getUniqueId();
+        int current = getLives(uuid);
+        if (current > 3) {
+            int excess = current - 3;
+            setLives(uuid, 3);
+            var customItemMgr = plugin.getCustomItemManager();
+            if (customItemMgr != null) {
+                ItemStack vieItem = customItemMgr.createCustomItem(fr.cantale.plugin.custom.CustomItemType.VIE);
+                vieItem.setAmount(excess);
+                var leftover = player.getInventory().addItem(vieItem);
+                if (!leftover.isEmpty()) {
+                    for (ItemStack item : leftover.values()) {
+                        player.getWorld().dropItemNaturally(player.getLocation(), item);
+                    }
+                }
+            }
+            player.sendMessage(formatMessage("&8[&6Cantale&8] &eAjustement de vos vies : vous étiez à &c" + current
+                    + " &evies. La limite maximale est de 3. Vos &c" + excess + " &evie(s) en trop vous ont été rendues sous forme d'item(s)."));
+        }
     }
 
     private void handleZeroLives(UUID uuid) {

@@ -97,76 +97,24 @@ templates:
   # --- PvP ---
   - { id: kill_player, title: "Éliminer des joueurs", objective: KILL_PLAYER, target: PLAYER, daily: 8 }
 
-  # --- Passifs / neutres ---
+  # --- Mobs de Spawners Cantale (uniquement les mobs disposant d'un spawner obtenable) ---
+  - { id: kill_zombie, title: "Tuer des zombies", objective: KILL_MOB, target: ZOMBIE, daily: 88 }
+  - { id: kill_skeleton, title: "Tuer des squelettes", objective: KILL_MOB, target: SKELETON, daily: 75 }
+  - { id: kill_spider, title: "Tuer des araignées", objective: KILL_MOB, target: SPIDER, daily: 75 }
+  - { id: kill_creeper, title: "Tuer des creepers", objective: KILL_MOB, target: CREEPER, daily: 50 }
+  - { id: kill_enderman, title: "Tuer des endermans", objective: KILL_MOB, target: ENDERMAN, daily: 20 }
+  - { id: kill_blaze, title: "Tuer des blazes", objective: KILL_MOB, target: BLAZE, daily: 38 }
+  - { id: kill_witch, title: "Tuer des sorcières", objective: KILL_MOB, target: WITCH, daily: 15 }
+  - { id: kill_slime, title: "Tuer des slimes", objective: KILL_MOB, target: SLIME, daily: 62 }
+  - { id: kill_magma, title: "Tuer des cubes de magma", objective: KILL_MOB, target: MAGMA_CUBE, daily: 30 }
+  - { id: kill_iron_golem, title: "Tuer des golems de fer", objective: KILL_MOB, target: IRON_GOLEM, daily: 8 }
   - { id: kill_cow, title: "Tuer des vaches", objective: KILL_MOB, target: COW, daily: 100 }
   - { id: kill_pig, title: "Tuer des cochons", objective: KILL_MOB, target: PIG, daily: 100 }
   - { id: kill_sheep, title: "Tuer des moutons", objective: KILL_MOB, target: SHEEP, daily: 100 }
   - { id: kill_chicken, title: "Tuer des poules", objective: KILL_MOB, target: CHICKEN, daily: 125 }
-  - { id: kill_rabbit, title: "Tuer des lapins", objective: KILL_MOB, target: RABBIT, daily: 100 }
-  - { id: kill_horse, title: "Tuer des chevaux", objective: KILL_MOB, target: HORSE, daily: 38 }
-  - { id: kill_donkey, title: "Tuer des ânes", objective: KILL_MOB, target: DONKEY, daily: 30 }
-  - { id: kill_llama, title: "Tuer des lamas", objective: KILL_MOB, target: LLAMA, daily: 38 }
-  - { id: kill_wolf, title: "Tuer des loups", objective: KILL_MOB, target: WOLF, daily: 50 }
-  - { id: kill_cat, title: "Tuer des chats", objective: KILL_MOB, target: CAT, daily: 38 }
-  - { id: kill_fox, title: "Tuer des renards", objective: KILL_MOB, target: FOX, daily: 30 }
-  - { id: kill_bee, title: "Tuer des abeilles", objective: KILL_MOB, target: BEE, daily: 62 }
-  - { id: kill_squid, title: "Tuer des calmars", objective: KILL_MOB, target: SQUID, daily: 75 }
-  - { id: kill_glow_squid, title: "Tuer des calmars lumineux", objective: KILL_MOB, target: GLOW_SQUID, daily: 50 }
-  - { id: kill_dolphin, title: "Tuer des dauphins", objective: KILL_MOB, target: DOLPHIN, daily: 30 }
-  - { id: kill_turtle, title: "Tuer des tortues", objective: KILL_MOB, target: TURTLE, daily: 38 }
-  - { id: kill_frog, title: "Tuer des grenouilles", objective: KILL_MOB, target: FROG, daily: 50 }
-  - { id: kill_axolotl, title: "Tuer des axolotls", objective: KILL_MOB, target: AXOLOTL, daily: 25 }
-  - { id: kill_goat, title: "Tuer des chèvres", objective: KILL_MOB, target: GOAT, daily: 50 }
-  - { id: kill_camel, title: "Tuer des chameaux", objective: KILL_MOB, target: CAMEL, daily: 20 }
-  - { id: kill_sniffer, title: "Tuer des sniffers", objective: KILL_MOB, target: SNIFFER, daily: 12 }
-  - { id: kill_mooshroom, title: "Tuer des champimeuhs", objective: KILL_MOB, target: MOOSHROOM, daily: 62 }
-  - { id: kill_snow_golem, title: "Tuer des golems de neige", objective: KILL_MOB, target: SNOW_GOLEM, daily: 38 }
-  - { id: kill_strider, title: "Tuer des arpenteurs", objective: KILL_MOB, target: STRIDER, daily: 30 }
-  - { id: kill_panda, title: "Tuer des pandas", objective: KILL_MOB, target: PANDA, daily: 20 }
-  - { id: kill_polar_bear, title: "Tuer des ours polaires", objective: KILL_MOB, target: POLAR_BEAR, daily: 20 }
-  - { id: kill_parrot, title: "Tuer des perroquets", objective: KILL_MOB, target: PARROT, daily: 38 }
-  - { id: kill_bat, title: "Tuer des chauves-souris", objective: KILL_MOB, target: BAT, daily: 100 }
-  - { id: kill_armadillo, title: "Tuer des tatous", objective: KILL_MOB, target: ARMADILLO, daily: 30 }
-
-  # --- Hostiles (overworld / nether / end / raids) ---
-  - { id: kill_zombie, title: "Tuer des zombies", objective: KILL_MOB, target: ZOMBIE, daily: 88 }
-  - { id: kill_husk, title: "Tuer des husks", objective: KILL_MOB, target: HUSK, daily: 62 }
-  - { id: kill_drowned, title: "Tuer des noyés", objective: KILL_MOB, target: DROWNED, daily: 62 }
-  - { id: kill_zombie_villager, title: "Tuer des zombies-villageois", objective: KILL_MOB, target: ZOMBIE_VILLAGER, daily: 50 }
-  - { id: kill_skeleton, title: "Tuer des squelettes", objective: KILL_MOB, target: SKELETON, daily: 75 }
-  - { id: kill_stray, title: "Tuer des strays", objective: KILL_MOB, target: STRAY, daily: 55 }
-  - { id: kill_bogged, title: "Tuer des bogged", objective: KILL_MOB, target: BOGGED, daily: 50 }
-  - { id: kill_wither_skeleton, title: "Tuer des wither skeletons", objective: KILL_MOB, target: WITHER_SKELETON, daily: 30 }
-  - { id: kill_spider, title: "Tuer des araignées", objective: KILL_MOB, target: SPIDER, daily: 75 }
-  - { id: kill_cave_spider, title: "Tuer des araignées venimeuses", objective: KILL_MOB, target: CAVE_SPIDER, daily: 62 }
-  - { id: kill_creeper, title: "Tuer des creepers", objective: KILL_MOB, target: CREEPER, daily: 50 }
-  - { id: kill_enderman, title: "Tuer des endermans", objective: KILL_MOB, target: ENDERMAN, daily: 20 }
-  - { id: kill_blaze, title: "Tuer des blazes", objective: KILL_MOB, target: BLAZE, daily: 38 }
-  - { id: kill_ghast, title: "Tuer des ghasts", objective: KILL_MOB, target: GHAST, daily: 15 }
-  - { id: kill_witch, title: "Tuer des sorcières", objective: KILL_MOB, target: WITCH, daily: 15 }
-  - { id: kill_slime, title: "Tuer des slimes", objective: KILL_MOB, target: SLIME, daily: 62 }
-  - { id: kill_magma, title: "Tuer des cubes de magma", objective: KILL_MOB, target: MAGMA_CUBE, daily: 30 }
-  - { id: kill_golem, title: "Tuer des golems de fer", objective: KILL_MOB, target: IRON_GOLEM, daily: 8 }
   - { id: kill_piglin, title: "Tuer des piglins", objective: KILL_MOB, target: PIGLIN, daily: 50 }
-  - { id: kill_piglin_brute, title: "Tuer des piglins brutes", objective: KILL_MOB, target: PIGLIN_BRUTE, daily: 15 }
   - { id: kill_zombified_piglin, title: "Tuer des piglins zombifiés", objective: KILL_MOB, target: ZOMBIFIED_PIGLIN, daily: 62 }
-  - { id: kill_hoglin, title: "Tuer des hoglins", objective: KILL_MOB, target: HOGLIN, daily: 30 }
   - { id: kill_zoglin, title: "Tuer des zoglins", objective: KILL_MOB, target: ZOGLIN, daily: 20 }
-  - { id: kill_guardian, title: "Tuer des gardiens", objective: KILL_MOB, target: GUARDIAN, daily: 20 }
-  - { id: kill_elder_guardian, title: "Tuer des gardiens anciens", objective: KILL_MOB, target: ELDER_GUARDIAN, daily: 5 }
-  - { id: kill_phantom, title: "Tuer des phantoms", objective: KILL_MOB, target: PHANTOM, daily: 30 }
-  - { id: kill_silverfish, title: "Tuer des poissons d'argent", objective: KILL_MOB, target: SILVERFISH, daily: 75 }
-  - { id: kill_endermite, title: "Tuer des endermites", objective: KILL_MOB, target: ENDERMITE, daily: 50 }
-  - { id: kill_shulker, title: "Tuer des shulkers", objective: KILL_MOB, target: SHULKER, daily: 15 }
-  - { id: kill_pillager, title: "Tuer des pillards", objective: KILL_MOB, target: PILLAGER, daily: 38 }
-  - { id: kill_vindicator, title: "Tuer des vindicateurs", objective: KILL_MOB, target: VINDICATOR, daily: 20 }
-  - { id: kill_evoker, title: "Tuer des évocateurs", objective: KILL_MOB, target: EVOKER, daily: 10 }
-  - { id: kill_vex, title: "Tuer des vexes", objective: KILL_MOB, target: VEX, daily: 38 }
-  - { id: kill_ravager, title: "Tuer des ravagers", objective: KILL_MOB, target: RAVAGER, daily: 5 }
-  - { id: kill_breeze, title: "Tuer des breezes", objective: KILL_MOB, target: BREEZE, daily: 20 }
-  - { id: kill_creaking, title: "Tuer des creakings", objective: KILL_MOB, target: CREAKING, daily: 10 }
-  - { id: kill_warden, title: "Tuer des wardens", objective: KILL_MOB, target: WARDEN, daily: 2 }
-  - { id: kill_wither, title: "Tuer le Wither", objective: KILL_MOB, target: WITHER, daily: 2 }
 
   # --- Distance (depuis l'acceptation) ---
   - { id: walk, title: "Parcourir des kilomètres", objective: DISTANCE, target: WALK, daily: 5000 }

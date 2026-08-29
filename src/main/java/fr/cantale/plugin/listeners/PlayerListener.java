@@ -73,6 +73,9 @@ public class PlayerListener implements Listener {
         Player player = event.getPlayer();
         UUID uuid = player.getUniqueId();
 
+        // Régulariser si le joueur a plus de 3 vies en BDD
+        lifeManager.enforceMaxLives(player);
+
         if (plugin.getRankManager() != null) {
             plugin.getRankManager().invalidate(uuid);
         }

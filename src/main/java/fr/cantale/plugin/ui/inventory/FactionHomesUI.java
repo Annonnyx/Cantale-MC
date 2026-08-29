@@ -21,7 +21,7 @@ public class FactionHomesUI extends BaseUI {
         fillEmpty();
         setItem(13, Material.BARRIER, "§cHomes de faction retirés",
                 "§7Utilise §e/home §7(perso)",
-                "§7ou §e/f spawn §7/ §e/f warp");
+                "§7ou §e/f spawn §7/ §e/fw");
         addNavigationBar(true, true);
     }
 

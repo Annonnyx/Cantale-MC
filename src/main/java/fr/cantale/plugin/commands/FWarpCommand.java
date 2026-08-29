@@ -17,8 +17,9 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 /**
- * /fw — warps publics de faction : tout joueur peut s'y téléporter (builds, shops, spawners…).
- * Création réservée aux officiers+ ; suppression par la faction propriétaire (officiers+) ou un admin.
+ * Conservé du commit {@code check} (table {@code fwarps}).
+ * La commande live {@code /fw} est {@link FwCommand} (table historique {@code faction_warps} :
+ * quota, claim, UI faction). Cette classe n'est plus enregistrée dans {@code plugin.yml}.
  */
 public class FWarpCommand implements CommandExecutor, TabCompleter {
 

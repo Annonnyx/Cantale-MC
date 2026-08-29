@@ -14,8 +14,13 @@ public record CantaleMapPayload(byte[] data) implements CustomPayload {
 
 	public static final Identifier CHANNEL = Identifier.of("cantale", "map");
 	public static final CustomPayload.Id<CantaleMapPayload> ID = new CustomPayload.Id<>(CHANNEL);
-	public static final PacketCodec<RegistryByteBuf, CantaleMapPayload> CODEC = PacketCodec.tuple(
-			PacketCodecs.byteArray(65536), CantaleMapPayload::data, CantaleMapPayload::new);
+	public static final PacketCodec<RegistryByteBuf, CantaleMapPayload> CODEC = CustomPayload.codecOf(
+			(payload, buf) -> buf.writeBytes(payload.data()),
+			buf -> {
+				byte[] bytes = new byte[buf.readableBytes()];
+				buf.readBytes(bytes);
+				return new CantaleMapPayload(bytes);
+			});
 
 	@Override
 	public Id<? extends CustomPayload> getId() {

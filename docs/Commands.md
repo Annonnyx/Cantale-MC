@@ -17,6 +17,7 @@ Catégories de commandes
 - /adminhome tp <joueur> <nom> — (staff) se téléporte à ce home (forme courte : /adminhome <joueur> <nom>).
 - /adminhome delete <joueur> <nom> — (staff) supprime ce home (en ligne ou hors ligne, log console).
 - /warp [nom|set|delete|toggle] — téléporte vers un warp public ou gère les warps.
+- /fw [nom|create|delete|list] — warps de faction publics (TP tout le serveur ; create/delete officiers+).
 - /spawn — téléporte au spawn.
 - /rtp — téléporte aléatoirement.
 

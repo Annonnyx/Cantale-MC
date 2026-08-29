@@ -435,6 +435,11 @@ public class CustomItemListener implements Listener {
                 || event.getAction() == org.bukkit.event.block.Action.RIGHT_CLICK_BLOCK) {
             event.setCancelled(true);
             
+            if (plugin.getLifeManager().getLives(player.getUniqueId()) >= 3 && !player.hasPermission("cantale.admin")) {
+                player.sendMessage("§8[§6Cantale§8] §cVous avez déjà atteint le nombre maximum de 3 vies !");
+                return;
+            }
+            
             // Add 1 life
             plugin.getLifeManager().addLife(player.getUniqueId(), 1);
             
@@ -442,7 +447,7 @@ public class CustomItemListener implements Listener {
             item.setAmount(item.getAmount() - 1);
             
             player.sendMessage("§8[§6Cantale§8] §aVous avez utilisé une §eVie§a ! Vie(s) restante(s) : §e" 
-                    + plugin.getLifeManager().getLives(player.getUniqueId()));
+                    + plugin.getLifeManager().getLives(player.getUniqueId()) + "§7/§e3");
         }
     }
 

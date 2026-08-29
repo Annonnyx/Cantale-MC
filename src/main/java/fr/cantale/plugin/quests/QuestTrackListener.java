@@ -165,8 +165,36 @@ public class QuestTrackListener implements Listener {
             return;
         }
         String key = event.getEntityType().name();
-        plugin.getQuestEngine().addProgress(killer, QuestObjectiveType.KILL_MOB, key, 1);
-        plugin.getCollectionManager().onMobKill(killer, event.getEntityType(), 1, false);
+        int amount = resolveKillAmount(event.getEntity());
+        plugin.getQuestEngine().addProgress(killer, QuestObjectiveType.KILL_MOB, key, amount);
+        plugin.getCollectionManager().onMobKill(killer, event.getEntityType(), amount, false);
+    }
+
+    private int resolveKillAmount(org.bukkit.entity.Entity entity) {
+        if (entity == null) return 1;
+        var stackMgr = plugin.getMobStackManager();
+        if (stackMgr != null && stackMgr.isStacked(entity)) {
+            return 1;
+        }
+        for (var meta : entity.getMetadata("amount")) {
+            if (meta.value() instanceof Number num) return Math.max(1, num.intValue());
+        }
+        for (var meta : entity.getMetadata("stack-size")) {
+            if (meta.value() instanceof Number num) return Math.max(1, num.intValue());
+        }
+        for (var meta : entity.getMetadata("wildstacker:amount")) {
+            if (meta.value() instanceof Number num) return Math.max(1, num.intValue());
+        }
+        if (entity.customName() != null) {
+            String plain = net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText().serialize(entity.customName());
+            java.util.regex.Matcher m = java.util.regex.Pattern.compile("[xX×](\\d+)").matcher(plain);
+            if (m.find()) {
+                try {
+                    return Math.max(1, Integer.parseInt(m.group(1)));
+                } catch (NumberFormatException ignored) {}
+            }
+        }
+        return 1;
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)

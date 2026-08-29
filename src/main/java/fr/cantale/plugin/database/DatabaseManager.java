@@ -229,6 +229,7 @@ public class DatabaseManager {
                     FOREIGN KEY (faction_id) REFERENCES factions(id) ON DELETE CASCADE
                 )
                 """);
+            ensureFactionWarpUniqueNames(connection);
 
             // Homes personnels (faction)
             stmt.execute("""
@@ -1250,6 +1251,52 @@ public class DatabaseManager {
             }
         } catch (SQLException e) {
             plugin.getLogger().warning("Erreur lors de la fermeture de la base de données : " + e.getMessage());
+        }
+    }
+
+    /**
+     * Les FW publics s'appellent par {@code /fw <nom>} : le nom doit être unique sur tout le serveur.
+     * Dédoublonne les anciens enregistrements puis pose un index unique.
+     */
+    private void ensureFactionWarpUniqueNames(Connection connection) {
+        try (Statement stmt = connection.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT id, name FROM faction_warps ORDER BY id")) {
+            java.util.Set<String> used = new java.util.HashSet<>();
+            while (rs.next()) {
+                int id = rs.getInt("id");
+                String original = rs.getString("name");
+                if (original == null || original.isBlank()) continue;
+                String key = original.toLowerCase(java.util.Locale.ROOT);
+                if (used.add(key)) continue;
+                String renamed = original + "_" + id;
+                int suffix = 2;
+                while (!used.add(renamed.toLowerCase(java.util.Locale.ROOT))) {
+                    renamed = original + "_" + id + "_" + suffix;
+                    suffix++;
+                }
+                try (PreparedStatement upd = connection.prepareStatement(
+                        "UPDATE faction_warps SET name = ? WHERE id = ?")) {
+                    upd.setString(1, renamed);
+                    upd.setInt(2, id);
+                    upd.executeUpdate();
+                }
+                plugin.getLogger().info("FW renommé pour unicité globale : " + original + " → " + renamed);
+            }
+        } catch (SQLException ex) {
+            plugin.getLogger().warning("ensureFactionWarpUniqueNames (dédoublonnage) : " + ex.getMessage());
+        }
+
+        try (Statement stmt = connection.createStatement()) {
+            if (isSQLite()) {
+                stmt.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_faction_warps_name ON faction_warps(name COLLATE NOCASE)");
+            } else {
+                stmt.execute("CREATE UNIQUE INDEX idx_faction_warps_name ON faction_warps(name)");
+            }
+        } catch (SQLException ex) {
+            String msg = ex.getMessage() != null ? ex.getMessage().toLowerCase(java.util.Locale.ROOT) : "";
+            if (!msg.contains("duplicate") && !msg.contains("exists") && !msg.contains("already")) {
+                plugin.getLogger().warning("ensureFactionWarpUniqueNames (index) : " + ex.getMessage());
+            }
         }
     }
 

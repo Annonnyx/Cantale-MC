@@ -91,12 +91,34 @@ public class ModerationCommand implements CommandExecutor {
             case "vanish":
                 handleVanish(player);
                 break;
+            case "lock":
+            case "freeze":
+                handleLock(player, args);
+                break;
             default:
                 sendHelp(player);
                 break;
         }
 
         return true;
+    }
+
+    private void handleLock(Player staff, String[] args) {
+        if (args.length < 2) {
+            staff.sendMessage("§8[§6Cantale§8] §cUsage : /moderation lock <joueur>");
+            return;
+        }
+        Player target = Bukkit.getPlayer(args[1]);
+        if (target == null || !target.isOnline()) {
+            staff.sendMessage("§8[§6Cantale§8] §cJoueur introuvable ou hors ligne : §e" + args[1]);
+            return;
+        }
+        var lockMgr = plugin.getPlayerLockManager();
+        if (lockMgr != null) {
+            lockMgr.toggleLock(staff, target);
+        } else {
+            staff.sendMessage("§8[§6Cantale§8] §cPlayerLockManager indisponible.");
+        }
     }
 
     private void handleKick(Player sender, String[] args) {

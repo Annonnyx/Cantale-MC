@@ -40,7 +40,9 @@ public class FactionMainUI extends BaseUI {
             setItem(15, Material.BOOK, "§ePermissions", "§7Voir les permissions par grade");
             setItem(16, Material.ENDER_PEARL, "§eSpawn", "§7TP au spawn faction");
             setItem(17, Material.MAP, "§eCarte", "§7Carte des claims");
-            setItem(18, Material.COMPASS, "§eWarps", "§7Téléportations publiques", "§7de la faction");
+            setItem(18, Material.COMPASS, "§eWarps publics (FW)",
+                    "§7Téléportations publiques",
+                    "§7/fw create · /fw delete · /fw");
 
             setItem(20, Material.LIME_WOOL, "§aInviter", "§7Envoyer une invitation");
             setItem(21, Material.ANVIL, "§ePromouvoir / Rétrograder", "§7Gérer les grades");

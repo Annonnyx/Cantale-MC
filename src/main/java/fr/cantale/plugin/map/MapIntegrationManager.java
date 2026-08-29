@@ -72,10 +72,10 @@ public class MapIntegrationManager {
                     l.getWorld().getName(), "Warp", COLOR_WARP);
         }
 
-        // 3) Spawn et warps de la faction du joueur
+        // 3) Spawn de la faction du joueur + warps de faction publics (FW)
         Faction faction = factionManager.getPlayerFaction(uuid);
         if (faction != null) {
-            // Spawn de faction
+            // Spawn de faction (interne — distinct des FW publics)
             if (faction.getSpawnX() != null && faction.getSpawnWorld() != null) {
                 sendJourneyMapWaypoint(player, faction.getName() + " — Spawn",
                         faction.getSpawnX(), faction.getSpawnY(), faction.getSpawnZ(),
@@ -84,20 +84,13 @@ public class MapIntegrationManager {
                         faction.getSpawnX(), faction.getSpawnY(), faction.getSpawnZ(),
                         faction.getSpawnWorld(), "Faction Spawn", COLOR_OWN_FACTION);
             }
-            // Warps de faction
-            try (java.sql.Connection c = plugin.getDatabaseManager().getConnection();
-                 java.sql.PreparedStatement st = c.prepareStatement("SELECT name, world, x, y, z FROM faction_warps WHERE faction_id = ?")) {
-                st.setInt(1, faction.getId());
-                java.sql.ResultSet rs = st.executeQuery();
-                while (rs.next()) {
-                    String name = faction.getTag() + "-" + rs.getString("name");
-                    sendJourneyMapWaypoint(player, name, rs.getDouble("x"), rs.getDouble("y"), rs.getDouble("z"),
-                            rs.getString("world"), "§aFaction warp", COLOR_OWN_FACTION);
-                    sendXaeroWaypoint(player, name, rs.getDouble("x"), rs.getDouble("y"), rs.getDouble("z"),
-                            rs.getString("world"), "Faction warp", COLOR_OWN_FACTION);
-                }
-            } catch (java.sql.SQLException ex) {
-                plugin.getLogger().warning("sendWaypoints: " + ex.getMessage());
+        }
+        if (plugin.getFactionWarpManager() != null) {
+            for (fr.cantale.plugin.factions.FactionWarp fw : plugin.getFactionWarpManager().getAll()) {
+                sendJourneyMapWaypoint(player, fw.getName(), fw.getX(), fw.getY(), fw.getZ(),
+                        fw.getWorld(), "§6FW " + fw.getFactionName(), COLOR_WARP);
+                sendXaeroWaypoint(player, fw.getName(), fw.getX(), fw.getY(), fw.getZ(),
+                        fw.getWorld(), "FW " + fw.getFactionName(), COLOR_WARP);
             }
         }
     }
@@ -166,6 +159,24 @@ public class MapIntegrationManager {
         
         // Envoyer via le channel Xaero's Minimap
         sendMapPluginMessage(player, "xaerominimap:region", region.toString().getBytes());
+    }
+
+    public void suppressThirdPartyMinimaps(Player player) {
+        if (player == null || !player.isOnline()) return;
+        try {
+            JSONObject jmDisable = new JSONObject();
+            jmDisable.put("type", "admin");
+            jmDisable.put("enabled", false);
+            player.sendPluginMessage(plugin, "journeymap:common", jmDisable.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        } catch (Exception ignored) {}
+        try {
+            byte[] xaeroDisable = new byte[] {0, 0, 0};
+            player.sendPluginMessage(plugin, "xaerominimap:main", xaeroDisable);
+        } catch (Exception ignored) {}
+        try {
+            byte[] voxelDisable = "§0§0§1§2§3§4§5§6§7§8§9§a§b§c§d§e§f".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            player.sendPluginMessage(plugin, "voxelmap:main", voxelDisable);
+        } catch (Exception ignored) {}
     }
 
     private void sendMapPluginMessage(Player player, String channel, byte[] data) {

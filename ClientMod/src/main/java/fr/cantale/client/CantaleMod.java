@@ -3,6 +3,7 @@ package fr.cantale.client;
 import fr.cantale.client.data.ServerDataStore;
 import fr.cantale.client.net.CantaleNetworkHandler;
 import fr.cantale.client.render.TerrainSampler;
+import fr.cantale.client.render.WaypointWorldRenderer;
 import fr.cantale.client.ui.MapScreen;
 import fr.cantale.client.ui.MinimapHud;
 import net.fabricmc.api.ClientModInitializer;
@@ -54,6 +55,7 @@ public final class CantaleMod implements ClientModInitializer {
 
 		CantaleNetworkHandler.register();
 		MinimapHud.init();
+		WaypointWorldRenderer.init();
 
 		ClientTickEvents.END_CLIENT_TICK.register(this::onClientTick);
 

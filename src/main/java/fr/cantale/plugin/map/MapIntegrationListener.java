@@ -22,11 +22,9 @@ public class MapIntegrationListener implements Listener {
     public void onPlayerJoin(PlayerJoinEvent event) {
         Player player = event.getPlayer();
         
-        // Attendre un peu que le client soit prêt
         plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
-            mapManager.sendWaypointsToPlayer(player);
-            mapManager.sendClaimsToPlayer(player);
-        }, 40L); // 2 secondes
+            mapManager.suppressThirdPartyMinimaps(player);
+        }, 20L);
     }
 
     @EventHandler(priority = EventPriority.MONITOR)

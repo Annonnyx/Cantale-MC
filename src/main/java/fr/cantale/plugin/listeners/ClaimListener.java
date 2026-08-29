@@ -185,6 +185,12 @@ public class ClaimListener implements Listener {
         Player attacker = resolvePlayerAttacker(event.getDamager());
         if (attacker == null || attacker.getUniqueId().equals(victim.getUniqueId())) return;
 
+        // Mode Combattant : PvP autorisé partout (warps, pasdic, claims)
+        var combattantMgr = plugin.getCombattantManager();
+        if (combattantMgr != null && (combattantMgr.isCombattant(attacker.getUniqueId()) || combattantMgr.isCombattant(victim.getUniqueId()))) {
+            return;
+        }
+
         // Admins / ops / bypass admin (/f bypass) : pas de restriction claim
         if (attacker.isOp() || attacker.hasPermission("cantale.admin")
                 || plugin.getAdminBypassManager().isBypassing(attacker)) return;
@@ -248,9 +254,22 @@ public class ClaimListener implements Listener {
 
         // Portes, boutons, etc. : membres + alliés (+ admin) — pas les ennemis.
         if (!canInteract(player, loc)) {
-            event.setCancelled(true);
-            player.sendMessage(formatMessage("&cVous ne pouvez pas interagir avec ce block dans ce claim."));
+            boolean holdingFood = isEdibleItem(player.getInventory().getItemInMainHand())
+                    || isEdibleItem(player.getInventory().getItemInOffHand());
+            if (holdingFood) {
+                event.setUseInteractedBlock(org.bukkit.event.Event.Result.DENY);
+                event.setUseItemInHand(org.bukkit.event.Event.Result.ALLOW);
+            } else {
+                event.setCancelled(true);
+                player.sendMessage(formatMessage("&cVous ne pouvez pas interagir avec ce block dans ce claim."));
+            }
         }
+    }
+
+    private static boolean isEdibleItem(org.bukkit.inventory.ItemStack item) {
+        if (item == null || item.getType().isAir()) return false;
+        Material mat = item.getType();
+        return mat.isEdible() || mat == Material.POTION || mat == Material.MILK_BUCKET;
     }
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
@@ -276,6 +295,24 @@ public class ClaimListener implements Listener {
         }
         event.setCancelled(true);
         player.sendMessage(formatMessage("&cVous ne pouvez pas utiliser ça dans ce claim."));
+    }
+
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onPlayerChorusTeleport(org.bukkit.event.player.PlayerTeleportEvent event) {
+        if (event.getCause() != org.bukkit.event.player.PlayerTeleportEvent.TeleportCause.CHORUS_FRUIT) return;
+        Player player = event.getPlayer();
+        if (player.isOp() || player.hasPermission("cantale.admin") || plugin.getAdminBypassManager().isBypassing(player)) return;
+
+        Claim claimFrom = getClaimAt(event.getFrom());
+        Claim claimTo = getClaimAt(event.getTo());
+
+        boolean blockedFrom = claimFrom != null && !canInteractFor(player, event.getFrom(), false);
+        boolean blockedTo = claimTo != null && !canInteractFor(player, event.getTo(), false);
+
+        if (blockedFrom || blockedTo) {
+            event.setCancelled(true);
+            player.sendMessage(formatMessage("&cLa téléportation par Chorus Fruit est interdite dans les claims !"));
+        }
     }
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)

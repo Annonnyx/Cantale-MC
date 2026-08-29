@@ -25,12 +25,12 @@ public final class FactionPermissions {
         Set<FactionPermission> member = EnumSet.copyOf(recruit);
         member.addAll(EnumSet.of(
             FactionPermission.ADD_CLAIMS,
-            FactionPermission.INFO_BANK,
-            FactionPermission.FWARP
+            FactionPermission.INFO_BANK
         ));
 
         Set<FactionPermission> officer = EnumSet.copyOf(member);
         officer.addAll(EnumSet.of(
+            FactionPermission.FWARP,
             FactionPermission.REMOVE_CLAIMS,
             FactionPermission.FACCEPT,
             FactionPermission.FKICK,

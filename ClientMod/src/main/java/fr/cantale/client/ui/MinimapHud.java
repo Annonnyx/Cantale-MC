@@ -16,13 +16,13 @@ public final class MinimapHud {
 	/** Taille de la minimap en pixels (gui-scaled). */
 	private static final int SIZE = 120;
 	/** Marge par rapport au bord de l'écran. */
-	private static final int MARGIN = 6;
+	private static final int MARGIN = 8;
 	/** Zoom fixe : 4 blocs par pixel. */
 	private static final int ZOOM = 4;
 
 	private static final Identifier LAYER_ID = Identifier.of("cantale", "minimap");
 
-	private static volatile boolean enabled;
+	private static volatile boolean enabled = true;
 	private static MapCanvas canvas;
 
 	private MinimapHud() {
@@ -33,27 +33,36 @@ public final class MinimapHud {
 			if (!enabled) return;
 			MinecraftClient client = MinecraftClient.getInstance();
 			if (client.player == null || client.world == null) return;
-			if (client.currentScreen instanceof MapScreen) return; // plein écran ouvert : pas de doublon
-			if (client.inGameHud.getDebugHud().shouldShowDebugHud()) return; // F3 visible : on s'efface
+			if (client.currentScreen instanceof MapScreen) return;
+			if (client.inGameHud.getDebugHud().shouldShowDebugHud()) return;
+			if (client.options.hudHidden) return;
 
 			if (canvas == null) {
 				canvas = new MapCanvas("minimap", SIZE, SIZE);
 			}
 
 			int x = context.getScaledWindowWidth() - SIZE - MARGIN;
-			int y = MARGIN;
+			int y = MARGIN + 10;
 
-			// Cadre sombre + bordure claire
-			context.fill(x - 2, y - 2, x + SIZE + 2, y + SIZE + 2, 0xCC14141C);
+			context.fill(x - 4, y - 4, x + SIZE + 4, y + SIZE + 4, 0xFF08080E);
+			context.fill(x - 3, y - 3, x + SIZE + 3, y + SIZE + 3, 0xFFC9A44A);
+			context.fill(x - 2, y - 2, x + SIZE + 2, y + SIZE + 2, 0xFF2A2418);
+			context.fill(x - 1, y - 1, x + SIZE + 1, y + SIZE + 1, 0xFF12121A);
+
 			canvas.draw(context, x, y, client.world, CantaleMod.getServerWorldName(),
 					client.player.getX(), client.player.getZ(), ZOOM, false, true);
 
+			var tr = client.textRenderer;
+			int nW = tr.getWidth("N");
+			context.drawTextWithShadow(tr, "N", x + SIZE / 2 - nW / 2, y - 10, 0xFFE53935);
+
 			String coords = (int) client.player.getX() + " " + (int) client.player.getZ();
-			int textWidth = client.textRenderer.getWidth(coords);
-			context.fill(x + SIZE / 2 - textWidth / 2 - 2, y + SIZE + 3,
-					x + SIZE / 2 + textWidth / 2 + 2, y + SIZE + 13, 0xCC14141C);
-			context.drawTextWithShadow(client.textRenderer, coords,
-					x + SIZE / 2 - textWidth / 2, y + SIZE + 5, 0xFFE8E8F0);
+			int textWidth = tr.getWidth(coords);
+			int cy = y + SIZE + 13;
+			context.fill(x + SIZE / 2 - textWidth / 2 - 3, cy,
+					x + SIZE / 2 + textWidth / 2 + 3, cy + 11, 0xCC101018);
+			context.drawTextWithShadow(tr, coords,
+					x + SIZE / 2 - textWidth / 2, cy + 2, 0xFFE8E8F0);
 		});
 	}
 

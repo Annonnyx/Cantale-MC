@@ -332,6 +332,16 @@ public class MobStackManager {
         // Remettre un mouton tondu en laine si le stack contient encore des moutons « wool »
         // (on stacke sheared/wool séparément → pas de mélange)
 
+        if (killer instanceof Player player) {
+            String mobKey = entity.getType().name();
+            if (plugin.getQuestEngine() != null) {
+                plugin.getQuestEngine().addProgress(player, fr.cantale.plugin.quests.QuestObjectiveType.KILL_MOB, mobKey, 1);
+            }
+            if (plugin.getCollectionManager() != null) {
+                plugin.getCollectionManager().add(player.getUniqueId(), "mobs", mobKey, 1);
+            }
+        }
+
         markSkipMerge(entity, 40);
         return true;
     }

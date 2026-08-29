@@ -90,10 +90,6 @@ patterns:
     category: BOIS
     buy: 20
     sell-enabled: false
-  - match: ["_BED"]
-    category: GUERRE
-    buy: 780
-    sell-enabled: false
 
 items:
   # SAND et GUNPOWDER : volontairement absents (et blacklist code) — TNT farm via shop.
@@ -165,6 +161,20 @@ items:
   EGG: {category: MOB_DROPS, buy: 18, sell: 1}
   STRING: {category: MOB_DROPS, buy: 18, sell: 1}
   BONE: {category: MOB_DROPS, buy: 18, sell: 1}
+  ROTTEN_FLESH: {category: MOB_DROPS, buy: 18, sell: 1}
+  SPIDER_EYE: {category: MOB_DROPS, buy: 18, sell: 1}
+  SLIME_BALL: {category: MOB_DROPS, buy: 24, sell: 2}
+  MAGMA_CREAM: {category: MOB_DROPS, buy: 30, sell: 3}
+  RABBIT_HIDE: {category: MOB_DROPS, buy: 18, sell: 1}
+  RABBIT_FOOT: {category: MOB_DROPS, buy: 75, sell: 10}
+  INK_SAC: {category: MOB_DROPS, buy: 18, sell: 1}
+  GLOW_INK_SAC: {category: MOB_DROPS, buy: 24, sell: 2}
+  GHAST_TEAR: {category: MOB_DROPS, buy: 150, sell: 20}
+  NAUTILUS_SHELL: {category: MOB_DROPS, buy: 250, sell: 30}
+  PRISMARINE_SHARD: {category: MOB_DROPS, buy: 20, sell: 2}
+  PRISMARINE_CRYSTALS: {category: MOB_DROPS, buy: 24, sell: 3}
+  HONEYCOMB: {category: MOB_DROPS, buy: 20, sell: 2}
+  HONEY_BOTTLE: {category: MOB_DROPS, buy: 30, sell: 4}
   PHANTOM_MEMBRANE: {category: MOB_DROPS, buy: 145, sell: 22}
 
   # ── Redstone & mécanismes (achat seulement — jamais une source de farm) ──
@@ -188,4 +198,4 @@ items:
   # 3 têtes = 150 000 Cantox / wither. Cap 6/j = 2 withers shop. Pas de revente.
   WITHER_SKELETON_SKULL: {category: GUERRE, buy: 50000, sell-enabled: false, daily-buy-cap: 6}
   ARROW: {category: GUERRE, buy: 60, sell-enabled: false}
-  SHIELD: {category: GUERRE, buy: 3480, sell-enabled: false}
+  WHITE_BED: {category: GUERRE, buy: 780, sell-enabled: false}

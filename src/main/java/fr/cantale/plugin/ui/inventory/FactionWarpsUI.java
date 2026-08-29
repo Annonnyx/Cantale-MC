@@ -2,80 +2,130 @@ package fr.cantale.plugin.ui.inventory;
 
 import fr.cantale.plugin.CantalePlugin;
 import fr.cantale.plugin.factions.Faction;
+import fr.cantale.plugin.factions.FactionWarp;
+import fr.cantale.plugin.factions.FactionWarpManager;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.event.ClickEvent;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
+import org.bukkit.event.inventory.InventoryClickEvent;
 
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Liste des warps de faction. Clic = TP, Shift+Clic = delete (via menu d'action).
+ * Warps de faction publics (FW). Clic gauche = TP, clic droit = supprimer (officiers+).
  */
 public class FactionWarpsUI extends BaseUI {
 
     private final Faction faction;
-    private final List<String> warpNames = new ArrayList<>();
+    private final List<FactionWarp> warps = new ArrayList<>();
+    private final boolean canManage;
 
     public FactionWarpsUI(CantalePlugin plugin, Player player, Faction faction) {
         super(plugin, player, "§8[§6Cantale§8] §7Warps — " + faction.getName(), 6);
         this.faction = faction;
+        this.canManage = plugin.getFactionWarpManager().canManage(player, faction);
     }
 
     @Override
     protected void init() {
         fillEmpty();
-        warpNames.clear();
+        warps.clear();
+        warps.addAll(plugin.getFactionWarpManager().getByFaction(faction.getId()));
 
-        try (Connection c = plugin.getDatabaseManager().getConnection();
-             PreparedStatement st = c.prepareStatement("SELECT name FROM faction_warps WHERE faction_id = ? ORDER BY name")) {
-            st.setInt(1, faction.getId());
-            ResultSet rs = st.executeQuery();
-            while (rs.next()) warpNames.add(rs.getString("name"));
-        } catch (Exception ex) {
-            player.sendMessage("§cErreur lors du chargement des warps : " + ex.getMessage());
-        }
-
-        setItem(4, Material.ENDER_PEARL, "§6§lWarps de Faction",
-            "§7" + warpNames.size() + "/" + faction.getMaxWarps() + " warps",
-            "§7Cliquez un warp pour vous y téléporter");
+        setItem(4, Material.ENDER_PEARL, "§6§lWarps publics (FW)",
+            "§7" + warps.size() + "/" + faction.getMaxWarps() + " warps",
+            "§7Formule : §e1 §7si pouvoir < 60,",
+            "§7sinon §e1 + (pouvoir − 60) / 30",
+            "§7Tout le serveur : §e/fw <nom>",
+            "§7▶ Clic gauche §7: Téléporter",
+            canManage ? "§7▶ Clic droit §7: Supprimer" : "§8Suppression : officiers+");
 
         int slot = 9;
-        for (String name : warpNames) {
+        for (FactionWarp warp : warps) {
             if (slot >= 45) break;
-            setItem(slot, Material.COMPASS, "§e" + name,
-                "§7▶ Clic §7: Téléporter",
-                "§7▶ Clic droit §7: Supprimer");
+            setItem(slot, Material.COMPASS, "§e" + warp.getName(),
+                "§7Faction : §e" + warp.getFactionName(),
+                "§7▶ Clic gauche §7: /fw " + warp.getName(),
+                canManage ? "§7▶ Clic droit §7: Supprimer" : "§8Lecture seule");
             slot++;
         }
 
-        if (warpNames.isEmpty()) {
-            setItem(22, Material.PAPER, "§7Aucun warp défini",
-                "§7Utilisez §e/f setwarp <nom>§7 dans un claim",
-                "§7pour créer un nouveau warp.");
+        if (warps.isEmpty()) {
+            setItem(22, Material.PAPER, "§7Aucun warp public",
+                "§7Officiers : §e/fw create <nom>",
+                "§7dans un claim de la faction.");
         }
 
-        setItem(48, Material.LIME_WOOL, "§a§l+ Nouveau warp", "§7/f setwarp <nom>", "§7Crée un warp à votre position");
+        if (canManage) {
+            setItem(48, Material.LIME_WOOL, "§a§l+ Créer un FW",
+                "§7/fw create <nom>",
+                "§7Dans un claim, officiers+",
+                "§7Cliquez puis tapez le nom");
+            setItem(50, Material.RED_WOOL, "§c§lSupprimer",
+                "§7Clic droit sur un warp",
+                "§7ou §e/fw delete <nom>");
+        } else {
+            setItem(48, Material.GRAY_WOOL, "§cCréer un FW",
+                "§7Officiers et chef uniquement",
+                "§7/fw create <nom>");
+        }
+        setItem(47, Material.BOOK, "§eListe du serveur",
+            "§7/fw",
+            "§7Tous les warps de faction publics");
         addNavigationBar(true, true);
     }
 
     @Override
     protected void handleClick(int slot) {
+        handleClick(slot, null);
+    }
+
+    @Override
+    protected void handleClick(int slot, InventoryClickEvent event) {
         if (slot == 45) { plugin.getUIManager().goBack(player); return; }
         if (slot == 49) { close(); return; }
         if (slot == 53) { init(); return; }
+        if (slot == 47) {
+            close();
+            player.performCommand("fw");
+            return;
+        }
         if (slot == 48) {
             close();
-            player.sendMessage("§8[§6Cantale§8] §7Pour créer un warp, tapez §e/f setwarp <nom>§7 dans un claim de votre faction.");
+            if (!canManage) {
+                player.sendMessage(FactionWarpManager.PREFIX + "§cSeuls les officiers et le chef peuvent créer un FW.");
+                return;
+            }
+            player.sendMessage(FactionWarpManager.PREFIX + "§7Placez-vous dans un claim puis tapez §e/fw create <nom>§7.");
+            player.sendMessage(Component.text("§e[Cliquer pour préremplir /fw create ]")
+                    .clickEvent(ClickEvent.suggestCommand("/fw create ")));
+            return;
+        }
+        if (slot == 50) {
+            player.sendMessage(FactionWarpManager.PREFIX + "§7Clic droit sur un warp de la liste pour le supprimer, ou tapez §e/fw delete <nom>§7.");
             return;
         }
 
         int index = slot - 9;
-        if (index < 0 || index >= warpNames.size()) return;
-        String name = warpNames.get(index);
+        if (index < 0 || index >= warps.size()) return;
+        FactionWarp warp = warps.get(index);
+        boolean deleteClick = event != null && (event.isRightClick() || event.isShiftClick());
+        if (deleteClick) {
+            if (!canManage) {
+                player.sendMessage(FactionWarpManager.PREFIX + "§cSeuls les officiers et le chef peuvent supprimer un FW.");
+                return;
+            }
+            plugin.getUIManager().getNavigationManager().openUI(player,
+                    new ConfirmDialogUI(plugin, player, "§7Supprimer le FW",
+                            "Supprimer le warp public " + warp.getName() + " ?",
+                            confirmed -> {
+                                if (confirmed) plugin.getFactionWarpManager().delete(player, warp.getName());
+                            }));
+            return;
+        }
         close();
-        player.performCommand("f warp " + name);
+        player.performCommand("fw " + warp.getName());
     }
 }

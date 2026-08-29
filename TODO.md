@@ -1,5 +1,15 @@
 # TODO Cantale
 
+## Ajouts & Correctifs Plugin (fin août 2026)
+- [x] **`/fw` warps de faction publics (fusion check + local)** : commande top-level `/fw` (aliases `/fwarp` `/fwarps`). Live = table historique `faction_warps` (données existantes, quota pouvoir, create dans un claim, UI faction, permission Officier+ `FWARP`, noms uniques globaux). `/fw` liste serveur, `/fw <nom>` TP public (warmup `/warp`), `/fw create` / `/fw delete`. Alias `/f setwarp` / `/f warp` / `/f delwarp` conservés. Spawn fac (`/f setspawn`) non touché. Le commit `check` apportait une 2e table `fwarps` (sans quota ni claim) — classes conservées, non branchées sur `/fw`.
+- [x] **Shop Update (Loots de Mobs)** : Ajout de la chair putréfiée, slimeball, œil d'araignée, crème de magma, larme de ghast, etc. dans `MOB_DROPS`. SAND et GUNPOWDER restent absents (anti-farm TNT).
+- [x] **Fix Repas en Claim Ennemi** : consommation de nourriture (Pomme Dorée, Steak, Potion…) tout en ciblant un bloc dans un claim ennemi.
+- [x] **Cap Global 3 Vies & BossBar** : limite stricte à 3 vies ingérées, restitution des excédents à la connexion.
+- [x] **Blocage Chorus Fruit in Claims** : interdiction des TP Chorus vers ou depuis un claim ennemi/protégé.
+- [x] **Mode Combattant (`/combattant <Joueur>`)** : sauvegarde/restitution d'inventaire, bypass PvP, blocage `/pc` `/ec` `/tp`, logs `logs/combattant`.
+- [x] **Moderation Lock (`/lock <Joueur>`)** : gel complet (immobilité, TP/interactions/commandes, persistance).
+- [x] **Admin Inv (`/admininv <Joueur>`)** : inspecter/éditer l'inventaire d'un joueur connecté.
+
 ## Collections : kills de mobs empilés (2026-08-18)
 - [x] **Cause** : un coup létal sur un stack est absorbé (`tryAbsorbLethalHit`) — l'entité
   ne meurt pas, `EntityDeathEvent` ne part pas, Minecraft n'incrémente pas `KILL_ENTITY`.
@@ -114,21 +124,15 @@
   (item frames, armor stands, tableaux), seaux, pose d'entités et explosions bloqués ; message
   « §eVous entrez dans une §6zone protégée§e. » / « §eVous quittez la zone protégée. » au
   changement de chunk (anti-spam 2 s, comme les claims). Exemptions : op / `cantale.admin` /
-  `/f bypass`. PvP et mobs non touchés.
-- [x] **Commande `/fw` (warps publics de faction)** : `/fw <nom>` TP ouverte à tous (cooldown/warmup
-  standard via `TeleportDelayManager`), `/fw list` cliquable (nom + faction + monde), `/fw create <nom>`
-  réservé aux officiers+ (`Faction#isOfficier`), nom unique global insensible à la casse (max 32
-  caractères, noms de sous-commandes réservés), `/fw delete <nom>` pour officiers+ de la faction
-  propriétaire ou admin. **Aucune zone protégée** autour d'un fw : seule la protection de claims
-  classique s'applique (penser à créer le fw dans un claim de sa fac pour protéger le build/shop).
-- [x] **Persistance** : table `fwarps` (id, name UNIQUE, faction_id FK ON DELETE CASCADE,
-  creator_uuid, position complète, created_at) + `FWarp` / `FWarpDAO` / `FWarpManager` (cache +
-  reconnexion DB comme les warps).
-- [x] **Carte du mod client** : les fw sont envoyés dans les marqueurs `warps` avec `faction: true`
-  (rétro-compatible si le mod ignore la propriété) ; refresh à la création/suppression.
-- [ ] Déployer le JAR. Vérifier en jeu : message entrée/sortie zone warp, casse/pose/interactions
-  bloquées dans les 16x16 chunks, `/fw create` (officier), unicité des noms, `/fw <nom>` pour un
-  joueur d'une autre faction, suppression par autre faction refusée, fw visibles sur la carte mod.
+  `/f bypass`. PvP et mobs non touchés. **Les FW de faction n'ont pas cette zone** : seule
+  la protection de claims s'applique (d'où l'obligation de créer le FW dans un claim).
+- [x] **`/fw` live = `faction_warps`** (pas la table `fwarps` du commit `check`) : quota pouvoir,
+  create Officier+ dans un claim, TP public, UI faction, alias `/f setwarp`. Classes `FWarp*`
+  du commit `check` conservées (table `fwarps` toujours créée) mais `/fw` est `FwCommand`.
+- [x] **Carte du mod client** : les FW `faction_warps` sont envoyés dans les marqueurs `warps`
+  avec `faction: true` ; refresh à la création/suppression.
+- [ ] Déployer le JAR. Vérifier en jeu : zone 16×16 des warps admin, `/fw create` (officier dans
+  un claim), quota, `/fw <nom>` pour un joueur d'une autre faction, UI `/f` → Warps.
 
 ## Correctifs Plugin & Site Web (août 2026)
 - [x] **Compteur joueurs en ligne site web** : initialisation avec état et affichage fluide (fallback 0).
@@ -213,6 +217,14 @@
       (file → tick client), JSON Gson, tout le parsing en try/catch, version protocole vérifiée.
       Sans serveur Cantale : terrain seul, aucune erreur. `gradle build` vert
       (`ClientMod/build/libs/cantale-client-1.0.0.jar`). Voir `ClientMod/README.md`.
+- [x] **Correctifs & Invalidation des minimaps tierces (Août 2026)** :
+      - Shop : retrait de `SHIELD` et des lits colorés, conservation uniquement de `WHITE_BED` dans `shop.yml`.
+      - Réseau : correction du codec Netty `CantaleMapPayload` (suppression du préfixe VarInt `byteArray`) éliminant le crash de connexion à l'arrivée sur le serveur.
+      - Inhibiteur minimaps tierces : envoi automatique de paquets de désactivation à la connexion (`journeymap:common`, `xaerominimap:main`, `voxelmap:main`).
+      - Minimap & Waypoints : Minimap HUD active par défaut. Nouveau `WaypointManager` (waypoints personnels sauvegardés dans `cantale_waypoints.json`).
+      - Interface de carte `M` : barre de filtres (Claims, Warps, Homes, Perso), liste interactive avec TP instantané (`/home <nom>` / `/warp <nom>`), et ajout de waypoints custom.
+- [x] **Carte client niveau JourneyMap** (août 2026) : confirmation Oui/Non avant tout TP (home/warp/FW/panneau) ; marqueur joueur en chevron vectoriel orienté au yaw (contour noir, fill or) ; menu clic-droit waypoint (renommer, supprimer avec confirmation, palette 12 couleurs persistée, afficher/cacher) ; clic droit vide = ajouter un waypoint ; clic droit warp/home/FW = téléporter (puis confirmation) + centrer ; icônes distinctes (losange/maison/étoile/drapeau) carte + minimap ; waypoints in-world (beams via `WorldRenderEvents.BEFORE_TRANSLUCENT`, HUD icône+nom+distance via `HudElementRegistry`, toggle « Beams / In-world » persisté). JAR : `ClientMod/build/libs/cantale-client-1.0.0.jar`.
+- [x] **Cahier des charges mod client** : `ClientMod/CAHIER_DES_CHARGES.md` (exigences figées vs livré, protocole v1 réel, UX, persistance, recette).
 - [ ] **Distribution** : build release + distribution launcher/modpack aux joueurs.
 - [ ] **Tests en jeu** : handshake (log client « Serveur Cantale détecté »), M/N, pan/zoom,
       claims colorés par relation (dont WAR orange et PASDIC violet), secret invisible pour

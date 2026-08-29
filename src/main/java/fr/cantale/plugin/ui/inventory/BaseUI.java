@@ -131,6 +131,11 @@ public abstract class BaseUI implements Listener {
             return;
         }
 
+        handleClick(slot, event);
+    }
+
+    /** Surcharge optionnelle pour distinguer clic gauche / droit. */
+    protected void handleClick(int slot, InventoryClickEvent event) {
         handleClick(slot);
     }
 

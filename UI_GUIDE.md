@@ -351,12 +351,18 @@ Types logués : `DEPOSIT`, `WITHDRAW`, `POWER_BUY`, `ADMIN_ADD`, `ADMIN_REMOVE` 
 
 ### FactionHomesUI — retiré
 
-Les homes de faction n'existent plus. Homes perso : `/home`. Mobilité fac : `/f spawn`, `/f warp`. Fichier Java conservé (stub).
+Les homes de faction n'existent plus. Homes perso : `/home`. Mobilité fac : `/f spawn`, `/fw`. Fichier Java conservé (stub).
 
-### FactionWarpsUI — `/f warps`
+### FactionWarpsUI — `/f` → Warps publics (FW)
 
-**Titre :** `§7Warps — {faction}`  
-**Taille :** 5 lignes
+**Titre :** `§8[§6Cantale§8] §7Warps — {faction}`  
+**Taille :** 6 lignes
+
+- Header (slot 4) : quota pouvoir (1 si pouvoir < 60, sinon 1+(pouvoir−60)/30)
+- Slots 9–44 : FW de la fac — clic gauche = `/fw <nom>` (TP public), clic droit = confirmer suppression (officiers+)
+- Slot 47 : liste serveur (`/fw`)
+- Slot 48 : créer (`/fw create <nom>`, officiers+)
+- Slot 50 : aide suppression (officiers+)
 
 ### MemberActionUI — `/f members` → clic membre
 

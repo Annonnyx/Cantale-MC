@@ -10,12 +10,11 @@ softdepend:
   - packetevents
   - GrimAC
 
-# Plugin message channels pour JourneyMap et Xaero's Minimap
+# Plugin message channels pour la désactivation des minimaps tierces non officielles
 plugin-message-channels:
-  - journeymap:waypoint
-  - journeymap:region
-  - xaerominimap:waypoint
-  - xaerominimap:region
+  - journeymap:common
+  - xaerominimap:main
+  - voxelmap:main
 
 commands:
   cantale:
@@ -108,11 +107,29 @@ commands:
     aliases: [apc, sepc]
     permission: cantale.moderator
     permission-message: "§cPermission refusée (cantale.admin / cantale.moderator)."
+  admininv:
+    description: "Staff — ouvrir/éditer l'inventaire d'un joueur en direct"
+    usage: /admininv <joueur>
+    aliases: [ainv, seeinv]
+    permission: cantale.moderator
+    permission-message: "§cPermission refusée (cantale.admin / cantale.moderator)."
+  combattant:
+    description: "Admin — basculer le mode combattant d'un joueur"
+    usage: /combattant <joueur>
+    aliases: [combatant]
+    permission: cantale.admin
+    permission-message: "§cPermission refusée (cantale.admin)."
+  lock:
+    description: "Staff — verrouiller/déverrouiller un joueur"
+    usage: /lock <joueur>
+    aliases: [freeze]
+    permission: cantale.moderator
+    permission-message: "§cPermission refusée (cantale.admin / cantale.moderator)."
   warp:
     description: Téléportation aux warps publics (cooldown 30 s, warmup 3 s)
     usage: /warp [nom|set|delete|toggle]
   fw:
-    description: Warps publics de faction — TP ouverte à tous (builds, shops, spawners…)
+    description: Warps de faction publics (TP tout le serveur ; create/delete officiers+ dans un claim)
     usage: /fw [nom|list|create <nom>|delete <nom>]
     aliases: [fwarp, fwarps]
   spawn:

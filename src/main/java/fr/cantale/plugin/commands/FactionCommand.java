@@ -94,7 +94,7 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
             case "setwarp" -> handleSetWarp(player, args);
             case "delwarp" -> handleDelWarp(player, args);
             case "home", "sethome", "homes" -> {
-                player.sendMessage(formatMessage("&cLes homes de faction n'existent plus. Utilise &e/home &c(perso), &e/f spawn &cou &e/f warp&c."));
+                player.sendMessage(formatMessage("&cLes homes de faction n'existent plus. Utilise &e/home &c(perso), &e/f spawn &cou &e/fw&c."));
             }
             case "promote", "promo" -> handlePromote(player, args);
             case "demote", "demo" -> handleDemote(player, args);
@@ -530,100 +530,27 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
     }
 
     private void handleFactionWarp(Player player, String[] args) {
-        Faction faction = factionManager.getPlayerFaction(player.getUniqueId());
-        if (faction == null) { player.sendMessage(formatMessage("&cVous n'êtes pas dans une faction.")); return; }
-        FactionRank rank = faction.getMemberRank(player.getUniqueId());
-        if (!faction.isLeader(player.getUniqueId())
-                && !permissionManager.hasPermission(faction.getId(), rank, FactionPermission.FWARP)) {
-            player.sendMessage(formatMessage("&cVous n'avez pas la permission d'utiliser les warps de faction."));
-            return;
-        }
         if (args.length < 2) {
-            // Lister
-            player.sendMessage(formatMessage("&6=== Warps de faction ==="));
-            try (java.sql.Connection c = plugin.getDatabaseManager().getConnection();
-                 java.sql.PreparedStatement st = c.prepareStatement("SELECT name FROM faction_warps WHERE faction_id = ?")) {
-                st.setInt(1, faction.getId());
-                java.sql.ResultSet rs = st.executeQuery();
-                int count = 0;
-                while (rs.next()) { player.sendMessage(formatMessage("&7- &e" + rs.getString("name"))); count++; }
-                if (count == 0) player.sendMessage(formatMessage("&7Aucun warp défini. Utilisez /f setwarp <nom>"));
-            } catch (java.sql.SQLException ex) { player.sendMessage(formatMessage("&cErreur DB.")); }
+            plugin.getFactionWarpManager().listOwnFaction(player);
             return;
         }
-        // Tp à un warp
-        try (java.sql.Connection c = plugin.getDatabaseManager().getConnection();
-             java.sql.PreparedStatement st = c.prepareStatement("SELECT world, x, y, z FROM faction_warps WHERE faction_id = ? AND name = ?")) {
-            st.setInt(1, faction.getId());
-            st.setString(2, args[1]);
-            java.sql.ResultSet rs = st.executeQuery();
-            if (!rs.next()) { player.sendMessage(formatMessage("&cWarp introuvable.")); return; }
-            org.bukkit.World w = Bukkit.getWorld(rs.getString("world"));
-            if (w == null) { player.sendMessage(formatMessage("&cMonde inexistant.")); return; }
-            org.bukkit.Location destination = new org.bukkit.Location(w, rs.getDouble("x"), rs.getDouble("y"), rs.getDouble("z"));
-            plugin.getTeleportDelayManager().requestTeleport(player, destination, false, () ->
-                    player.sendMessage(formatMessage("&aTéléporté au warp &e" + args[1] + "&a.")));
-        } catch (java.sql.SQLException ex) { player.sendMessage(formatMessage("&cErreur DB.")); }
+        plugin.getFactionWarpManager().teleport(player, args[1]);
     }
 
     private void handleSetWarp(Player player, String[] args) {
-        if (args.length < 2) { player.sendMessage(formatMessage("&cUsage : /f setwarp <nom>")); return; }
-        Faction faction = factionManager.getPlayerFaction(player.getUniqueId());
-        if (faction == null) { player.sendMessage(formatMessage("&cVous n'êtes pas dans une faction.")); return; }
-        FactionRank rank = faction.getMemberRank(player.getUniqueId());
-        if (!faction.isLeader(player.getUniqueId())
-                && !permissionManager.hasPermission(faction.getId(), rank, FactionPermission.FWARP)) {
-            player.sendMessage(formatMessage("&cVous n'avez pas la permission.")); return;
-        }
-        // Vérifier que le warp est dans un claim de la faction
-        org.bukkit.Chunk chunk = player.getLocation().getChunk();
-        Claim claim = factionManager.getClaimAt(player.getWorld().getName(), chunk.getX(), chunk.getZ());
-        if (claim == null || claim.getFactionId() != faction.getId()) {
-            player.sendMessage(formatMessage("&cVous devez être dans un claim de votre faction."));
+        if (args.length < 2) {
+            player.sendMessage(formatMessage("&cUsage : /fw create <nom> §7(alias /f setwarp)"));
             return;
         }
-        // Vérifier le quota max selon power
-        int maxWarps = faction.getMaxWarps();
-        try (java.sql.Connection c = plugin.getDatabaseManager().getConnection();
-             java.sql.PreparedStatement st = c.prepareStatement("SELECT COUNT(*) FROM faction_warps WHERE faction_id = ?")) {
-            st.setInt(1, faction.getId());
-            java.sql.ResultSet rs = st.executeQuery();
-            if (rs.next() && rs.getInt(1) >= maxWarps) {
-                player.sendMessage(formatMessage("&cQuota de warps atteint (" + maxWarps + "). Augmentez le pouvoir de votre faction."));
-                return;
-            }
-        } catch (java.sql.SQLException ex) { player.sendMessage(formatMessage("&cErreur DB.")); return; }
-
-        try (java.sql.Connection c = plugin.getDatabaseManager().getConnection();
-             java.sql.PreparedStatement st = c.prepareStatement("INSERT INTO faction_warps (faction_id, name, world, x, y, z) VALUES (?,?,?,?,?,?)")) {
-            st.setInt(1, faction.getId());
-            st.setString(2, args[1]);
-            st.setString(3, player.getWorld().getName());
-            st.setDouble(4, player.getLocation().getX());
-            st.setDouble(5, player.getLocation().getY());
-            st.setDouble(6, player.getLocation().getZ());
-            st.executeUpdate();
-            player.sendMessage(formatMessage("&aWarp &e" + args[1] + " &acréé."));
-        } catch (java.sql.SQLException ex) { player.sendMessage(formatMessage("&cErreur DB.")); }
+        plugin.getFactionWarpManager().create(player, args[1]);
     }
 
     private void handleDelWarp(Player player, String[] args) {
-        if (args.length < 2) { player.sendMessage(formatMessage("&cUsage : /f delwarp <nom>")); return; }
-        Faction faction = factionManager.getPlayerFaction(player.getUniqueId());
-        if (faction == null) { player.sendMessage(formatMessage("&cVous n'êtes pas dans une faction.")); return; }
-        FactionRank rank = faction.getMemberRank(player.getUniqueId());
-        if (!faction.isLeader(player.getUniqueId())
-                && !permissionManager.hasPermission(faction.getId(), rank, FactionPermission.FWARP)) {
-            player.sendMessage(formatMessage("&cVous n'avez pas la permission.")); return;
+        if (args.length < 2) {
+            player.sendMessage(formatMessage("&cUsage : /fw delete <nom> §7(alias /f delwarp)"));
+            return;
         }
-        try (java.sql.Connection c = plugin.getDatabaseManager().getConnection();
-             java.sql.PreparedStatement st = c.prepareStatement("DELETE FROM faction_warps WHERE faction_id = ? AND name = ?")) {
-            st.setInt(1, faction.getId());
-            st.setString(2, args[1]);
-            int rows = st.executeUpdate();
-            if (rows > 0) player.sendMessage(formatMessage("&aWarp supprimé."));
-            else player.sendMessage(formatMessage("&cWarp introuvable."));
-        } catch (java.sql.SQLException ex) { player.sendMessage(formatMessage("&cErreur DB.")); }
+        plugin.getFactionWarpManager().delete(player, args[1]);
     }
 
     private void handleClaim(Player player, String[] args) {
@@ -824,8 +751,9 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
         player.sendMessage(ChatColor.GRAY + "/f autoclaim on|off");
         player.sendMessage(ChatColor.GRAY + "/f map - Carte GUI (claim/unclaim au clic)");
         player.sendMessage(ChatColor.GRAY + "/f map chat - Ancienne grille chat 11×11 (cooldown 30 s)");
-        player.sendMessage(ChatColor.GRAY + "/f spawn | /f go | /f setspawn - Spawn de faction");
-        player.sendMessage(ChatColor.GRAY + "/f warp [nom] | /f setwarp <nom> | /f delwarp <nom>");
+        player.sendMessage(ChatColor.GRAY + "/f spawn | /f go | /f setspawn - Spawn de faction (interne)");
+        player.sendMessage(ChatColor.GRAY + "/fw | /fw <nom> | /fw create <nom> | /fw delete <nom> - Warps publics");
+        player.sendMessage(ChatColor.GRAY + "/f warp [nom] | /f setwarp <nom> | /f delwarp <nom> - alias des FW");
         player.sendMessage(ChatColor.GRAY + "/f c [message] - Basculer ou envoyer un message dans le chat de faction");
         player.sendMessage(ChatColor.GRAY + "/f bank - Banque GUI | /f bank power [n] (sans n = GUI pouvoir)");
         player.sendMessage(ChatColor.GRAY + "/f power - Pouvoir, quotas, paliers + achat (GUI)");
@@ -1437,7 +1365,7 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
             case BANK_ADD -> "Déposer à la banque";
             case BANK_TAKE -> "Retirer de la banque";
             case INFO_BANK -> "Voir la banque";
-            case FWARP -> "Gérer / utiliser les warps";
+            case FWARP -> "Créer / supprimer les warps publics (FW)";
             case SECRET -> "Activer le mode secret";
             case CULTURES -> "Fermes publiques (récolte par non-membres)";
             case SET_PERMS -> "Gérer les permissions";
@@ -1491,6 +1419,22 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
             if (sub.equals("pasdic") || sub.equals("protect")) {
                 return Arrays.asList("confirm").stream()
                         .filter(s -> s.startsWith(args[1].toLowerCase()))
+                        .collect(Collectors.toList());
+            }
+            if (sub.equals("warp") || sub.equals("setwarp") || sub.equals("delwarp")) {
+                String prefix = args[1].toLowerCase();
+                Faction fac = sender instanceof Player p
+                        ? factionManager.getPlayerFaction(p.getUniqueId()) : null;
+                if (sub.equals("warp")) {
+                    return plugin.getFactionWarpManager().getAll().stream()
+                            .map(fr.cantale.plugin.factions.FactionWarp::getName)
+                            .filter(n -> n.toLowerCase().startsWith(prefix))
+                            .collect(Collectors.toList());
+                }
+                if (fac == null) return Collections.emptyList();
+                return plugin.getFactionWarpManager().getByFaction(fac.getId()).stream()
+                        .map(fr.cantale.plugin.factions.FactionWarp::getName)
+                        .filter(n -> n.toLowerCase().startsWith(prefix))
                         .collect(Collectors.toList());
             }
             if (sub.equals("war") || sub.equals("enemy") || sub.equals("peace") || sub.equals("surrender")

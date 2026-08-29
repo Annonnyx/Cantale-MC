@@ -259,6 +259,13 @@ public class ClientMapBridge implements Listener, PluginMessageListener {
             }
         }
         // Warps publics de faction (/fw) : marqueur warp avec indicateur "faction"
+        if (plugin.getFactionWarpManager() != null) {
+            for (fr.cantale.plugin.factions.FactionWarp fw : plugin.getFactionWarpManager().getAll()) {
+                JsonObject w = marker(fw.getName(), fw.getWorld(), fw.getX(), fw.getY(), fw.getZ());
+                w.addProperty("faction", true);
+                warps.add(w);
+            }
+        }
         if (plugin.getFWarpManager() != null) {
             for (fr.cantale.plugin.teleport.FWarp fwarp : plugin.getFWarpManager().getFWarps()) {
                 if (fwarp.getLocation() == null || fwarp.getLocation().getWorld() == null) continue;

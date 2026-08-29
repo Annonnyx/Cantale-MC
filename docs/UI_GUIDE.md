@@ -274,7 +274,7 @@ public class NavigationManager {
 | 22 | RED_WOOL | `§cQuitter la faction` | `§7Attention ! Action définitive` | Ouvre FactionLeaveConfirmUI |
 | 23 | TNT | `§cSupprimer la faction` | `§7Leader uniquement` | Ouvre FactionDeleteConfirmUI |
 | 29 | SIGN | `§eDéfinir le spawn` | `§7Position actuelle` | /f setspawn |
-| 30 | SIGN | `§eDéfinir le warp` | `§7Position actuelle` | /f setwarp |
+| 30 | SIGN | `§eDéfinir le warp public` | `§7/fw create <nom>` | /fw create |
 | 45 | ARROW | `§7Retour` | | Retour au Menu Principal |
 | 49 | BARRIER | `§cFermer` | | Ferme |
 
