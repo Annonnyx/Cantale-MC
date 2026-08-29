@@ -45,7 +45,9 @@ public class ShopConfig {
             Material.DRAGON_EGG,
             Material.WRITTEN_BOOK,
             Material.WRITABLE_BOOK,
-            Material.SPAWNER
+            Material.SPAWNER,
+            Material.SAND,
+            Material.GUNPOWDER
     );
 
     private final CantalePlugin plugin;

@@ -15,6 +15,8 @@ import fr.cantale.plugin.factions.Faction;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockDamageEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
+import org.bukkit.event.enchantment.EnchantItemEvent;
+import org.bukkit.event.enchantment.PrepareItemEnchantEvent;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.PrepareAnvilEvent;
 import org.bukkit.event.inventory.PrepareGrindstoneEvent;
@@ -525,13 +527,36 @@ public class CustomItemListener implements Listener {
 
     @EventHandler
     public void onPrepareAnvil(PrepareAnvilEvent event) {
+        ItemStack first = event.getInventory().getFirstItem();
+        ItemStack second = event.getInventory().getSecondItem();
+        // Contrôler les ENTRÉES : un livre enchanté sur une Cantalame produit un
+        // résultat netherite « nu » (sans PDC custom) que l'ancien check sur
+        // getResult() laissait passer.
+        if (cantalameManager.isCantalame(first) || cantalameManager.isCantalame(second)
+                || customItemManager.isCustomItem(first) || customItemManager.isCustomItem(second)) {
+            event.setResult(null);
+            return;
+        }
+
         ItemStack result = event.getResult();
         if (result == null || result.getType().isAir()) return;
-
-        // Blocage total des items custom dans l'enclume (pas de désenchantement, pas de fusion, pas de renommage).
-        if (customItemManager.isCustomItem(result)) {
+        if (customItemManager.isCustomItem(result) || cantalameManager.isCantalame(result)) {
             event.setResult(null);
         }
+    }
+
+    @EventHandler
+    public void onPrepareItemEnchant(PrepareItemEnchantEvent event) {
+        if (cantalameManager.isCantalame(event.getItem())) {
+            event.setCancelled(true);
+        }
+    }
+
+    @EventHandler
+    public void onEnchantItem(EnchantItemEvent event) {
+        if (!cantalameManager.isCantalame(event.getItem())) return;
+        event.setCancelled(true);
+        event.getEnchanter().sendMessage("§8[§6Cantale§8] §cLa Cantalame ne s'enchante pas à la table — elle progresse avec tes kills.");
     }
 
     @EventHandler

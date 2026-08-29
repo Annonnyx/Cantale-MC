@@ -181,16 +181,13 @@ public class CrateOpenUI extends BaseUI {
 
     @Override
     public void onClose(org.bukkit.event.inventory.InventoryCloseEvent event) {
-        if (!event.getView().getTitle().equals(title)) return;
+        if (event.getView().getTopInventory() != inventory) return;
         if (!event.getPlayer().equals(player)) return;
 
-        cancelSpin();
-        // Si fermeture anticipée : délivrer quand même la récompense (clé déjà consommée)
-        if (!rewardDelivered) {
-            deliverReward();
-        } else {
-            crateManager.clearOpening(player);
-        }
+        // Ne PAS délivrer ni relâcher le verrou ici : un shift-clic droit / ÉCHAP
+        // fermait le menu et donnait la récompense immédiatement, ce qui permettait
+        // d'enchaîner toute une stack de clefs sans animation. Le spin continue
+        // en arrière-plan ; reveal() délivre au bout du délai prévu.
         super.onClose(event);
     }
 }

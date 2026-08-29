@@ -20,7 +20,10 @@ import {
  * Les deux lectures renvoient null si la base ne répond pas : la page /carte
  * et les routes API affichent alors un état gracieux plutôt qu'une 500.
  */
-const NOT_SECRET = "COALESCE(f.secret_until, 0) <= UNIX_TIMESTAMP()";
+const NOT_SECRET = `(
+  (f.created_at IS NULL OR f.created_at <= UNIX_TIMESTAMP() - 259200)
+  AND (f.last_raid_at IS NULL OR f.last_raid_at <= UNIX_TIMESTAMP() - 86400)
+)`;
 
 type ClaimRow = {
   chunk_x: number;

@@ -115,10 +115,12 @@
 /Users/Noe/Documents/Cantale/src/main/java/fr/cantale/plugin/factions/permissions/FactionPermission.java
 /Users/Noe/Documents/Cantale/src/main/java/fr/cantale/plugin/vote/VoteSite.java
 /Users/Noe/Documents/Cantale/src/main/java/fr/cantale/plugin/custom/CustomItemManager.java
+/Users/Noe/Documents/Cantale/src/main/java/fr/cantale/plugin/ui/inventory/TradeSessionUI.java
 /Users/Noe/Documents/Cantale/src/main/java/fr/cantale/plugin/collections/CollectionConfig.java
 /Users/Noe/Documents/Cantale/src/main/java/fr/cantale/plugin/anticheat/AntiCheatConfig.java
 /Users/Noe/Documents/Cantale/src/main/java/fr/cantale/plugin/anticheat/movement/SpeedCheck.java
 /Users/Noe/Documents/Cantale/src/main/java/fr/cantale/plugin/optimization/ItemMergeManager.java
+/Users/Noe/Documents/Cantale/src/main/java/fr/cantale/plugin/trade/TradeListener.java
 /Users/Noe/Documents/Cantale/src/main/java/fr/cantale/plugin/commands/FeedCommand.java
 /Users/Noe/Documents/Cantale/src/main/java/fr/cantale/plugin/anticheat/rotation/RotationListener.java
 /Users/Noe/Documents/Cantale/src/main/java/fr/cantale/plugin/util/OverworldDay.java
@@ -194,9 +196,11 @@
 /Users/Noe/Documents/Cantale/src/main/java/fr/cantale/plugin/teleport/WarpDAO.java
 /Users/Noe/Documents/Cantale/src/main/java/fr/cantale/plugin/spawners/SpawnerKeys.java
 /Users/Noe/Documents/Cantale/src/main/java/fr/cantale/plugin/events/ChatReactionManager.java
+/Users/Noe/Documents/Cantale/src/main/java/fr/cantale/plugin/teleport/FWarp.java
 /Users/Noe/Documents/Cantale/src/main/java/fr/cantale/plugin/crate/CrateManager.java
 /Users/Noe/Documents/Cantale/src/main/java/fr/cantale/plugin/chatbot/faq/FaqQuestionDetector.java
 /Users/Noe/Documents/Cantale/src/main/java/fr/cantale/plugin/chatbot/faq/FaqCooldownManager.java
+/Users/Noe/Documents/Cantale/src/main/java/fr/cantale/plugin/commands/FWarpCommand.java
 /Users/Noe/Documents/Cantale/src/main/java/fr/cantale/plugin/anticheat/combat/AimCheck.java
 /Users/Noe/Documents/Cantale/src/main/java/fr/cantale/plugin/shop/ShopItem.java
 /Users/Noe/Documents/Cantale/src/main/java/fr/cantale/plugin/anticheat/combat/AutoClickerCheck.java
@@ -253,6 +257,7 @@
 /Users/Noe/Documents/Cantale/src/main/java/fr/cantale/plugin/listeners/ChatPrefixListener.java
 /Users/Noe/Documents/Cantale/src/main/java/fr/cantale/plugin/ui/map/MapPalette.java
 /Users/Noe/Documents/Cantale/src/main/java/fr/cantale/plugin/commands/EnderChestCommand.java
+/Users/Noe/Documents/Cantale/src/main/java/fr/cantale/plugin/teleport/FWarpManager.java
 /Users/Noe/Documents/Cantale/src/main/java/fr/cantale/plugin/ui/inventory/EconomyUI.java
 /Users/Noe/Documents/Cantale/src/main/java/fr/cantale/plugin/spawners/SpawnerCommand.java
 /Users/Noe/Documents/Cantale/src/main/java/fr/cantale/plugin/commands/SpawnCommand.java
@@ -266,6 +271,7 @@
 /Users/Noe/Documents/Cantale/src/main/java/fr/cantale/plugin/optimization/ServerOptimizer.java
 /Users/Noe/Documents/Cantale/src/main/java/fr/cantale/plugin/crate/CrateRewardTable.java
 /Users/Noe/Documents/Cantale/src/main/java/fr/cantale/plugin/crate/LegendaryTicketManager.java
+/Users/Noe/Documents/Cantale/src/main/java/fr/cantale/plugin/teleport/FWarpDAO.java
 /Users/Noe/Documents/Cantale/src/main/java/fr/cantale/plugin/map/MapIntegrationListener.java
 /Users/Noe/Documents/Cantale/src/main/java/fr/cantale/plugin/commands/WarpCommand.java
 /Users/Noe/Documents/Cantale/src/main/java/fr/cantale/plugin/commands/LeaderboardCommand.java
@@ -303,6 +309,7 @@
 /Users/Noe/Documents/Cantale/src/main/java/fr/cantale/plugin/commands/LinkCommand.java
 /Users/Noe/Documents/Cantale/src/main/java/fr/cantale/plugin/commands/LifeCommand.java
 /Users/Noe/Documents/Cantale/src/main/java/fr/cantale/plugin/commands/WelcomeCommand.java
+/Users/Noe/Documents/Cantale/src/main/java/fr/cantale/plugin/listeners/WarpProtectionListener.java
 /Users/Noe/Documents/Cantale/src/main/java/fr/cantale/plugin/combat/CombatTagManager.java
 /Users/Noe/Documents/Cantale/src/main/java/fr/cantale/plugin/cooldown/CooldownManager.java
 /Users/Noe/Documents/Cantale/src/main/java/fr/cantale/plugin/ui/inventory/CollectionTiersUI.java

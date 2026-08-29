@@ -96,6 +96,7 @@ export async function getFactionClaims(factionId: number): Promise<Array<{ world
     FROM claims c
     INNER JOIN factions f ON f.id = c.faction_id
     WHERE c.faction_id = ?
-      AND COALESCE(f.secret_until, 0) < ?
-  `, [factionId, Math.floor(Date.now() / 1000)]);
+      AND (f.created_at IS NULL OR f.created_at <= ?)
+      AND (f.last_raid_at IS NULL OR f.last_raid_at <= ?)
+  `, [factionId, Math.floor(Date.now() / 1000) - 259200, Math.floor(Date.now() / 1000) - 86400]);
 }

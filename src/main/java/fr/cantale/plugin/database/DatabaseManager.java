@@ -446,6 +446,24 @@ public class DatabaseManager {
                 )
                 """);
 
+            // Warps publics de faction (/fw) : accessibles à tous, sans zone protégée
+            stmt.execute("""
+                CREATE TABLE IF NOT EXISTS fwarps (
+                    id INTEGER PRIMARY KEY AUTO_INCREMENT,
+                    name VARCHAR(255) UNIQUE NOT NULL,
+                    faction_id INTEGER NOT NULL,
+                    creator_uuid VARCHAR(36) NOT NULL,
+                    world VARCHAR(255) NOT NULL,
+                    x REAL NOT NULL,
+                    y REAL NOT NULL,
+                    z REAL NOT NULL,
+                    yaw REAL NOT NULL,
+                    pitch REAL NOT NULL,
+                    created_at INTEGER DEFAULT 0,
+                    FOREIGN KEY (faction_id) REFERENCES factions(id) ON DELETE CASCADE
+                )
+                """);
+
             // Mutes
             stmt.execute("""
                 CREATE TABLE IF NOT EXISTS mutes (

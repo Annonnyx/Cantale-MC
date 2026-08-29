@@ -49,7 +49,8 @@ public class WebAdminBridge {
     }
 
     public void start() {
-        if (task != null) return;
+        if (task != null)
+            return;
         task = Bukkit.getScheduler().runTaskTimerAsynchronously(
                 plugin, this::poll, INITIAL_DELAY_TICKS, INTERVAL_TICKS);
         plugin.getLogger().info("[Web] WebAdminBridge démarré (web_admin_actions toutes les 2s).");
@@ -63,11 +64,12 @@ public class WebAdminBridge {
     }
 
     private record Pending(
-            long id, String type, String targetUuid, String targetName, String payload, String actorDiscordId
-    ) {}
+            long id, String type, String targetUuid, String targetName, String payload, String actorDiscordId) {
+    }
 
     private void poll() {
-        for (Pending p : fetch()) process(p);
+        for (Pending p : fetch())
+            process(p);
     }
 
     private List<Pending> fetch() {
@@ -75,9 +77,10 @@ public class WebAdminBridge {
         String sql = "SELECT id, type, target_uuid, target_name, payload, actor_discord_id " +
                 "FROM web_admin_actions WHERE status = 'pending' ORDER BY id LIMIT " + BATCH_SIZE;
         try (Connection conn = plugin.getDatabaseManager().getConnection()) {
-            if (conn == null) return list;
+            if (conn == null)
+                return list;
             try (PreparedStatement ps = conn.prepareStatement(sql);
-                 ResultSet rs = ps.executeQuery()) {
+                    ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
                     list.add(new Pending(
                             rs.getLong("id"),
@@ -175,7 +178,8 @@ public class WebAdminBridge {
 
     private String setMoney(UUID uuid, String name, String payload, boolean add) {
         UUID id = resolveUuid(uuid, name);
-        if (id == null) return "joueur introuvable";
+        if (id == null)
+            return "joueur introuvable";
         double amount;
         try {
             amount = Double.parseDouble(payload);
@@ -186,28 +190,33 @@ public class WebAdminBridge {
             plugin.getEconomyManager().addBalance(id, amount);
         } else {
             plugin.getEconomyManager().removeBalance(id, plugin.getEconomyManager().getBalance(id));
-            if (amount > 0) plugin.getEconomyManager().addBalance(id, amount);
+            if (amount > 0)
+                plugin.getEconomyManager().addBalance(id, amount);
         }
         return null;
     }
 
     private String setLives(UUID uuid, String name, String payload, boolean add) {
         UUID id = resolveUuid(uuid, name);
-        if (id == null) return "joueur introuvable";
+        if (id == null)
+            return "joueur introuvable";
         int amount;
         try {
             amount = Integer.parseInt(payload);
         } catch (NumberFormatException e) {
             return "vies invalides";
         }
-        if (add) plugin.getLifeManager().addLife(id, amount);
-        else plugin.getLifeManager().setLives(id, Math.max(0, amount));
+        if (add)
+            plugin.getLifeManager().addLife(id, amount);
+        else
+            plugin.getLifeManager().setLives(id, Math.max(0, amount));
         return null;
     }
 
     private String giveItem(UUID uuid, String name, String payload) {
         Player target = resolveOnline(uuid, name);
-        if (target == null) return "joueur hors-ligne";
+        if (target == null)
+            return "joueur hors-ligne";
         String typeArg = payload.toUpperCase(Locale.ROOT);
         try {
             CustomItemType type = CustomItemType.valueOf(typeArg);
@@ -220,7 +229,8 @@ public class WebAdminBridge {
             return null;
         } catch (IllegalArgumentException e) {
             Material mat = Material.matchMaterial(typeArg);
-            if (mat == null || !mat.isItem()) return "item inconnu";
+            if (mat == null || !mat.isItem())
+                return "item inconnu";
             target.getInventory().addItem(new ItemStack(mat, 1));
             return null;
         }
@@ -241,22 +251,26 @@ public class WebAdminBridge {
             }
         }
         OfflinePlayer offline = resolveOffline(uuid, name);
-        if (offline == null || offline.getName() == null) return "joueur introuvable";
+        if (offline == null || offline.getName() == null)
+            return "joueur introuvable";
         Bukkit.getBanList(org.bukkit.BanList.Type.NAME).addBan(
                 offline.getName(), reason, (java.util.Date) null, "Cantale-Web");
         try {
             Bukkit.getBanList(org.bukkit.BanList.Type.PROFILE).addBan(
                     offline.getName(), reason, (java.util.Date) null, "Cantale-Web");
-        } catch (Exception ignored) {}
+        } catch (Exception ignored) {
+        }
         return null;
     }
 
     private String unban(UUID uuid, String name) {
         OfflinePlayer offline = resolveOffline(uuid, name);
         String playerName = offline != null ? offline.getName() : name;
-        if (playerName == null || playerName.isBlank()) return "joueur introuvable";
+        if (playerName == null || playerName.isBlank())
+            return "joueur introuvable";
         UUID id = resolveUuid(uuid, name);
-        if (id == null && offline != null) id = offline.getUniqueId();
+        if (id == null && offline != null)
+            id = offline.getUniqueId();
         if (id != null) {
             plugin.getLifeManager().pardonLifeBan(id, playerName);
             if (plugin.getLifeManager().getLives(id) <= 0) {
@@ -265,39 +279,44 @@ public class WebAdminBridge {
         } else {
             try {
                 Bukkit.getBanList(org.bukkit.BanList.Type.NAME).pardon(playerName);
-            } catch (Exception ignored) {}
+            } catch (Exception ignored) {
+            }
             try {
                 Bukkit.getBanList(org.bukkit.BanList.Type.PROFILE).pardon(playerName);
-            } catch (Exception ignored) {}
+            } catch (Exception ignored) {
+            }
         }
         return null;
     }
 
     private String msg(UUID uuid, String name, String payload) {
-        if (payload.isBlank()) return "message vide";
+        if (payload.isBlank())
+            return "message vide";
         Player target = resolveOnline(uuid, name);
-        if (target == null) return "joueur hors-ligne";
+        if (target == null)
+            return "joueur hors-ligne";
         target.sendMessage("§8[§6Admin§8] §f" + payload);
         return null;
     }
 
     private String discordDm(UUID uuid, String name, String payload) {
-        if (payload.isBlank()) return "message vide";
+        if (payload.isBlank())
+            return "message vide";
         UUID id = resolveUuid(uuid, name);
-        if (id == null) return "joueur introuvable";
+        if (id == null)
+            return "joueur introuvable";
         if (plugin.getDiscordBot() == null || !plugin.getDiscordBot().isConnected()) {
             return "bot discord indisponible";
         }
         String discordId = lookupDiscordId(id);
-        if (discordId == null) return "compte discord non lié";
+        if (discordId == null)
+            return "compte discord non lié";
         try {
-            plugin.getDiscordBot().getJda().retrieveUserById(discordId).queue(user ->
-                    user.openPrivateChannel().flatMap(pc ->
-                            pc.sendMessage("**[Cantale Admin]** " + payload)).queue(
-                            null,
-                            err -> plugin.getLogger().warning("[Web] DM Discord échoué: " + err.getMessage())
-                    )
-            );
+            plugin.getDiscordBot().getJda().retrieveUserById(discordId)
+                    .queue(user -> user.openPrivateChannel()
+                            .flatMap(pc -> pc.sendMessage("**[Cantale Admin]** " + payload)).queue(
+                                    null,
+                                    err -> plugin.getLogger().warning("[Web] DM Discord échoué: " + err.getMessage())));
             return null;
         } catch (Exception e) {
             return truncate(e.getMessage());
@@ -305,12 +324,15 @@ public class WebAdminBridge {
     }
 
     /**
-     * Capture inventaire (online), EC, PC1–3, effets actifs → {@code web_admin_snapshots}.
+     * Capture inventaire (online), EC, PC1–3, effets actifs →
+     * {@code web_admin_snapshots}.
+     * 
      * @return OK:snapshot:&lt;id&gt; ou message d'erreur
      */
     private String inspectPlayer(long actionId, UUID uuid, String name) {
         UUID id = resolveUuid(uuid, name);
-        if (id == null) return "joueur introuvable";
+        if (id == null)
+            return "joueur introuvable";
 
         OfflinePlayer offline = Bukkit.getOfflinePlayer(id);
         String username = offline.getName() != null ? offline.getName() : (name != null ? name : id.toString());
@@ -365,7 +387,7 @@ public class WebAdminBridge {
         PrivateChestService pcs = plugin.getPrivateChestService();
         PlayerRank rank = plugin.getRankManager().getRank(id);
         JsonObject pcsJson = new JsonObject();
-        for (ChestType type : new ChestType[]{ChestType.PC1, ChestType.PC2, ChestType.PC3}) {
+        for (ChestType type : new ChestType[] { ChestType.PC1, ChestType.PC2, ChestType.PC3 }) {
             JsonObject chest = new JsonObject();
             boolean access = pcs != null && pcs.canAccess(rank, type);
             chest.addProperty("accessible", access);
@@ -384,14 +406,16 @@ public class WebAdminBridge {
         root.add("private_chests", pcsJson);
 
         Long snapId = insertSnapshot(actionId, id, "player_inspect", root.toString());
-        if (snapId == null) return "echec enregistrement snapshot";
+        if (snapId == null)
+            return "echec enregistrement snapshot";
         return "OK:snapshot:" + snapId;
     }
 
     private Long insertSnapshot(long actionId, UUID playerUuid, String kind, String payload) {
         String sql = "INSERT INTO web_admin_snapshots (action_id, player_uuid, kind, payload) VALUES (?, ?, ?, ?)";
         try (Connection conn = plugin.getDatabaseManager().getConnection()) {
-            if (conn == null) return null;
+            if (conn == null)
+                return null;
             try (PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
                 ps.setLong(1, actionId);
                 ps.setString(2, playerUuid.toString());
@@ -399,7 +423,8 @@ public class WebAdminBridge {
                 ps.setString(4, payload);
                 ps.executeUpdate();
                 try (ResultSet keys = ps.getGeneratedKeys()) {
-                    if (keys.next()) return keys.getLong(1);
+                    if (keys.next())
+                        return keys.getLong(1);
                 }
             }
         } catch (SQLException e) {
@@ -410,18 +435,21 @@ public class WebAdminBridge {
 
     private String lookupDiscordId(UUID uuid) {
         try (Connection conn = plugin.getDatabaseManager().getConnection();
-             PreparedStatement ps = conn.prepareStatement(
-                     "SELECT discord_id FROM discord_links WHERE uuid = ? LIMIT 1")) {
+                PreparedStatement ps = conn.prepareStatement(
+                        "SELECT discord_id FROM discord_links WHERE uuid = ? LIMIT 1")) {
             ps.setString(1, uuid.toString());
             try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) return rs.getString("discord_id");
+                if (rs.next())
+                    return rs.getString("discord_id");
             }
-        } catch (SQLException ignored) {}
+        } catch (SQLException ignored) {
+        }
         return null;
     }
 
     private UUID resolveUuid(UUID uuid, String name) {
-        if (uuid != null) return uuid;
+        if (uuid != null)
+            return uuid;
         OfflinePlayer offline = resolveOffline(null, name);
         return offline != null ? offline.getUniqueId() : null;
     }
@@ -429,23 +457,28 @@ public class WebAdminBridge {
     private Player resolveOnline(UUID uuid, String name) {
         if (uuid != null) {
             Player p = Bukkit.getPlayer(uuid);
-            if (p != null && p.isOnline()) return p;
+            if (p != null && p.isOnline())
+                return p;
         }
         if (name != null && !name.isBlank()) {
             Player p = Bukkit.getPlayerExact(name);
-            if (p != null && p.isOnline()) return p;
+            if (p != null && p.isOnline())
+                return p;
         }
         return null;
     }
 
     private OfflinePlayer resolveOffline(UUID uuid, String name) {
-        if (uuid != null) return Bukkit.getOfflinePlayer(uuid);
-        if (name != null && !name.isBlank()) return Bukkit.getOfflinePlayer(name);
+        if (uuid != null)
+            return Bukkit.getOfflinePlayer(uuid);
+        if (name != null && !name.isBlank())
+            return Bukkit.getOfflinePlayer(name);
         return null;
     }
 
     private static UUID parseUuid(String raw) {
-        if (raw == null || raw.isBlank()) return null;
+        if (raw == null || raw.isBlank())
+            return null;
         try {
             return UUID.fromString(raw);
         } catch (IllegalArgumentException e) {
@@ -460,11 +493,14 @@ public class WebAdminBridge {
     private void mark(long id, String status, String result, int maxLen) {
         String sql = "UPDATE web_admin_actions SET status = ?, result = ?, processed_at = CURRENT_TIMESTAMP WHERE id = ?";
         try (Connection conn = plugin.getDatabaseManager().getConnection()) {
-            if (conn == null) return;
+            if (conn == null)
+                return;
             try (PreparedStatement ps = conn.prepareStatement(sql)) {
                 ps.setString(1, status);
-                if (result == null) ps.setNull(2, java.sql.Types.VARCHAR);
-                else ps.setString(2, truncate(result, maxLen));
+                if (result == null)
+                    ps.setNull(2, java.sql.Types.VARCHAR);
+                else
+                    ps.setString(2, truncate(result, maxLen));
                 ps.setLong(3, id);
                 ps.executeUpdate();
             }
@@ -478,7 +514,8 @@ public class WebAdminBridge {
     }
 
     private static String truncate(String value, int max) {
-        if (value == null) return null;
+        if (value == null)
+            return null;
         return value.length() <= max ? value : value.substring(0, max);
     }
 }

@@ -29,13 +29,20 @@ import java.util.List;
  * </ul>
  *
  * Hôte = entité la plus ancienne ; plafond {@code max-stack} par entité, l'excédent
- * reste sur une entité séparée (un Item de count &gt; 64 est supporté vanilla :
- * le pickup remplit plusieurs stacks d'inventaire).
+ * reste sur une entité séparée (le pickup remplit plusieurs stacks d'inventaire).
+ *
+ * Limite dure : le codec vanilla borne le count d'un ItemStack à {@value #MAX_SERIALIZED_STACK}
+ * — au-delà, l'entité n'est plus sérialisable et est perdue au chunk unload
+ * (warnings Moonrise « Value must be within range [1;99] »). Le plafond configuré est
+ * donc clampé à 99 et les entités historiques oversized sont re-découpées au balayage.
  *
  * Protections : jamais de fusion sur un item non ramassable, en pickup infini,
  * invulnérable, nommé (hologrammes / décoratifs d'autres systèmes) ou invalide.
  */
 public class ItemMergeManager implements Listener {
+
+    /** Borne haute du codec vanilla ItemStack (champ count ∈ [1;99] à la sérialisation). */
+    private static final int MAX_SERIALIZED_STACK = 99;
 
     private final CantalePlugin plugin;
 
@@ -57,7 +64,9 @@ public class ItemMergeManager implements Listener {
         this.radius = Math.max(1.0, plugin.getConfig().getDouble("optimization.item-merge.radius", 4.5));
         this.intervalSeconds = Math.max(5, plugin.getConfig().getInt("optimization.item-merge.interval-seconds", 15));
         this.minItemsPerChunk = Math.max(2, plugin.getConfig().getInt("optimization.item-merge.min-items-per-chunk", 6));
-        this.maxStack = Math.max(64, plugin.getConfig().getInt("optimization.item-merge.max-stack", 512));
+        // Clamp dur à 99 : au-delà, l'ItemEntity n'est plus sauvegardée (codec vanilla [1;99]).
+        this.maxStack = Math.min(MAX_SERIALIZED_STACK,
+                Math.max(2, plugin.getConfig().getInt("optimization.item-merge.max-stack", MAX_SERIALIZED_STACK)));
     }
 
     public void start() {
@@ -121,6 +130,7 @@ public class ItemMergeManager implements Listener {
                 List<Item> items = null;
                 for (Entity entity : chunk.getEntities()) {
                     if (entity instanceof Item item && isMergeable(item)) {
+                        normalizeOversized(item);
                         if (items == null) items = new ArrayList<>();
                         items.add(item);
                     }
@@ -130,6 +140,33 @@ public class ItemMergeManager implements Listener {
                 }
             }
         }
+    }
+
+    /**
+     * Répare les entités créées avec l'ancien plafond (&gt; {@value #MAX_SERIALIZED_STACK},
+     * jamais sauvegardées au chunk unload) : l'excédent est re-posé en entités
+     * séparées à la même position, qui re-fusionneront ensuite sans dépasser le plafond.
+     */
+    private void normalizeOversized(Item item) {
+        ItemStack stack = item.getItemStack();
+        int amount = stack.getAmount();
+        if (amount <= MAX_SERIALIZED_STACK) return;
+
+        ItemStack host = stack.clone();
+        host.setAmount(MAX_SERIALIZED_STACK);
+        item.setItemStack(host);
+
+        int remaining = amount - MAX_SERIALIZED_STACK;
+        while (remaining > 0) {
+            ItemStack extra = stack.clone();
+            extra.setAmount(Math.min(MAX_SERIALIZED_STACK, remaining));
+            Item dropped = item.getWorld().dropItem(item.getLocation(), extra);
+            dropped.setPickupDelay(item.getPickupDelay());
+            remaining -= extra.getAmount();
+        }
+        plugin.getLogger().info("[Opti] ItemMerge : stack oversized x" + amount + " "
+                + stack.getType() + " re-découpé @ " + item.getLocation().getBlockX() + ","
+                + item.getLocation().getBlockY() + "," + item.getLocation().getBlockZ());
     }
 
     // ─── Règles de fusion ───────────────────────────────────────────
@@ -159,6 +196,8 @@ public class ItemMergeManager implements Listener {
 
         for (List<Item> group : groups) {
             if (group.size() < 2) continue;
+            // Répare d'éventuelles entités legacy au-delà de la borne de sérialisation
+            group.forEach(this::normalizeOversized);
             // Hôte = plus ancien (ticksLived max) : l'entité visible reste stable
             group.sort((a, b) -> Integer.compare(b.getTicksLived(), a.getTicksLived()));
 

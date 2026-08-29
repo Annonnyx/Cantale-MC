@@ -34,7 +34,8 @@ public class ModHelpCommand implements CommandExecutor {
         sender.sendMessage("");
         sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&e&lInspection inventaires / homes :"));
         sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&7/adminhome check <joueur> &8- &7Lister les homes"));
-        sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&7/adminhome <joueur> <nom> &8- &7TP vers ce home"));
+        sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&7/adminhome tp <joueur> <nom> &8- &7TP vers ce home"));
+        sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&7/adminhome delete <joueur> <nom> &8- &7Supprimer ce home"));
         sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&7/adminec <joueur> &8- &7Voir/éditer l'ender chest"));
         sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&7/adminpc <joueur> [1|2|3] &8- &7Voir/éditer les coffres privés"));
         sender.sendMessage("");

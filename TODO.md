@@ -1,5 +1,135 @@
 # TODO Cantale
 
+## Collections : kills de mobs empilés (2026-08-18)
+- [x] **Cause** : un coup létal sur un stack est absorbé (`tryAbsorbLethalHit`) — l'entité
+  ne meurt pas, `EntityDeathEvent` ne part pas, Minecraft n'incrémente pas `KILL_ENTITY`.
+  Collections et quêtes n'écoutaient que la vraie mort → 0 progrès en farm stackée.
+- [x] **Fix** : à chaque absorption, crédit collections + quêtes + stats vanilla
+  (`KILL_ENTITY` / `MOB_KILLS`). `/collections` ré-aligne aussi la catégorie mobs sur les
+  stats vanilla (max avec le compteur plugin) pour rattraper l'historique des kills
+  non-stackés. Dernier du stack = vraie mort, chemin `EntityDeathEvent` inchangé (pas de
+  double compte).
+- [ ] Déployer le JAR. Tester : tuer 10 vaches d'un stack ×12 → collection Vache +10
+  (plus le 11e si tu continues) ; quête KILL_MOB vache avance ; `/collections` après
+  des kills vanilla hors stack affiche au moins le chiffre des stats Minecraft.
+
+## Clefs, spawners, shop sable/gunpowder, Cantalame (2026-08-18)
+- [x] **Exploit clefs** : shift-clic droit / fermeture du GUI du Trésor Public délivrait
+  la récompense immédiatement et levait le verrou `openingPlayers` → spam de toute une
+  stack sans animation. Fix : le spin continue en arrière-plan, récompense au délai prévu ;
+  `denyVanillaUse` (block + item DENY) pour empêcher l'insertion d'une stack dans le coffre.
+- [x] **Spawners** : pool élargi (19 rare / 19 épique / 7 mythique). Ours, gardien, husk,
+  piglins, hoglins, etc. Ghast et shulker restent non-obtenables (BDD → magma). Cadence ×2
+  pour golem, ravageur, grand gardien, évocateurs, piglin brute.
+- [x] **Shop** : SAND et GUNPOWDER retirés de `shop.yml` + blacklist code (le fichier live
+  du serveur ne peut plus les vendre même sans copie du yml).
+- [x] **Cantalame** : plus enchantable à la table / enclume (composant `enchantable` retiré,
+  PrepareItemEnchant + EnchantItem + contrôle des *entrées* d'enclume). Les paliers de kills
+  continuent d'ajouter les enchantements en code.
+- [ ] Déployer le JAR (et recopier `shop.yml` / `faq.yml` si tu veux le disque à jour —
+  la blacklist code suffit pour le shop). Tester : stack de clefs + shift-clic droit sur le
+  coffre spawn = 1 ouverture + animation obligatoire ; Cantalame + livre à l'enclume = refus ;
+  `/shop` sans sable ni poudre ; `/spawner give` husk/guardian/polar_bear/piglin/hoglin.
+
+## Refonte complète du système `/trade` (2026-08-18)
+- [x] **Problème** : `/trade` était un placeholder inutilisable — trade démarré d'office sans
+  demande, aucune UI (juste du texte chat), **impossible de déposer des items** (`addItem` jamais
+  appelé), sessions fantômes à la déconnexion (joueurs bloqués jusqu'au reboot), items perdus si
+  inventaire plein, ordre deposit/withdraw bancal, `cleanupExpired` jamais schedulé.
+- [x] **Refonte** (flux demandé) : `/trade <joueur>` envoie une **demande** (60 s, boutons
+  cliquables [Accepter]/[Refuser] dans le chat) → acceptation → **GUI d'échange** 6 lignes
+  (zone d'offre locale 4×6 à gauche, offre adverse en miroir à droite, colonne centrale :
+  argent local/distant, statut, confirmer, annuler) → dépôt d'items par clic curseur ou
+  shift-clic → **bouton lingot d'or** : saisie du montant dans le chat (plafonné au solde,
+  « annuler »/30 s de timeout, `/trade money <montant>` conservé) → **confirmation des deux
+  côtés** → **compte à rebours 5 s** (actionbar) → échange.
+- [x] **Sécurités anti-arnaque/duplication** : toute modification d'offre réinitialise les deux
+  confirmations et le countdown ; un joueur confirmé ne peut plus toucher son offre ; les offres
+  vivent dans la session (jamais dans l'inventaire du GUI, re-rendu à chaque changement) ;
+  double-clic/drag/shift-clic neutralisés ; fermeture du GUI (ÉCHAP) ou déconnexion = annulation
+  avec retour des items (drop au sol si inventaire plein, restitution au prochain login si hors
+  ligne) ; argent prélevé uniquement à la complétion après re-vérification des soldes ; timeout
+  d'inactivité 3 min ; log console de chaque échange complété.
+- [x] **Fichiers** : `trade/TradeSession.java` (refonte), `trade/TradeManager.java` (refonte),
+  `trade/TradeListener.java` (nouveau : chat/close/quit/join),
+  `ui/inventory/TradeSessionUI.java` (nouveau GUI), `ui/inventory/TradeUI.java` (menu adapté),
+  `commands/TradeCommand.java` (refonte + TabComplete joueurs), `CantalePlugin.java`
+  (enregistrement listener). Docs : COMMANDS.md, docs/Commands.md, wiki (2 sections).
+- [x] Compilation OK (JAR 21,8 Mo).
+- [ ] Déployer le JAR + redeploy le site wiki. Tester en jeu à deux comptes : demande → accept →
+  dépôt items des deux côtés + argent → confirmations → countdown 5 s → échange ; puis cas
+  d'annulation (ÉCHAP, déconnexion, modification après confirmation, solde insuffisant).
+
+## Homes anti-intrusion (modos inclus) + `/adminhome delete` (2026-08-18)
+- [x] **Pose de home interdite dans les claims étrangers** : `HomeManager.canSetHomeHere` — pose
+  autorisée uniquement en wilderness ou dans le claim de sa propre faction ; exemptions réservées
+  à op / `cantale.admin` / `AdminBypassManager` (`/f bypass`). Les modos suivent la norme joueur
+  (plus de backdoor de raid via `/home set` en territoire ennemi).
+- [x] **`/adminhome delete <joueur> <nom>`** (aliases del/remove) : supprime le home d'un joueur
+  **en ligne ou hors ligne** (OfflinePlayer + hasPlayedBefore), log console, refresh carte si la
+  cible est en ligne. Syntaxe staff complète : `check <joueur>` · `tp <joueur> <nom>` (forme
+  courte `<joueur> <nom>` conservée) · `delete <joueur> <nom>`. TabComplete sur les noms de homes.
+- [x] `/admin deletehome` délègue désormais à la même méthode (fonctionne hors ligne).
+- [x] Docs : plugin.yml, /modhelp, COMMANDS.md, docs/Commands.md, wiki (adminhome delete + règle
+  claim dans « Téléportation » + limites de homes corrigées : Joueur 5 · Aventurier 8 · VIP 10 ·
+  Chèvre ∞ · Modo 5 · Admin/Owner ∞).
+- [x] Compilation OK (JAR 21,7 Mo).
+- [ ] Déployer le JAR + redeploy le site wiki. Vérifier en jeu : `/home set` dans claim étranger →
+  refus (modo inclus) ; `/adminhome delete Yugo kiwifield` hors ligne → supprimé.
+
+## Modo sans avantages VIP (2026-08-18)
+- [x] **Cause** : `PlayerRank.MODERATOR` cumulait des avantages de grades payants — PC 54 slots +
+  PC2/PC3 (`pcSlots`/`pc2Slots` 54, `getPrivateChestCount` = 3, `getPrivateChestSize` = 54),
+  `/ah` 20 ventes, `/feed` (via `isAtLeastVIP`), `hasSecondChest`, `hasNoTpCooldown`.
+- [x] **Fix** : le Modo est désormais traité comme un joueur **sans grade** pour les avantages :
+  1 coffre privé de 27 slots (PC2/PC3 inaccessibles), `/ah` 3 ventes, plus de `/feed` ni avantages
+  VIP (`isAtLeastVIP`/`hasSecondChest`/`hasNoTpCooldown` = grades payants + Admin/Owner seulement).
+  Homes déjà à la norme joueur depuis le fix précédent. Outils de modération inchangés
+  (`cantale.moderator` via `RankPermissionBridge`, `/moderation`, `/vanish`, `/adminpc`…).
+  Admin/Owner conservent tous les avantages staff.
+- [x] **Données préservées** : PC2/PC3 des modos restent en BDD (inaccessibles, pas wipés,
+  récupérables via `/adminpc` ou si le joueur obtient un grade) ; un PC1 54 slots rouvert en 27
+  dépose l'overflow dans l'inventaire/au sol (mécanisme `collectOverflow` existant).
+- [x] Wiki `grades-permissions` mis à jour (Modo = aucun avantage payant ; Admin/Owner = tous).
+- [ ] Déployer le JAR + redeploy le site wiki. Vérifier en jeu : un modo fait `/pc` (27 slots),
+  `/pc2` (refus boutique), `/feed` (refus), `/ah` au-delà de 3 ventes (refus) ; `/rank info` d'un
+  modo affiche les nouvelles valeurs.
+
+## Hotfix — items au sol > 99 perdus à la sauvegarde (2026-08-18)
+- [x] **Cause** : `ItemMergeManager` fusionnait les items au sol jusqu'à `max-stack: 512`,
+  or le codec vanilla borne le count d'un ItemStack à **[1;99]** depuis les data components →
+  Moonrise loguait « Failed to encode value … Value must be within range [1;99] » et
+  **l'entité n'était jamais écrite sur disque** (loot perdu au chunk unload / redémarrage).
+- [x] **Fix** : plafond clampé en dur à 99 dans le code (`MAX_SERIALIZED_STACK`, défaut 512 → 99) —
+  la clé live `optimization.item-merge.max-stack: 512` est ignorée sans devoir toucher au
+  config.yml ; réparation des entités oversized déjà en mémoire : re-découpées en stacks ≤ 99
+  à la même position (balayage 15 s + fusion au drop), log console par entité réparée.
+- [ ] Déployer le JAR. Vérifier : fin des warnings `ChunkEntitySlices` au déchargement des
+  chunks de farm, items fusionnés plafonnés à 99, pickup remplit plusieurs stacks.
+
+## Protection warps publics + commande `/fw` (août 2026)
+- [x] **Zone protégée 16x16 chunks autour des warps publics** : `WarpManager.getProtectedWarpAt` /
+  `isProtectedZone` (carré de 16 chunks de côté, de −8 à +7 chunks autour du chunk du warp, warps
+  actifs seulement) + nouveau `WarpProtectionListener` : casse, pose, interactions blocs/entités
+  (item frames, armor stands, tableaux), seaux, pose d'entités et explosions bloqués ; message
+  « §eVous entrez dans une §6zone protégée§e. » / « §eVous quittez la zone protégée. » au
+  changement de chunk (anti-spam 2 s, comme les claims). Exemptions : op / `cantale.admin` /
+  `/f bypass`. PvP et mobs non touchés.
+- [x] **Commande `/fw` (warps publics de faction)** : `/fw <nom>` TP ouverte à tous (cooldown/warmup
+  standard via `TeleportDelayManager`), `/fw list` cliquable (nom + faction + monde), `/fw create <nom>`
+  réservé aux officiers+ (`Faction#isOfficier`), nom unique global insensible à la casse (max 32
+  caractères, noms de sous-commandes réservés), `/fw delete <nom>` pour officiers+ de la faction
+  propriétaire ou admin. **Aucune zone protégée** autour d'un fw : seule la protection de claims
+  classique s'applique (penser à créer le fw dans un claim de sa fac pour protéger le build/shop).
+- [x] **Persistance** : table `fwarps` (id, name UNIQUE, faction_id FK ON DELETE CASCADE,
+  creator_uuid, position complète, created_at) + `FWarp` / `FWarpDAO` / `FWarpManager` (cache +
+  reconnexion DB comme les warps).
+- [x] **Carte du mod client** : les fw sont envoyés dans les marqueurs `warps` avec `faction: true`
+  (rétro-compatible si le mod ignore la propriété) ; refresh à la création/suppression.
+- [ ] Déployer le JAR. Vérifier en jeu : message entrée/sortie zone warp, casse/pose/interactions
+  bloquées dans les 16x16 chunks, `/fw create` (officier), unicité des noms, `/fw <nom>` pour un
+  joueur d'une autre faction, suppression par autre faction refusée, fw visibles sur la carte mod.
+
 ## Correctifs Plugin & Site Web (août 2026)
 - [x] **Compteur joueurs en ligne site web** : initialisation avec état et affichage fluide (fallback 0).
 - [x] **Liste des factions site web** : suppression du filtre parasite `"O"` dans `public-ranking-exclusions.ts` et `publicRankingExclusions.ts` (maintien de `Ø` / `∅`), et augmentation de la limite SQL à 500.

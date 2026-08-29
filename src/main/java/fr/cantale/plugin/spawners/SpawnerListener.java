@@ -65,7 +65,8 @@ public class SpawnerListener implements Listener {
         int tier = manager.items().readTier(item);
         if (mob == null) return;
         if (mob != mob.canonicalMob()) {
-            player.sendMessage("§8[§6Cantale§8] §7Les spawners à Ghast sont convertis en cube de magma.");
+            player.sendMessage("§8[§6Cantale§8] §7Spawner à " + mob.frenchName()
+                    + " converti en cube de magma.");
         }
         // Faction propriétaire du spawner : celle du joueur ; en bypass admin posé dans
         // un claim étranger, celle du claim (sinon le spawner ne spawnnerait jamais —

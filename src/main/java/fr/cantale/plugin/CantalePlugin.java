@@ -15,6 +15,7 @@ import fr.cantale.plugin.ui.UIManager;
 import fr.cantale.plugin.ui.map.MapUI;
 import fr.cantale.plugin.teleport.HomeManager;
 import fr.cantale.plugin.teleport.WarpManager;
+import fr.cantale.plugin.teleport.FWarpManager;
 import fr.cantale.plugin.listeners.ClaimListener;
 import fr.cantale.plugin.listeners.PlayerListener;
 import fr.cantale.plugin.listeners.ResourcePackStatusListener;
@@ -90,6 +91,7 @@ public class CantalePlugin extends JavaPlugin {
     private TradeManager tradeManager;
     private HomeManager homeManager;
     private WarpManager warpManager;
+    private FWarpManager fWarpManager;
     private MapUI mapUI;
     private fr.cantale.plugin.map.ClientMapBridge clientMapBridge;
     private SpawnCommand spawnCommand;
@@ -200,8 +202,10 @@ public class CantalePlugin extends JavaPlugin {
         this.tradeManager = new TradeManager(this);
         this.homeManager = new HomeManager(this);
         this.warpManager = new WarpManager(this);
+        this.fWarpManager = new FWarpManager(this);
         if (this.databaseManager.getConnection() != null) {
             this.warpManager.loadWarps();
+            this.fWarpManager.loadFWarps();
         } else {
             getLogger().warning("DB inaccessible — chargement des warps différé.");
             new BukkitRunnable() {
@@ -212,6 +216,7 @@ public class CantalePlugin extends JavaPlugin {
                     if (databaseManager.getConnection() != null) {
                         try {
                             warpManager.loadWarps();
+                            fWarpManager.loadFWarps();
                             getLogger().info("Warps chargés après reconnexion DB.");
                         } catch (Exception e) {
                             getLogger().warning("Erreur lors du chargement des warps après reconnexion : " + e.getMessage());
@@ -567,6 +572,7 @@ public class CantalePlugin extends JavaPlugin {
         getCommand("fc").setExecutor(new fr.cantale.plugin.commands.FactionChatCommand(this, factionCommand));
         getCommand("ah").setExecutor(new AuctionCommand(this));
         getCommand("trade").setExecutor(new TradeCommand(this));
+        getServer().getPluginManager().registerEvents(new fr.cantale.plugin.trade.TradeListener(this), this);
         getCommand("customitem").setExecutor(new CustomItemCommand(this, customItemManager));
         getCommand("home").setExecutor(new HomeCommand(this));
         fr.cantale.plugin.commands.AdminHomeCommand adminHomeCommand = new fr.cantale.plugin.commands.AdminHomeCommand(this);
@@ -579,6 +585,9 @@ public class CantalePlugin extends JavaPlugin {
         getCommand("adminpc").setExecutor(adminPcCommand);
         getCommand("adminpc").setTabCompleter(adminPcCommand);
         getCommand("warp").setExecutor(new WarpCommand(this));
+        fr.cantale.plugin.commands.FWarpCommand fWarpCommand = new fr.cantale.plugin.commands.FWarpCommand(this);
+        getCommand("fw").setExecutor(fWarpCommand);
+        getCommand("fw").setTabCompleter(fWarpCommand);
         getCommand("spawn").setExecutor(spawnCommand);
         getCommand("rtp").setExecutor(rtpCommand);
         fr.cantale.plugin.commands.TpaCommand tpaCommand = new fr.cantale.plugin.commands.TpaCommand(this);
@@ -666,6 +675,7 @@ public class CantalePlugin extends JavaPlugin {
         rankPermissionBridge = new fr.cantale.plugin.rank.RankPermissionBridge(this);
         getServer().getPluginManager().registerEvents(rankPermissionBridge, this);
         getServer().getPluginManager().registerEvents(new ClaimListener(this), this);
+        getServer().getPluginManager().registerEvents(new fr.cantale.plugin.listeners.WarpProtectionListener(this), this);
         getServer().getPluginManager().registerEvents(new PlayerListener(this), this);
         getServer().getPluginManager().registerEvents(new ResourcePackStatusListener(this), this);
         getServer().getPluginManager().registerEvents(new ChatListener(this), this);
@@ -882,6 +892,10 @@ public class CantalePlugin extends JavaPlugin {
 
     public WarpManager getWarpManager() {
         return warpManager;
+    }
+
+    public FWarpManager getFWarpManager() {
+        return fWarpManager;
     }
 
     public ModerationCommand getModerationCommand() {

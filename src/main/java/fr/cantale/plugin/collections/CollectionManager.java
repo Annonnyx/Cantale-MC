@@ -5,6 +5,8 @@ import fr.cantale.plugin.database.PlayerDAO;
 import fr.cantale.plugin.quests.QuestRewards;
 import fr.cantale.plugin.vote.VoteDAO;
 import org.bukkit.Bukkit;
+import org.bukkit.Statistic;
+import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 
@@ -111,9 +113,13 @@ public class CollectionManager {
                 VoteDAO.VoteStats stats = votes.getStats(uuid);
                 if (stats != null) set(uuid, "votes", "TOTAL", stats.totalVotes());
             }
-            if (after != null) {
-                Bukkit.getScheduler().runTask(plugin, after);
-            }
+            Bukkit.getScheduler().runTask(plugin, () -> {
+                Player online = Bukkit.getPlayer(uuid);
+                if (online != null) {
+                    syncVanillaMobKills(online);
+                }
+                if (after != null) after.run();
+            });
         });
     }
 
@@ -127,6 +133,54 @@ public class CollectionManager {
 
     public void onQuestCompleted(UUID uuid) {
         add(uuid, "quests", "TOTAL", 1);
+    }
+
+    /**
+     * Un kill de mob pour les collections. N'incrémente PAS les stats vanilla
+     * (Minecraft le fait déjà sur une vraie mort). Pour un kill absorbé par un
+     * stack, passer {@code incrementVanillaStats = true}.
+     */
+    public void onMobKill(Player killer, EntityType type, int count, boolean incrementVanillaStats) {
+        if (killer == null || type == null || count <= 0) return;
+        add(killer.getUniqueId(), "mobs", type.name(), count);
+        if (!incrementVanillaStats) return;
+        try {
+            killer.incrementStatistic(Statistic.KILL_ENTITY, type, count);
+        } catch (IllegalArgumentException ignored) {
+            // Types non trackés par KILL_ENTITY (ex. joueur, misc).
+        }
+        try {
+            killer.incrementStatistic(Statistic.MOB_KILLS, count);
+        } catch (IllegalArgumentException ignored) {
+        }
+    }
+
+    /**
+     * Aligne la catégorie mobs sur {@link Statistic#KILL_ENTITY} (max avec le
+     * compteur plugin). Thread principal, joueur en ligne requis.
+     */
+    public void syncVanillaMobKills(Player player) {
+        if (player == null || !player.isOnline()) return;
+        CollectionCategory mobs = config.categories().get("mobs");
+        if (mobs == null) return;
+        UUID uuid = player.getUniqueId();
+        for (String key : mobs.keys()) {
+            EntityType type;
+            try {
+                type = EntityType.valueOf(key);
+            } catch (IllegalArgumentException e) {
+                continue;
+            }
+            int vanilla;
+            try {
+                vanilla = player.getStatistic(Statistic.KILL_ENTITY, type);
+            } catch (IllegalArgumentException e) {
+                continue;
+            }
+            if (vanilla > 0) {
+                set(uuid, "mobs", key, vanilla);
+            }
+        }
     }
 
     private void flush() {

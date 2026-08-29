@@ -149,7 +149,7 @@ export const WIKI_CATEGORIES: WikiCategory[] = [
               },
               {
                 syntax: "/trade <joueur|accept|decline>",
-                description: "Échange d'items entre joueurs.",
+                description: "Échange sécurisé : demande → fenêtre d'échange (items + Cantox) → confirmation des deux côtés → 5 s de délai. Détails : catégorie Économie.",
                 note: "Alias : /trades — tous les joueurs",
               },
               {
@@ -420,7 +420,7 @@ export const WIKI_CATEGORIES: WikiCategory[] = [
             title: "Spawn, homes & TPA",
             list: [
               "/spawn, /home <nom>, /tpa : cooldown global 30 s après une TP réussie (partagé avec warp, rtp, f spawn…). Warmup 3 s.",
-              "Limite de homes personnels (PlayerRank) : Joueur 3 · Aventurier 5 · VIP 10 · Chèvre / staff 999.",
+              "Limite de homes personnels (PlayerRank) : Joueur 5 · Aventurier 8 · VIP 10 · Chèvre ∞ · Modo 5 (norme joueur) · Admin/Owner ∞. Pose interdite dans le claim d'une autre faction (sauf admin / /f bypass).",
               "/tpa et /tpahere : demande valable 60 s ; /tpyes (alias /tpaccept) · /tpno (alias /tpdeny). Le joueur qui se déplace subit le cooldown et le warmup.",
             ],
             commands: [
@@ -435,7 +435,7 @@ export const WIKI_CATEGORIES: WikiCategory[] = [
               },
               {
                 syntax: "/home set <nom>",
-                description: "Enregistre ta position actuelle comme home.",
+                description: "Enregistre ta position actuelle comme home. Impossible dans le claim d'une autre faction (modos inclus ; seuls admin / /f bypass dérogent).",
               },
               {
                 syntax: "/home delete <nom>",
@@ -544,8 +544,8 @@ export const WIKI_CATEGORIES: WikiCategory[] = [
             id: "staff",
             title: "Grades staff",
             list: [
-              "Modérateur — cantale.moderator : /moderation, /vanish, /tag, /modhelp, /adminhome, /adminec, /adminpc. Coffres ×3, homes 999, /ah 20, AFK 60 min, warmup 0. Pas de vol en claim (ni vol créatif, ni fouille coffres étrangers).",
-              "Admin / Owner — cantale.admin (enfants : givevie, moderator, feed, anticheat…). Mêmes avantages coffres/homes ; jamais kick AFK. Pas de vol en claim via le grade. Bypass claim (op / cantale.admin) = outil de modération, pas un perk « vol ».",
+              "Modérateur — cantale.moderator : /moderation, /vanish, /tag, /modhelp, /adminhome, /adminec, /adminpc. Aucun avantage de grade payant : 1 coffre 27 slots, homes = la norme joueur, /ah 3, pas de /feed ni d'avantages VIP. AFK 60 min (outil de modération). Pas de vol en claim (ni vol créatif, ni fouille coffres étrangers).",
+              "Admin / Owner — cantale.admin (enfants : givevie, moderator, feed, anticheat…). Tous les avantages staff (coffres ×3 54 slots, homes illimités, /ah 20) ; jamais kick AFK. Pas de vol en claim via le grade. Bypass claim (op / cantale.admin) = outil de modération, pas un perk « vol ».",
             ],
             commands: [
               {
@@ -554,9 +554,14 @@ export const WIKI_CATEGORIES: WikiCategory[] = [
                 note: "cantale.moderator / cantale.admin — aliases : list, ls",
               },
               {
-                syntax: "/adminhome <joueur> <nom>",
+                syntax: "/adminhome tp <joueur> <nom>",
                 description: "Téléporte le staff vers ce home (immédiat, sans cooldown).",
-                note: "Aussi /adminhome tp <joueur> <nom> — aliases commande : /ahome, /seehome",
+                note: "Forme courte : /adminhome <joueur> <nom> — aliases commande : /ahome, /seehome",
+              },
+              {
+                syntax: "/adminhome delete <joueur> <nom>",
+                description: "Supprime ce home du joueur (en ligne ou hors ligne, log console).",
+                note: "cantale.moderator / cantale.admin",
               },
               {
                 syntax: "/adminec <joueur>",
@@ -971,16 +976,16 @@ export const WIKI_CATEGORIES: WikiCategory[] = [
             id: "spawners",
             title: "Spawners Cantale",
             paragraphs: [
-              "Items custom (PDC : type, palier 1–8, rareté). Nom FR du type « Spawner à Cochon x3 ». Hologramme au-dessus du bloc. Cadence linéaire : N mobs toutes les (8/N) s. T1 : 1/8 s ≈ 7,5/min. T8 cheat : 8 mobs / 1 s (480/min). Golem de fer : intervalle ×2. Spawn ignore lumière / biome / cap vanilla ; uniquement dans le chunk claimé d'origine. 14 mobs. Pas de bosses, pas de ghast.",
+              "Items custom (PDC : type, palier 1–8, rareté). Nom FR du type « Spawner à Cochon x3 ». Hologramme au-dessus du bloc. Cadence linéaire : N mobs toutes les (8/N) s. T1 : 1/8 s ≈ 7,5/min. T8 cheat : 8 mobs / 1 s (480/min). Golem de fer, ravageur, grand gardien, évocateurs et piglin brute : intervalle ×2. Spawn ignore lumière / biome / cap vanilla ; uniquement dans le chunk claimé d'origine. Pas de bosses, pas de ghast ni de shulker.",
             ],
             tables: [
               {
                 caption: "Mobs",
                 headers: ["Rareté", "Mobs"],
                 rows: [
-                  ["Rare", "Vache, cochon, mouton, poulet, zombie, squelette, araignée, creeper"],
-                  ["Épique", "Enderman, blaze, sorcière, slime"],
-                  ["Mythique", "Cube de magma, golem de fer"],
+                  ["Rare", "Vache, cochon, mouton, poulet, lapin, champimeuh, poulpe, abeille, zombie, squelette, araignée, creeper, husk, noyé, vagabond, araignée venimeuse, envasé, poisson d'argent, zombie-villageois"],
+                  ["Épique", "Enderman, blaze, sorcière, slime, gardien, ours polaire, piglin, piglin zombifié, hoglin, phantom, wither squelette, pilleur, vindicateur, arpenteur, endermite, breeze, poulpe lumineux, chèvre, panda"],
+                  ["Mythique", "Cube de magma, golem de fer, grand gardien, piglin brute, zoglin, ravageur, évocateurs"],
                 ],
               },
               {
@@ -1306,21 +1311,31 @@ export const WIKI_CATEGORIES: WikiCategory[] = [
             id: "echanges",
             title: "Échanges entre joueurs",
             paragraphs: [
-              "/trade : échange direct sécurisé — dépôt d'items des deux côtés puis validation.",
+              "/trade : échange direct sécurisé. /trade <joueur> envoie une demande (60 s) que l'autre accepte via les boutons cliquables du chat ; une fenêtre d'échange s'ouvre alors : dépose tes items (clic avec item en main ou shift-clic), propose des Cantox via le bouton lingot d'or (montant tapé dans le chat), puis confirme. Quand les deux joueurs ont confirmé, un compte à rebours de 5 s s'écoule avant l'échange final.",
+              "Sécurités : toute modification d'offre réinitialise les confirmations ; fermer la fenêtre, se déconnecter ou rester inactif 3 min annule l'échange et rend les items posés (restitués au prochain login si tu es hors ligne). L'argent n'est prélevé qu'à l'échange final, après re-vérification des soldes.",
             ],
             commands: [
               {
                 syntax: "/trade <joueur>",
-                description: "Propose un échange.",
+                description: "Propose un échange (demande valable 60 s).",
                 note: "Alias : /trades",
               },
               {
                 syntax: "/trade accept",
-                description: "Accepte la demande reçue.",
+                description: "Accepte la demande reçue (ou confirme l'échange en cours).",
               },
               {
                 syntax: "/trade decline",
-                description: "Refuse la demande reçue.",
+                description: "Refuse la demande reçue (ou annule l'échange en cours).",
+              },
+              {
+                syntax: "/trade money <montant>",
+                description: "Définit directement le montant de Cantox proposé.",
+                note: "Équivalent du bouton lingot d'or dans la fenêtre d'échange",
+              },
+              {
+                syntax: "/trade",
+                description: "Rouvre la fenêtre d'échange en cours (ou le sélecteur de joueur).",
               },
             ],
           },
@@ -1370,7 +1385,7 @@ export const WIKI_CATEGORIES: WikiCategory[] = [
             list: [
               "Achat toujours > revente shop.",
               "Ventes farm / drops basiques souvent à 1 Cantox.",
-              "Item absent du catalogue = non négociable. Blacklist code (bedrock, barrier, spawners…). Les spawners Cantale ne sont pas au /shop (uniquement /ah et caisses).",
+              "Item absent du catalogue = non négociable. Blacklist code (bedrock, barrier, spawners, sable, poudre à canon…). Les spawners Cantale ne sont pas au /shop (uniquement /ah et caisses).",
               "Hopper : craft bloqué ; /shop 150 000 Cantox, sell off, daily-buy-cap 4 (entre cristal End et coquille shulker). Pose plafonnée par pouvoir de fac.",
             ],
           },
@@ -2073,7 +2088,7 @@ export const WIKI_CATEGORIES: WikiCategory[] = [
             id: "collections",
             title: "Collections (/collections)",
             paragraphs: [
-              "Compteurs persistants inter-saisons, jamais reset. Mêmes hooks que les quêtes (cultures mûres / baies / fungi, minerais sans soie dont or du Nether, kills) + réactions chat, caisses ouvertes, votes, pic /bal, temps de jeu, quêtes complétées (solo + contributeurs de la fac gagnante).",
+              "Compteurs persistants inter-saisons, jamais reset. Mêmes hooks que les quêtes (cultures mûres / baies / fungi, minerais sans soie dont or du Nether, kills) + réactions chat, caisses ouvertes, votes, pic /bal, temps de jeu, quêtes complétées (solo + contributeurs de la fac gagnante). Les kills de mobs s'alignent aussi sur les stats vanilla (`KILL_ENTITY`) à l'ouverture de /collections : un coup sur un stack (entité conservée) crédite collections, quêtes et stats, comme une vraie mort.",
             ],
             list: [
               "Paliers exponentiels par catégorie (ex. cultures : 1k → 5k → 25k → 100k → 500k → 2,5M → 10M).",
@@ -2374,6 +2389,10 @@ export const WIKI_CATEGORIES: WikiCategory[] = [
                   [
                     "Trophée",
                     "À chaque kill compté : tête du vaincu droppée au sol (« Tête de <pseudo> »)",
+                  ],
+                  [
+                    "Enchantements",
+                    "Automatiques via les paliers de kills. Table d'enchantement et enclume refusent la Cantalame (composant enchantable retiré + PrepareItemEnchant / PrepareAnvil).",
                   ],
                 ],
               },
@@ -2883,7 +2902,7 @@ export const WIKI_CATEGORIES: WikiCategory[] = [
               "Types empilés : mouton, vache, poulet, cochon, lapin, champimeuh, chèvre — plus les mobs issus d'un spawner Cantale (passifs et hostiles, flag PDC, libellé du type « Zombie ×12 »).",
               "Moutons : même couleur et même état tondu/laine (un stack « tondu » reste séparé d'un stack « laine »).",
               "Non empilés (défaut) : bébés, mobs nommés par un joueur, Tameable apprivoisés, entités en laisse ou avec passager.",
-              "Kill / dégâts létaux : le stack diminue de 1, loot + XP d'une mort vanilla ; l'entité reste jusqu'au dernier. Le dernier kill retire vraiment le mob.",
+              "Kill / dégâts létaux : le stack diminue de 1, loot + XP d'une mort vanilla ; l'entité reste jusqu'au dernier. Collections, quêtes et stats vanilla (`KILL_ENTITY`) sont créditées à chaque coup absorbé (pas seulement sur la vraie mort du dernier).",
               "Tonte / reproduction : comportement vanilla sur l'entité visible (le stack entier peut apparaître tondu ; la reproduction spawn un bébé non empilé).",
               "Config : optimization.mob-stacking (enabled, max-stack, radius, interval-seconds, stack-babies / named / tamed).",
             ],

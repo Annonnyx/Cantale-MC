@@ -96,9 +96,9 @@ patterns:
     sell-enabled: false
 
 items:
+  # SAND et GUNPOWDER : volontairement absents (et blacklist code) — TNT farm via shop.
   # ── Blocs de base : infinis, jamais rachetés (générateur AFK = argent infini sinon) ──
   DIRT: {category: BLOCS, buy: 2, sell-enabled: false}
-  SAND: {category: BLOCS, buy: 2, sell-enabled: false}
   RED_SAND: {category: BLOCS, buy: 2, sell-enabled: false}
   GRAVEL: {category: BLOCS, buy: 2, sell-enabled: false}
   COBBLESTONE: {category: BLOCS, buy: 2, sell-enabled: false}
@@ -165,7 +165,6 @@ items:
   EGG: {category: MOB_DROPS, buy: 18, sell: 1}
   STRING: {category: MOB_DROPS, buy: 18, sell: 1}
   BONE: {category: MOB_DROPS, buy: 18, sell: 1}
-  GUNPOWDER: {category: MOB_DROPS, buy: 18, sell: 1}
   PHANTOM_MEMBRANE: {category: MOB_DROPS, buy: 145, sell: 22}
 
   # ── Redstone & mécanismes (achat seulement — jamais une source de farm) ──

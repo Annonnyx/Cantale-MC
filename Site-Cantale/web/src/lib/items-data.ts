@@ -342,6 +342,7 @@ export const ITEMS: CatalogItem[] = [
       { label: "100 kills", value: "Tranchant X · Pillage V · Aura de feu III · Balayage X · Solidité X" },
       { label: "Trophée", value: "La tête du vaincu est déposée au sol" },
       { label: "Craft", value: "Non-craftable" },
+      { label: "Enchantement", value: "Impossible à la table / enclume — uniquement via les kills" },
     ],
     obtention: [
       "Toutes les caisses — de 0,5 % (Cadeau du Roi) aux récompenses majeures des caisses Épique et Mythique",

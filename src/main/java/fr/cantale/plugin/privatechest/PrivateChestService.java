@@ -73,16 +73,17 @@ public class PrivateChestService {
     }
 
     public int getPrivateChestCount(PlayerRank rank) {
+        // Modo = aucun avantage de grade : 1 coffre comme un joueur sans grade.
         return switch (rank) {
-            case NONE, AVENTURIER -> 1;
+            case NONE, AVENTURIER, MODERATOR -> 1;
             case VIP -> 2;
-            case CHEVRE, MODERATOR, ADMIN, OWNER -> 3;
+            case CHEVRE, ADMIN, OWNER -> 3;
         };
     }
 
     public int getPrivateChestSize(PlayerRank rank) {
         return switch (rank) {
-            case NONE -> 27;
+            case NONE, MODERATOR -> 27;
             default -> 54;
         };
     }

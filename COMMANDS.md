@@ -38,10 +38,10 @@ Format : /commande — usage — permission (si présente)
 - /pay <joueur> <montant> — Payer un joueur
 - /balance [joueur] (aliases : /bal, /money) — Afficher le solde
 - /ah (aliases : /auction, /hdv) — Hôtel des ventes
-- /trade <joueur|accept|decline> — Échanger
+- /trade <joueur> | /trade accept | /trade decline — Échange sécurisé : demande (60 s, boutons cliquables) → GUI (dépôt d'items, bouton argent avec saisie du montant, confirmation des deux côtés) → compte à rebours 5 s → échange. Annulation = items rendus (même hors ligne).
 - /customitem <type> — Donner un item custom (admin) — permission : cantale.admin
 - /home [set|delete|del] [nom] — Gérer ses homes personnels (TP : cooldown 30 s, warmup 3 s)
-- /adminhome check <joueur> | /adminhome <joueur> <nom> (aliases : ahome, seehome) — Lister / TP vers homes d'un joueur — permission : cantale.moderator (admin inclus)
+- /adminhome check <joueur> | /adminhome tp <joueur> <nom> | /adminhome delete <joueur> <nom> (aliases : ahome, seehome) — Lister / TP vers / supprimer les homes d'un joueur (online/offline) — permission : cantale.moderator (admin inclus)
 - /adminec <joueur> (aliases : aec, seeec) — Voir/éditer l'ender chest d'un joueur — permission : cantale.moderator
 - /adminpc <joueur> [1|2|3] (aliases : apc, sepc) — Voir/éditer les PC d'un joueur — permission : cantale.moderator
 - /warp [nom|set|delete|toggle] — Téléportation aux warps publics (cooldown 30 s, warmup 3 s)

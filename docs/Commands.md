@@ -14,7 +14,8 @@ Catégories de commandes
 2. Téléportation
 - /home [set|delete|del] [nom] — gère les homes personnels.
 - /adminhome check <joueur> — (staff) liste les homes d'un joueur.
-- /adminhome <joueur> <nom> — (staff) se téléporte à ce home (alias : /adminhome tp <joueur> <nom>).
+- /adminhome tp <joueur> <nom> — (staff) se téléporte à ce home (forme courte : /adminhome <joueur> <nom>).
+- /adminhome delete <joueur> <nom> — (staff) supprime ce home (en ligne ou hors ligne, log console).
 - /warp [nom|set|delete|toggle] — téléporte vers un warp public ou gère les warps.
 - /spawn — téléporte au spawn.
 - /rtp — téléporte aléatoirement.
@@ -23,7 +24,9 @@ Catégories de commandes
 - /pay <joueur> <montant> — payer un joueur en Cantox.
 - /balance [joueur] — consulter son solde.
 - /ah — hôtel des ventes.
-- /trade <joueur|accept|decline> — échange avec un joueur.
+- /trade <joueur> — envoie une demande d'échange (expire après 60 s ; le receveur accepte via les boutons cliquables du chat ou /trade accept, refuse via /trade decline). Une fois acceptée, une fenêtre d'échange s'ouvre : dépôt d'items (clic avec item en main ou shift-clic), bouton lingot d'or pour proposer des Cantox (montant tapé dans le chat), bouton de confirmation des deux côtés, puis compte à rebours de 5 s avant l'échange. Toute modification d'offre réinitialise les confirmations ; fermer la fenêtre ou déconnecter annule l'échange et rend les items (restitués au prochain login si hors ligne).
+- /trade — rouvre la fenêtre d'échange en cours (ou le sélecteur de joueur).
+- /trade money <montant> — définit directement le montant proposé.
 - /vote [claim|stats|top|help] — consulter les sites de vote et récompenses.
 - /quetes [fac] — quêtes solo (jour / semaine / saison) ou courses de faction.
 - /collections — collections long terme (paliers à réclamer).

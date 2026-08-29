@@ -166,7 +166,7 @@ public class QuestTrackListener implements Listener {
         }
         String key = event.getEntityType().name();
         plugin.getQuestEngine().addProgress(killer, QuestObjectiveType.KILL_MOB, key, 1);
-        plugin.getCollectionManager().add(killer.getUniqueId(), "mobs", key, 1);
+        plugin.getCollectionManager().onMobKill(killer, event.getEntityType(), 1, false);
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)

@@ -6,9 +6,10 @@ public enum PlayerRank {
     AVENTURIER("Aventurier",2500,   0, 27,  0,  1,  8,  5),
     VIP("VIP",              10000,  1, 54,  0,  2, 10, 12),
     CHEVRE("Chèvre",        100000, 1, 54, 54,  3,999, 20),
-    // Staff : pas de bonus /daily ni vies mensuelles (même base 1000 Cantox que les joueurs)
-    // Modo : homes = la norme joueur (teleport.max-homes), aucun privilège de homes.
-    MODERATOR("Modo",       0,      0, 54, 54,  0,  5, 20),
+    // Staff : pas de bonus /daily ni vies mensuelles (même base 1000 Cantox que les joueurs).
+    // Modo : AUCUN avantage de grade payant — PC/homes/AH/feed identiques à NONE,
+    // outils de modération uniquement. Seuls Admin/Owner gardent les avantages staff.
+    MODERATOR("Modo",       0,      0, 27,  0,  0,  5,  3),
     ADMIN("Admin",          0,      0, 54, 54,  0,999, 20),
     OWNER("Owner",          0,      0, 54, 54,  0,999, 20);
 
@@ -41,7 +42,7 @@ public enum PlayerRank {
     public int getMaxHomes() { return maxHomes; }
     public int getMaxAhListings() { return maxAhListings; }
 
-    public boolean hasNoTpCooldown() { return this == CHEVRE || this == MODERATOR || this == ADMIN || this == OWNER; }
+    public boolean hasNoTpCooldown() { return this == CHEVRE || this == ADMIN || this == OWNER; }
     /** Vol créatif dans les claims de sa faction — uniquement Chèvre (pas le staff). */
     public boolean hasUnlimitedFlight() { return this == CHEVRE; }
     /**
@@ -49,8 +50,9 @@ public enum PlayerRank {
      * Les membres de la faction propriétaire y ont toujours accès (ce n'est pas du « vol »).
      */
     public boolean canStealInClaims() { return this == CHEVRE; }
-    public boolean hasSecondChest() { return this == CHEVRE || this == MODERATOR || this == ADMIN || this == OWNER; }
-    public boolean isAtLeastVIP() { return this == VIP || this == CHEVRE || this == MODERATOR || this == ADMIN || this == OWNER; }
+    public boolean hasSecondChest() { return this == CHEVRE || this == ADMIN || this == OWNER; }
+    /** Avantages VIP (/feed, etc.) : grades payants VIP/Chèvre + Admin/Owner — PAS les modos. */
+    public boolean isAtLeastVIP() { return this == VIP || this == CHEVRE || this == ADMIN || this == OWNER; }
     public boolean isAtLeastAventurier() { return this != NONE; }
     public boolean hasMonthlyLives() { return this.monthlyLives > 0; }
     public boolean isStaff() { return this == MODERATOR || this == ADMIN || this == OWNER; }

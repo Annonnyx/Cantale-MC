@@ -13,6 +13,9 @@ import java.util.Map;
 
 public class WarpManager {
 
+    /** Demi-côté de la zone protégée autour d'un warp public : 8 chunks → carré de 16x16 chunks. */
+    public static final int PROTECTION_CHUNK_RADIUS = 8;
+
     private final CantalePlugin plugin;
     private final WarpDAO warpDAO;
     private final Map<String, Warp> warps;
@@ -105,6 +108,40 @@ public class WarpManager {
 
     public List<Warp> getWarps() {
         return List.copyOf(warps.values());
+    }
+
+    /**
+     * Renvoie le warp public actif dont la zone protégée couvre {@code location}, sinon null.
+     * La zone est un carré de 16x16 chunks : de 8 chunks avant à 7 chunks après le chunk
+     * du warp sur chaque axe (le chunk du warp est inclus).
+     */
+    public Warp getProtectedWarpAt(Location location) {
+        if (location == null || location.getWorld() == null) {
+            return null;
+        }
+        int chunkX = location.getBlockX() >> 4;
+        int chunkZ = location.getBlockZ() >> 4;
+        for (Warp warp : warps.values()) {
+            if (!warp.isActive()) {
+                continue;
+            }
+            Location warpLoc = warp.getLocation();
+            if (warpLoc == null || warpLoc.getWorld() == null
+                    || !warpLoc.getWorld().getName().equals(location.getWorld().getName())) {
+                continue;
+            }
+            int warpChunkX = warpLoc.getBlockX() >> 4;
+            int warpChunkZ = warpLoc.getBlockZ() >> 4;
+            if (chunkX >= warpChunkX - PROTECTION_CHUNK_RADIUS && chunkX < warpChunkX + PROTECTION_CHUNK_RADIUS
+                    && chunkZ >= warpChunkZ - PROTECTION_CHUNK_RADIUS && chunkZ < warpChunkZ + PROTECTION_CHUNK_RADIUS) {
+                return warp;
+            }
+        }
+        return null;
+    }
+
+    public boolean isProtectedZone(Location location) {
+        return getProtectedWarpAt(location) != null;
     }
 
     public void listWarps(Player player) {

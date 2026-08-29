@@ -373,7 +373,7 @@ public class SpawnerManager {
             Block feet = world.getBlockAt(x, y, z);
             Block head = world.getBlockAt(x, y + 1, z);
             if (feet.getType().isSolid() || head.getType().isSolid()) continue;
-            if (record.mob() == SpawnerMob.GHAST || record.mob() == SpawnerMob.IRON_GOLEM) {
+            if (record.mob().needsExtraHeadroom()) {
                 Block above = world.getBlockAt(x, y + 2, z);
                 if (above.getType().isSolid()) continue;
             }

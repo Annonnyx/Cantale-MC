@@ -124,7 +124,9 @@ public class ClaimListener implements Listener {
                 && playerFaction.getId() == claimFaction.getId();
 
         // PASDIC : interdiction de poser des conteneurs de stockage, même pour les membres.
+        // Admins / ops / bypass admin : exemptés.
         if (claim != null && claim.isPasdic() && isPasdicBannedContainer(type)
+                && !player.isOp() && !player.hasPermission("cantale.admin")
                 && !plugin.getAdminBypassManager().isBypassing(player)) {
             event.setCancelled(true);
             player.sendMessage(formatMessage("&cLes conteneurs de stockage sont interdits dans un PASDIC."));

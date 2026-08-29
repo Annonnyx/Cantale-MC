@@ -1,8 +1,11 @@
 package fr.cantale.plugin.teleport;
 
 import fr.cantale.plugin.CantalePlugin;
+import fr.cantale.plugin.factions.Claim;
+import fr.cantale.plugin.factions.Faction;
 import fr.cantale.plugin.rank.PlayerRank;
 import org.bukkit.Location;
+import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 
 import java.util.HashMap;
@@ -52,6 +55,11 @@ public class HomeManager {
             return false;
         }
 
+        if (!canSetHomeHere(player)) {
+            player.sendMessage("§8[§6Cantale§8] §cTu ne peux pas poser de home dans le claim d'une autre faction.");
+            return false;
+        }
+
         Home home = new Home(uuid, name, player.getLocation());
         int id = homeDAO.createHome(home);
         if (id > 0) {
@@ -68,6 +76,25 @@ public class HomeManager {
 
         player.sendMessage("§8[§6Cantale§8] §cErreur lors de la création du home.");
         return false;
+    }
+
+    /**
+     * Pose de home autorisée uniquement en wilderness ou dans un claim de SA faction.
+     * Exemptions : op / cantale.admin / /f bypass — PAS les modérateurs.
+     */
+    private boolean canSetHomeHere(Player player) {
+        if (player.isOp() || player.hasPermission("cantale.admin")
+                || plugin.getAdminBypassManager().isBypassing(player)) {
+            return true;
+        }
+        Location loc = player.getLocation();
+        Claim claim = plugin.getFactionManager().getClaimAt(
+                loc.getWorld().getName(), loc.getBlockX() >> 4, loc.getBlockZ() >> 4);
+        if (claim == null) {
+            return true;
+        }
+        Faction faction = plugin.getFactionManager().getPlayerFaction(player.getUniqueId());
+        return faction != null && faction.getId() == claim.getFactionId();
     }
 
     public boolean deleteHome(Player player, String name) {
@@ -181,6 +208,32 @@ public class HomeManager {
         for (Home home : homes.values()) {
             sendHomeLine(viewer, home);
         }
+    }
+
+    /**
+     * Supprime le home d'un joueur pour le staff (/adminhome delete), en ligne ou hors ligne.
+     * Insensible à la casse ; rafraîchit la carte mod du joueur concerné ; log console d'audit.
+     */
+    public boolean deleteHomeOf(CommandSender viewer, UUID targetUuid, String homeName, String targetDisplayName) {
+        String name = targetDisplayName != null ? targetDisplayName : "ce joueur";
+        Home home = findHome(targetUuid, homeName);
+        if (home == null) {
+            viewer.sendMessage("§8[§6Cantale§8] §cHome §e" + homeName + " §cinexistant pour §e" + name + "§c.");
+            return false;
+        }
+
+        homeDAO.deleteHome(home.getId());
+        Map<String, Home> homes = playerHomes.get(targetUuid);
+        if (homes != null) {
+            homes.remove(home.getName());
+        }
+        viewer.sendMessage("§8[§6Cantale§8] §aHome §e" + home.getName() + " §ade §e" + name + " §asupprimé.");
+        plugin.getLogger().info("[AdminHome] " + viewer.getName() + " a supprimé le home "
+                + home.getName() + " de " + name + " (" + targetUuid + ")");
+        if (plugin.getClientMapBridge() != null) {
+            plugin.getClientMapBridge().refreshMarkers(targetUuid);
+        }
+        return true;
     }
 
     /**

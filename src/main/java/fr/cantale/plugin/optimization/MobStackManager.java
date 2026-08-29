@@ -59,6 +59,35 @@ public class MobStackManager {
         names.put(EntityType.GHAST, "Ghast");
         names.put(EntityType.MAGMA_CUBE, "Cube de magma");
         names.put(EntityType.IRON_GOLEM, "Golem de fer");
+        names.put(EntityType.SQUID, "Poulpe");
+        names.put(EntityType.GLOW_SQUID, "Poulpe lumineux");
+        names.put(EntityType.BEE, "Abeille");
+        names.put(EntityType.HUSK, "Husk");
+        names.put(EntityType.DROWNED, "Noyé");
+        names.put(EntityType.STRAY, "Vagabond");
+        names.put(EntityType.CAVE_SPIDER, "Araignée venimeuse");
+        names.put(EntityType.BOGGED, "Envasé");
+        names.put(EntityType.SILVERFISH, "Poisson d'argent");
+        names.put(EntityType.ZOMBIE_VILLAGER, "Zombie-villageois");
+        names.put(EntityType.GUARDIAN, "Gardien");
+        names.put(EntityType.ELDER_GUARDIAN, "Grand gardien");
+        names.put(EntityType.POLAR_BEAR, "Ours polaire");
+        names.put(EntityType.PIGLIN, "Piglin");
+        names.put(EntityType.PIGLIN_BRUTE, "Piglin brute");
+        names.put(EntityType.ZOMBIFIED_PIGLIN, "Piglin zombifié");
+        names.put(EntityType.HOGLIN, "Hoglin");
+        names.put(EntityType.ZOGLIN, "Zoglin");
+        names.put(EntityType.PHANTOM, "Phantom");
+        names.put(EntityType.WITHER_SKELETON, "Wither squelette");
+        names.put(EntityType.PILLAGER, "Pilleur");
+        names.put(EntityType.VINDICATOR, "Vindicateur");
+        names.put(EntityType.EVOKER, "Évocateur");
+        names.put(EntityType.RAVAGER, "Ravageur");
+        names.put(EntityType.STRIDER, "Arpenteur");
+        names.put(EntityType.ENDERMITE, "Endermite");
+        names.put(EntityType.BREEZE, "Breeze");
+        names.put(EntityType.PANDA, "Panda");
+        names.put(EntityType.SHULKER, "Shulker");
         FRENCH_NAMES = Map.copyOf(names);
     }
 
@@ -288,6 +317,8 @@ public class MobStackManager {
         dropLootOnce(entity, killer instanceof Player player ? player : null);
         dropXpOnce(entity, killer);
 
+        creditKillProgress(entity, killer);
+
         int remaining = size - 1;
         setStackSize(entity, remaining);
 
@@ -303,6 +334,32 @@ public class MobStackManager {
 
         markSkipMerge(entity, 40);
         return true;
+    }
+
+    /**
+     * Un coup absorbé n'est pas une vraie mort : Minecraft n'incrémente pas
+     * {@link org.bukkit.Statistic#KILL_ENTITY} et {@code EntityDeathEvent} ne part
+     * pas. On crédite collections, quêtes et stats vanilla à la main.
+     */
+    private void creditKillProgress(LivingEntity entity, Entity killer) {
+        Player player = resolvePlayerKiller(killer);
+        if (player == null) return;
+        EntityType type = entity.getType();
+        if (plugin.getCollectionManager() != null) {
+            plugin.getCollectionManager().onMobKill(player, type, 1, true);
+        }
+        if (plugin.getQuestEngine() != null) {
+            plugin.getQuestEngine().addProgress(player, fr.cantale.plugin.quests.QuestObjectiveType.KILL_MOB,
+                    type.name(), 1);
+        }
+    }
+
+    private static Player resolvePlayerKiller(Entity killer) {
+        if (killer instanceof Player player) return player;
+        if (killer instanceof Tameable tameable && tameable.getOwner() instanceof Player owner) {
+            return owner;
+        }
+        return null;
     }
 
     private void dropLootOnce(LivingEntity entity, Player killer) {

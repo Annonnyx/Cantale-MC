@@ -191,9 +191,11 @@ public class CantalameManager {
         // Mettre à jour le lore
         meta.setLore(java.util.List.of(
             "§7Kills: §e" + tier + "/100 §7(max 3/j/joueur)",
-            "§7Puissance: " + getPowerDescription(tier)
+            "§7Puissance: " + getPowerDescription(tier),
+            "§8Non enchantable à la table / enclume"
         ));
         
+        meta.setEnchantable(null);
         item.setItemMeta(meta);
     }
 
@@ -243,16 +245,26 @@ public class CantalameManager {
         meta.setDisplayName("§6Cantalame §7[§cDébutant§7]");
         meta.setLore(java.util.List.of(
             "§7Kills uniques: §e0/100",
-            "§7Puissance: §cFaible"
+            "§7Puissance: §cFaible",
+            "§8Non enchantable à la table / enclume"
         ));
         
         meta.setUnbreakable(true);
+        // Composant 1.21 : sans « enchantable », la table d'enchantement refuse l'item.
+        // Les paliers (applyUpgrades) continuent d'ajouter des enchantements en code.
+        meta.setEnchantable(null);
 
         item.setItemMeta(meta);
 
         // Identité Cantale (tag PDC + hash anti-fake + CustomModelData) : sans elle,
         // l'épée échappait aux protections enclume/meule et n'avait pas sa texture.
         new CustomItemManager().applyCustomIdentity(item, CustomItemType.CANTALAME);
+
+        ItemMeta locked = item.getItemMeta();
+        if (locked != null) {
+            locked.setEnchantable(null);
+            item.setItemMeta(locked);
+        }
 
         return item;
     }

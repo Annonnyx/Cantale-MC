@@ -23,7 +23,8 @@ import java.util.stream.Collectors;
  * Commandes staff homes :
  * <ul>
  *   <li>{@code /adminhome check|list <joueur>} — liste les homes</li>
- *   <li>{@code /adminhome <joueur> <nom>} ou {@code /adminhome tp <joueur> <nom>} — TP vers ce home</li>
+ *   <li>{@code /adminhome tp <joueur> <nom>} (ou forme courte {@code /adminhome <joueur> <nom>}) — TP vers ce home</li>
+ *   <li>{@code /adminhome delete <joueur> <nom>} — supprime ce home (online/offline, log console)</li>
  * </ul>
  */
 public class AdminHomeCommand implements CommandExecutor, TabCompleter {
@@ -82,6 +83,20 @@ public class AdminHomeCommand implements CommandExecutor, TabCompleter {
             return true;
         }
 
+        if (first.equals("delete") || first.equals("del") || first.equals("remove")) {
+            if (args.length < 3) {
+                sender.sendMessage("§8[§6Cantale§8] §cUsage : /" + label + " delete <joueur> <nom_du_home>");
+                return true;
+            }
+            OfflinePlayer target = resolveOffline(args[1]);
+            if (target == null) {
+                sender.sendMessage("§8[§6Cantale§8] §cJoueur introuvable : §e" + args[1]);
+                return true;
+            }
+            homeManager.deleteHomeOf(sender, target.getUniqueId(), args[2], displayName(target, args[1]));
+            return true;
+        }
+
         // Forme courte : /adminhome <joueur> <nom>
         if (!(sender instanceof Player admin)) {
             sender.sendMessage("§8[§6Cantale§8] §cLa téléportation est réservée aux joueurs. Pour lister : /"
@@ -104,8 +119,8 @@ public class AdminHomeCommand implements CommandExecutor, TabCompleter {
     private void sendUsage(CommandSender sender) {
         sender.sendMessage("§8[§6Cantale§8] §7=== Admin homes ===");
         sender.sendMessage("§7/" + "adminhome check <joueur> §8— §7liste les homes");
-        sender.sendMessage("§7/" + "adminhome <joueur> <nom> §8— §7TP vers ce home");
-        sender.sendMessage("§7/" + "adminhome tp <joueur> <nom> §8— §7idem (explicite)");
+        sender.sendMessage("§7/" + "adminhome tp <joueur> <nom> §8— §7TP vers ce home");
+        sender.sendMessage("§7/" + "adminhome delete <joueur> <nom> §8— §7supprime ce home");
     }
 
     @Override
@@ -117,6 +132,7 @@ public class AdminHomeCommand implements CommandExecutor, TabCompleter {
             options.add("check");
             options.add("list");
             options.add("tp");
+            options.add("delete");
             options.addAll(onlineNames());
             return filterPrefix(options, args[0]);
         }
@@ -124,7 +140,8 @@ public class AdminHomeCommand implements CommandExecutor, TabCompleter {
         if (args.length == 2) {
             String first = args[0].toLowerCase(Locale.ROOT);
             if (first.equals("check") || first.equals("list") || first.equals("ls")
-                    || first.equals("tp") || first.equals("teleport") || first.equals("goto")) {
+                    || first.equals("tp") || first.equals("teleport") || first.equals("goto")
+                    || first.equals("delete") || first.equals("del") || first.equals("remove")) {
                 return filterPrefix(onlineNames(), args[1]);
             }
             // /adminhome <joueur> <nom> → compléter les noms de homes
@@ -135,7 +152,8 @@ public class AdminHomeCommand implements CommandExecutor, TabCompleter {
 
         if (args.length == 3) {
             String first = args[0].toLowerCase(Locale.ROOT);
-            if (first.equals("tp") || first.equals("teleport") || first.equals("goto")) {
+            if (first.equals("tp") || first.equals("teleport") || first.equals("goto")
+                    || first.equals("delete") || first.equals("del") || first.equals("remove")) {
                 OfflinePlayer target = resolveOffline(args[1]);
                 if (target == null) return Collections.emptyList();
                 return filterPrefix(homeNames(target.getUniqueId()), args[2]);

@@ -784,7 +784,11 @@ entries:
       Pose uniquement dans tes claims (interdit en PASDIC). Clic droit pour empiler jusqu'à x8 (même animal).
       Récupération : n'importe quelle pioche avec Touché de soie (bois ok) = 1 item du palier. Sans soie : rien.
       Vendables à l'/ah, pas au /shop. Hologramme au-dessus du bloc (Cochon ×3).
-      Cadence linéaire : palier N = N mobs toutes les (8/N) s. T1 : 1/8 s ; T8 = 8 mobs / 1 s. Golem de fer : intervalle ×2.
+      Cadence linéaire : palier N = N mobs toutes les (8/N) s. T1 : 1/8 s ; T8 = 8 mobs / 1 s. Golem / ravageur / grand gardien / évocateurs / piglin brute : intervalle ×2.
+      Rare : fermes (vache, cochon, mouton, poulet, lapin, champimeuh, poulpe, abeille) + hostiles communs (zombie, squelette, araignée, creeper, husk, noyé, vagabond, araignée venimeuse, envasé, poisson d'argent, zombie-villageois).
+      Épique : enderman, blaze, sorcière, slime, gardien, ours, piglin, piglin zombifié, hoglin, phantom, wither squelette, pilleur, vindicateur, arpenteur, endermite, breeze, poulpe lumineux, chèvre, panda.
+      Mythique : cube de magma, golem de fer, grand gardien, piglin brute, zoglin, ravageur, évocateurs.
+      Pas de bosses, pas de ghast ni de shulker.
       Staff : /spawner give <joueur> <mob> [tier].
 
   - id: quetes
@@ -821,9 +825,9 @@ entries:
       - "collection minage"
     response: |
       /collections ouvre tes collections long terme (jamais reset).
-      Catégories : cultures, minage (sans soie), mobs spawner, réactions chat, clefs ouvertes, votes, quêtes complétées, pic /bal, temps de jeu.
+      Catégories : cultures, minage (sans soie), mobs (y compris les stacks : chaque coup compte comme 1 kill), réactions chat, clefs ouvertes, votes, quêtes complétées, pic /bal, temps de jeu.
       Chaque sous-catégorie a des paliers exponentiels. Clique un palier atteint pour réclamer Cantox / clef / vie / spawner.
-      Le pic d'argent est le plus haut /bal jamais atteint.
+      Le pic d'argent est le plus haut /bal jamais atteint. Les kills de mobs s'alignent aussi sur tes stats Minecraft.
 
   - id: saison
     triggers:

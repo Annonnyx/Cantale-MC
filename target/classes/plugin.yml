@@ -91,8 +91,8 @@ commands:
     description: Gérer ses homes personnels (TP cooldown 30 s, warmup 3 s)
     usage: /home [set|delete|del] [nom]
   adminhome:
-    description: "Staff — lister/TP vers les homes d'un joueur"
-    usage: "/adminhome check <joueur> | /adminhome <joueur> <nom> | /adminhome tp <joueur> <nom>"
+    description: "Staff — lister/TP/supprimer les homes d'un joueur"
+    usage: "/adminhome check <joueur> | /adminhome tp <joueur> <nom> | /adminhome delete <joueur> <nom>"
     aliases: [ahome, seehome]
     permission: cantale.moderator
     permission-message: "§cPermission refusée (cantale.admin / cantale.moderator)."
@@ -111,6 +111,10 @@ commands:
   warp:
     description: Téléportation aux warps publics (cooldown 30 s, warmup 3 s)
     usage: /warp [nom|set|delete|toggle]
+  fw:
+    description: Warps publics de faction — TP ouverte à tous (builds, shops, spawners…)
+    usage: /fw [nom|list|create <nom>|delete <nom>]
+    aliases: [fwarp, fwarps]
   spawn:
     description: Téléportation au spawn (cooldown 30 s, warmup 3 s)
     usage: /spawn

@@ -67,6 +67,9 @@ public class AdminCommand implements CommandExecutor, TabCompleter {
             case "kickmember":
                 handleKickMember(sender, args);
                 break;
+            case "unsecret":
+                handleUnsecret(sender, args);
+                break;
             case "f":
                 handleFactionAdmin(sender, args);
                 break;
@@ -231,25 +234,20 @@ public class AdminCommand implements CommandExecutor, TabCompleter {
 
     private void handleDeleteHome(CommandSender sender, String[] args) {
         if (args.length < 3) {
-            sender.sendMessage(ChatColor.translateAlternateColorCodes('&', 
+            sender.sendMessage(ChatColor.translateAlternateColorCodes('&',
                 "&cUsage: /admin deletehome <joueur> <nom>"));
             return;
         }
 
-        Player target = Bukkit.getPlayer(args[1]);
-        if (target == null) {
-            sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&cLe joueur doit être en ligne pour supprimer son home."));
+        // Même logique que /adminhome delete : fonctionne aussi hors ligne.
+        Player online = Bukkit.getPlayer(args[1]);
+        org.bukkit.OfflinePlayer target = online != null ? online : Bukkit.getOfflinePlayer(args[1]);
+        if (online == null && !target.hasPlayedBefore()) {
+            sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&cJoueur introuvable : &e" + args[1]));
             return;
         }
-
-        boolean deleted = plugin.getHomeManager().deleteHome(target, args[2]);
-        if (deleted) {
-            sender.sendMessage(ChatColor.translateAlternateColorCodes('&', 
-                "&aHome " + args[2] + " de " + target.getName() + " supprimé."));
-        } else {
-            sender.sendMessage(ChatColor.translateAlternateColorCodes('&', 
-                "&cHome introuvable."));
-        }
+        String displayName = target.getName() != null ? target.getName() : args[1];
+        plugin.getHomeManager().deleteHomeOf(sender, target.getUniqueId(), args[2], displayName);
     }
 
     private void handleKickMember(CommandSender sender, String[] args) {
@@ -279,6 +277,43 @@ public class AdminCommand implements CommandExecutor, TabCompleter {
             sender.sendMessage(ChatColor.translateAlternateColorCodes('&', 
                 "&cCe joueur n'est pas dans cette faction."));
         }
+    }
+
+    private void handleUnsecret(CommandSender sender, String[] args) {
+        if (args.length >= 2 && args[1].equalsIgnoreCase("all")) {
+            for (Faction f : plugin.getFactionManager().getAllFactions()) {
+                f.setSecretUntil(0);
+                f.setSecretFreeUntil(0);
+                plugin.getFactionManager().saveFaction(f);
+            }
+            try (java.sql.Connection conn = plugin.getDatabaseManager().getConnection();
+                 java.sql.Statement stmt = conn.createStatement()) {
+                stmt.executeUpdate("UPDATE factions SET secret_until = 0, secret_free_until = 0");
+            } catch (Exception e) {
+                plugin.getLogger().warning("Erreur SQL unsecret : " + e.getMessage());
+            }
+            sender.sendMessage(ChatColor.translateAlternateColorCodes('&',
+                    "&a[Admin] Mode secret désactivé pour TOUTES les factions."));
+            return;
+        }
+
+        if (args.length < 2) {
+            sender.sendMessage(ChatColor.translateAlternateColorCodes('&',
+                    "&cUsage: /admin unsecret <all|faction>"));
+            return;
+        }
+
+        Faction faction = plugin.getFactionManager().getFaction(args[1]);
+        if (faction == null) {
+            sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&cFaction introuvable."));
+            return;
+        }
+
+        faction.setSecretUntil(0);
+        faction.setSecretFreeUntil(0);
+        plugin.getFactionManager().saveFaction(faction);
+        sender.sendMessage(ChatColor.translateAlternateColorCodes('&',
+                "&a[Admin] Mode secret désactivé pour &e" + faction.getName()));
     }
 
     private void handleFactionAdmin(CommandSender sender, String[] args) {
@@ -433,6 +468,7 @@ public class AdminCommand implements CommandExecutor, TabCompleter {
             subcommands.add("removebank");
             subcommands.add("deletehome");
             subcommands.add("kickmember");
+            subcommands.add("unsecret");
             subcommands.add("f");
             return subcommands.stream()
                 .filter(s -> s.toLowerCase().startsWith(args[0].toLowerCase()))

@@ -26,6 +26,7 @@ fr/cantale/plugin/discord/tasks/DailyLeaderboardTask.class
 fr/cantale/plugin/vote/VoteDAO$VoteStats.class
 fr/cantale/plugin/moderation/MuteDAO.class
 fr/cantale/plugin/anticheat/data/TrustManager.class
+fr/cantale/plugin/ui/inventory/TradeSessionUI.class
 fr/cantale/plugin/teleport/WarpManager.class
 fr/cantale/plugin/teleport/TpaManager$Request.class
 fr/cantale/plugin/vote/VoteDAO$PendingVote.class
@@ -45,12 +46,14 @@ fr/cantale/plugin/privatechest/ChestType.class
 fr/cantale/plugin/util/VisualPacketUtil.class
 fr/cantale/plugin/factions/permissions/FactionPermissions.class
 fr/cantale/plugin/protection/SpawnProtection.class
+fr/cantale/plugin/teleport/FWarpManager.class
 fr/cantale/plugin/shop/ShopCategory.class
 fr/cantale/plugin/ui/inventory/FactionMapUI.class
 fr/cantale/plugin/ui/map/MapSession.class
 fr/cantale/plugin/teleport/Warp.class
 fr/cantale/plugin/ui/inventory/FactionPowerShopUI$1.class
 fr/cantale/plugin/CantalePlugin$4.class
+fr/cantale/plugin/trade/TradeManager$PendingRequest.class
 fr/cantale/plugin/tasks/PlaytimeSyncTask.class
 fr/cantale/plugin/discord/DiscordBot$1.class
 fr/cantale/plugin/commands/UnlinkCommand.class
@@ -80,8 +83,11 @@ fr/cantale/plugin/util/NMSUtil.class
 fr/cantale/plugin/database/DatabaseManager.class
 fr/cantale/plugin/quests/QuestEngine.class
 fr/cantale/plugin/ui/chat/FactionChatUI.class
+fr/cantale/plugin/teleport/FWarp.class
 fr/cantale/plugin/factions/pasdic/PasdicService$ChunkRef.class
+fr/cantale/plugin/commands/FWarpCommand.class
 fr/cantale/plugin/anticheat/combat/CombatListener.class
+fr/cantale/plugin/trade/TradeListener.class
 fr/cantale/plugin/anticheat/movement/SpeedCheck.class
 fr/cantale/plugin/discord/listeners/MaintenanceRelayListener.class
 fr/cantale/plugin/combat/CombatTagManager$1.class
@@ -278,6 +284,7 @@ fr/cantale/plugin/quests/QuestEngine$1.class
 fr/cantale/plugin/vote/ServeurPriveVotePoller$PlayerSnapshot.class
 fr/cantale/plugin/optimization/PerformanceGovernor$Mode.class
 fr/cantale/plugin/commands/AdminCommand.class
+fr/cantale/plugin/trade/TradeManager$1.class
 fr/cantale/plugin/ui/map/MapImageBuilder.class
 fr/cantale/plugin/npc/NPCManager.class
 fr/cantale/plugin/vote/VoteReminder.class
@@ -312,6 +319,7 @@ fr/cantale/plugin/util/PublicRankingExclusions.class
 fr/cantale/plugin/commands/CrateCommand.class
 fr/cantale/plugin/ui/inventory/ShopMainUI.class
 fr/cantale/plugin/custom/CustomItemListener.class
+fr/cantale/plugin/teleport/FWarpDAO.class
 fr/cantale/plugin/anticheat/alert/AlertManager.class
 fr/cantale/plugin/ui/inventory/EconomyUI.class
 fr/cantale/plugin/web/WebChatBridge$Pending.class
@@ -329,6 +337,7 @@ fr/cantale/plugin/discord/commands/GiveawayManager$Reward.class
 fr/cantale/plugin/anticheat/AntiCheatCommand.class
 fr/cantale/plugin/discord/DiscordBot$LiveStatsMessage.class
 fr/cantale/plugin/commands/ParrainCommand.class
+fr/cantale/plugin/listeners/WarpProtectionListener.class
 fr/cantale/plugin/factions/pasdic/PasdicClaim.class
 fr/cantale/plugin/combat/CombatTagListener.class
 fr/cantale/plugin/ui/inventory/MainMenuUI.class

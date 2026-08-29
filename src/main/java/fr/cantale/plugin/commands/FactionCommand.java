@@ -1130,7 +1130,9 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
                 return;
             }
             if (conf.enable) {
-                if (chunkHasStorage(loc.getChunk())) {
+                if (chunkHasStorage(loc.getChunk())
+                        && !player.isOp() && !player.hasPermission("cantale.admin")
+                        && !plugin.getAdminBypassManager().isBypassing(player)) {
                     player.sendMessage(formatMessage("&cImpossible de protéger ce claim : il contient des éléments de stockage (coffres, barrels, etc.)."));
                     pendingPasdic.remove(player.getUniqueId());
                     return;
@@ -1165,7 +1167,9 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
             pendingPasdic.put(player.getUniqueId(), new PasdicConfirmation(claim, false, System.currentTimeMillis()));
             player.sendMessage(formatMessage("&eTape &a/f pasdic confirm &epour retirer le PASDIC de ce chunk (gratuit)."));
         } else {
-            if (chunkHasStorage(loc.getChunk())) {
+            if (chunkHasStorage(loc.getChunk())
+                    && !player.isOp() && !player.hasPermission("cantale.admin")
+                    && !plugin.getAdminBypassManager().isBypassing(player)) {
                 player.sendMessage(formatMessage("&cImpossible de protéger ce claim : il contient des éléments de stockage (coffres, barrels, etc.)."));
                 return;
             }

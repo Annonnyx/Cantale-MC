@@ -50,7 +50,7 @@ public final class CrateInteractionHandler {
 
         // Coffre Trésor Public configuré : jamais d'ouverture vanilla
         if (event.getAction() == Action.RIGHT_CLICK_BLOCK && config.isConfiguredTreasureChest(clicked)) {
-            event.setCancelled(true);
+            denyVanillaUse(event);
             CrateType heldType = (item != null && !item.getType().isAir())
                     ? crateManager.getCrateType(item) : null;
             if (heldType == CrateType.RARE) {
@@ -99,7 +99,7 @@ public final class CrateInteractionHandler {
     private void handleMailbox(PlayerInteractEvent event, Player player, ItemStack item, CrateType type) {
         CrateConfig config = crateManager.getCrateConfig();
         if (event.getAction() != Action.RIGHT_CLICK_BLOCK || !config.isValidMailbox(event.getClickedBlock())) {
-            event.setCancelled(true);
+            denyVanillaUse(event);
             if (config.hasMailboxLocations()) {
                 player.sendMessage("§8[§6Cantale§8] §cDépose le §fCadeau du Roi §cdans la boîte aux lettres au spawn !");
             } else {
@@ -108,7 +108,7 @@ public final class CrateInteractionHandler {
             return;
         }
 
-        event.setCancelled(true);
+        denyVanillaUse(event);
         if (!tryBegin(player)) {
             return;
         }
@@ -123,13 +123,13 @@ public final class CrateInteractionHandler {
         if (config.hasChestLocations()) {
             if (event.getAction() != Action.RIGHT_CLICK_BLOCK
                     || !config.isValidTreasureChest(event.getClickedBlock())) {
-                event.setCancelled(true);
+                denyVanillaUse(event);
                 player.sendMessage("§8[§6Cantale§8] §cOuvre le coffre du §9Trésor Public §cau spawn !");
                 return;
             }
         }
 
-        event.setCancelled(true);
+        denyVanillaUse(event);
         if (!tryBegin(player)) {
             return;
         }
@@ -139,7 +139,7 @@ public final class CrateInteractionHandler {
     }
 
     private void handleThrowWaterWrongInteract(PlayerInteractEvent event, Player player, CrateType type) {
-        event.setCancelled(true);
+        denyVanillaUse(event);
         crateManager.sendUsageHint(player, type);
     }
 
@@ -198,7 +198,7 @@ public final class CrateInteractionHandler {
     private void handleRitualAltar(PlayerInteractEvent event, Player player, ItemStack item, CrateType type) {
         CrateConfig config = crateManager.getCrateConfig();
         if (event.getAction() != Action.RIGHT_CLICK_BLOCK || !config.isValidAltar(event.getClickedBlock())) {
-            event.setCancelled(true);
+            denyVanillaUse(event);
             if (config.hasAltarLocations()) {
                 player.sendMessage("§8[§6Cantale§8] §cConsacre la §5Médaille du Tournoi §csur l'autel au spawn !");
             } else {
@@ -207,7 +207,7 @@ public final class CrateInteractionHandler {
             return;
         }
 
-        event.setCancelled(true);
+        denyVanillaUse(event);
         if (!tryBegin(player)) {
             return;
         }
@@ -219,13 +219,23 @@ public final class CrateInteractionHandler {
     }
 
     private void handleLegendaryTicket(PlayerInteractEvent event, Player player, ItemStack item, CrateType type) {
-        event.setCancelled(true);
+        denyVanillaUse(event);
         if (!tryBegin(player)) {
             return;
         }
 
         consumeOne(player, item);
         crateManager.openTicket(player, type);
+    }
+
+    /**
+     * Annule l'interaction vanilla (ouverture de coffre, insertion shift-clic
+     * d'une stack entière dans un conteneur, pose, etc.).
+     */
+    private static void denyVanillaUse(PlayerInteractEvent event) {
+        event.setCancelled(true);
+        event.setUseInteractedBlock(org.bukkit.event.Event.Result.DENY);
+        event.setUseItemInHand(org.bukkit.event.Event.Result.DENY);
     }
 
     private boolean tryBegin(Player player) {
