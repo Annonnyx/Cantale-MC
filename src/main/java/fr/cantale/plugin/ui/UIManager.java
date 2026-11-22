@@ -43,6 +43,18 @@ public class UIManager {
         navigationManager.openUI(viewer, new ProfileUI(plugin, viewer, target));
     }
 
+    public void openQuestMenu(Player player) {
+        navigationManager.openUI(player, new QuestMainUI(plugin, player));
+    }
+
+    public void openFactionQuests(Player player) {
+        navigationManager.openUI(player, new QuestFactionUI(plugin, player));
+    }
+
+    public void openLeaderboardMenu(Player player) {
+        new LeaderboardUI(plugin, player).open();
+    }
+
     public void openAuctionMenu(Player player) {
         navigationManager.openUI(player, new AuctionUI(plugin, player));
     }

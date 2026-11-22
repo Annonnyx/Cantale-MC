@@ -74,17 +74,16 @@ export function ItemsCatalog({ items }: { items: CatalogItem[] }) {
       </div>
 
       <p aria-live="polite" className="font-tech text-[10px] uppercase tracking-[0.24em] text-steel">
-        {filtered.length} artefact{filtered.length > 1 ? "s" : ""} recensé
-        {filtered.length > 1 ? "s" : ""}
+        {filtered.length} item{filtered.length > 1 ? "s" : ""}
       </p>
 
       {filtered.length === 0 ? (
         <div className="flex flex-col items-start gap-4 border border-iron-line bg-iron p-8">
           <p className="font-display text-xl font-semibold text-bone">
-            Aucun artefact ne correspond.
+            Aucun item ne correspond.
           </p>
           <p className="text-sm leading-relaxed text-steel">
-            Le registre des forges est précis — essaie un autre nom ou élargis les filtres.
+            Change le nom ou élargis les filtres.
           </p>
           <button
             type="button"

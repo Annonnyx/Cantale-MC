@@ -6,8 +6,8 @@
  *   convertissent en blocs par ×16 ;
  * - les couleurs de faction sont DÉTERMINISTES (dérivées de l'id) pour que la
  *   carte, la légende et la recherche parlent de la même teinte ;
- * - les constantes de teinte reprennent les tokens de globals.css (palette
- *   « Le Registre ») pour le rendu canvas, qui ne lit pas les classes Tailwind.
+ * - les constantes de teinte reprennent le papier et l'encre de globals.css
+ *   pour le rendu canvas, qui ne lit pas les classes Tailwind.
  */
 
 export type MapFactionRef = {
@@ -53,15 +53,16 @@ export function claimKeyOf(claim: Pick<MapClaim, "world" | "x" | "z">): string {
   return claimKey(claim.world, claim.x, claim.z);
 }
 
-/* ——— Palette canvas (miroir des tokens de globals.css) ——— */
+/* ——— Palette canvas (papier). Les pastels bruts disparaissent en trait :
+   bleu, rose et beurre sont assombris, même teinte, pour rester lisibles. ——— */
 export const MAP_COLORS = {
-  bg: "#0e0c09", // ash-deep
-  grid: "#3a342c", // iron-line
-  axis: "#756f63", // steel
-  bone: "#eee7d8",
-  ember: "#c6491f",
-  emberGlow: "#e8703c",
-  gold: "#d9a441",
+  bg: "#EEF1EE",
+  grid: "#C5CBC6",
+  axis: "#555A72",
+  bone: "#2B2F4A",
+  ember: "#9A4E5C",
+  emberGlow: "#3E6284",
+  gold: "#876628",
 } as const;
 
 /* ——— Couleur déterministe de faction ——— */
@@ -75,15 +76,14 @@ export function factionHue(factionId: number): number {
 }
 
 /**
- * Saturation et luminosité bornées : lisible sur fond ash (#15130f),
- * jamais criard ni boueux. Variation légère selon l'id pour départager
- * deux factions à teinte proche.
+ * Saturation et luminosité bornées : lisible sur le papier (#EEF1EE).
+ * Variation légère selon l'id pour départager deux factions à teinte proche.
  */
 export function factionHsl(factionId: number): { h: number; s: number; l: number } {
   return {
     h: factionHue(factionId),
-    s: 60 + (factionId % 3) * 5, // 60–70 %
-    l: 55 + (factionId % 2) * 6, // 55–61 %
+    s: 46 + (factionId % 3) * 6, // 46–58 %
+    l: 42 + (factionId % 2) * 5, // 42–47 %
   };
 }
 

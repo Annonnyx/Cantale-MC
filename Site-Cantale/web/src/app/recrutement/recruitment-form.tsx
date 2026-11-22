@@ -257,7 +257,7 @@ export function RecruitmentForm({
         </h3>
         <p className="max-w-2xl text-sm leading-relaxed text-steel">
           Ta candidature pour le poste{" "}
-          <span className="text-bone">{role?.title}</span> a été déposée dans le registre.
+          <span className="text-bone">{role?.title}</span> a été envoyée.
           Un salon privé
           {ticketChannel ? (
             <>
@@ -634,7 +634,7 @@ export function RecruitmentForm({
               type="button"
               onClick={handleSubmit}
               disabled={status === "submitting" || (Boolean(TURNSTILE_SITE_KEY) && !turnstileToken)}
-              className="pressable bg-ember px-5 py-2.5 font-tech text-[11px] uppercase tracking-[0.22em] text-bone hover:bg-ember-glow disabled:cursor-not-allowed disabled:opacity-50"
+              className="pressable border border-action bg-action px-5 py-2.5 font-tech text-[11px] uppercase tracking-[0.22em] text-white disabled:cursor-not-allowed disabled:opacity-50"
             >
               {status === "submitting" ? "Transmission…" : "Envoyer ma candidature"}
             </button>

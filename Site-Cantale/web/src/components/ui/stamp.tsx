@@ -3,8 +3,8 @@ import type { CSSProperties, ReactNode } from "react";
 type StampTone = "ember" | "gold" | "steel";
 
 const TONE_CLASSES: Record<StampTone, string> = {
-  ember: "border-ember text-ember-glow",
-  gold: "border-gold text-gold",
+  ember: "border-bone text-bone",
+  gold: "border-bone bg-beurre text-bone",
   steel: "border-steel text-steel",
 };
 

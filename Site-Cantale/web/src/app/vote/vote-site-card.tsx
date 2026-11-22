@@ -70,7 +70,7 @@ export function VoteSiteCard({
         <span className="font-tech text-[10px] uppercase tracking-[0.22em] text-steel">
           Récompense
         </span>
-        <span className="font-display text-base font-semibold text-gold">
+        <span className="font-display text-base font-semibold text-bone">
           {rewardLabel(crates)}
         </span>
       </div>
@@ -102,7 +102,7 @@ export function VoteSiteCard({
         rel="noopener noreferrer"
         className={`pressable mt-auto inline-block self-start px-4 py-2 font-tech text-[11px] uppercase tracking-[0.22em] ${
           !personalized || available
-            ? "bg-ember text-bone hover:bg-ember-glow"
+            ? "bg-sauge text-bone"
             : "border border-iron-line text-steel hover:border-bone hover:text-bone"
         }`}
       >

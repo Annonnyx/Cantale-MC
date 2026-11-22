@@ -1,9 +1,9 @@
 @import "tailwindcss";
 @import "leaflet/dist/leaflet.css";
 
-/* Carte Leaflet unifiée — fond Registre, pas de tuiles OSM par défaut */
+/* Carte Leaflet — chrome papier, pas de tuiles OSM par défaut */
 .cantale-world-map.leaflet-container {
-  background: #0e0c09;
+  background: #eef1ee;
   font: inherit;
   z-index: 0;
   /* Évite les sauts de scroll-anchoring quand les tuiles / overlays se chargent. */
@@ -13,38 +13,46 @@
   display: none;
 }
 .cantale-world-map .leaflet-bar a {
-  background: #221e19;
-  border-color: #3a342c;
-  color: #eee7d8;
+  background: #f7f8f6;
+  border-color: #d5dad6;
+  color: #2b2f4a;
 }
 .cantale-world-map .leaflet-bar a:hover {
-  background: #2c2721;
-  color: #e8703c;
+  background: #b9d0e8;
+  color: #2b2f4a;
 }
 .cantale-world-map .leaflet-bar a.leaflet-disabled {
-  color: #756f63;
+  color: #555a72;
 }
 
 @theme {
-  /* Palette « Le Registre » — sombre et chaude, jamais de noir froid ni de blanc pur */
-  --color-ash: #15130f;
-  --color-ash-deep: #0e0c09;
-  --color-iron: #221e19;
-  --color-iron-light: #2c2721;
-  --color-iron-line: #3a342c;
-  --color-ember: #c6491f;
-  --color-ember-glow: #e8703c;
-  --color-gold: #d9a441;
-  --color-steel: #756f63;
-  /* steel éclairci — contraste AA (≈ 5,2:1 sur ash) pour le texte courant < 14px */
-  --color-steel-light: #8d877a;
-  --color-bone: #eee7d8;
+  /* Noms de classes conservés (bg-ash, text-bone…). Les valeurs sont le pastel.
+     Texte long : encre sur papier. Les pastels sont des aplats, pas du corps de texte. */
+  --color-ash: #eef1ee; /* papier givré */
+  --color-ash-deep: #e4e9e5;
+  --color-iron: #f7f8f6;
+  --color-iron-light: #ffffff;
+  --color-iron-line: #d5dad6;
+  --color-bone: #2b2f4a; /* encre */
+  --color-steel: #555a72; /* secondaire, ≥ 5,9:1 sur le papier */
+  --color-steel-light: #3a3f58;
+  --color-ember: #c3d8c2; /* sauge — aplats */
+  --color-ember-glow: #2b2f4a; /* libellés : encre, les pastels ne passent pas en petit corps */
+  --color-gold: #f2e2a0; /* beurre — aplats */
+  --color-action: #c2455a; /* bouton principal uniquement */
+  --color-encre: #2b2f4a;
+  --color-papier: #eef1ee;
+  --color-bleu: #b9d0e8;
+  --color-sauge: #c3d8c2;
+  --color-lilas: #cbc3e3;
+  --color-rose: #f2a7b1;
+  --color-beurre: #f2e2a0;
 
-  /* Raretés (Items + Boutique) */
-  --color-rare: #5b8dd9;
-  --color-epique: #9b59d0;
-  --color-mythique: #e04f5f;
-  --color-legendaire: #d9a441;
+  /* Raretés assombries pour rester lisibles sur le papier (même teinte). */
+  --color-rare: #466da7;
+  --color-epique: #8c50bb;
+  --color-mythique: #ba424f;
+  --color-legendaire: #876628;
 }
 
 @theme inline {
@@ -63,14 +71,14 @@
   --ease-forge: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-press: cubic-bezier(0.16, 1, 0.3, 1);
   /* Boutons : ombre diagonale nette (blur 0) */
-  --shadow-rest: 3px 4px 0 0 rgba(0, 0, 0, 0.8);
-  --shadow-raised: 7px 9px 0 0 rgba(0, 0, 0, 0.8);
-  --shadow-pressed: 4px 5px 0 0 rgba(0, 0, 0, 0.8);
+  --shadow-rest: 3px 4px 0 0 rgba(43, 47, 74, 0.14);
+  --shadow-raised: 7px 9px 0 0 rgba(43, 47, 74, 0.16);
+  --shadow-pressed: 4px 5px 0 0 rgba(43, 47, 74, 0.14);
   /* Cartes : même logique, offsets un cran plus discrets */
-  --shadow-card-rest: 3px 4px 0 0 rgba(0, 0, 0, 0.75);
-  --shadow-card-raised: 6px 8px 0 0 rgba(0, 0, 0, 0.8);
-  --shadow-card-pressed: 4px 5px 0 0 rgba(0, 0, 0, 0.78);
-  --shadow-card-soft: 5px 6px 0 0 rgba(0, 0, 0, 0.72);
+  --shadow-card-rest: 3px 4px 0 0 rgba(43, 47, 74, 0.1);
+  --shadow-card-raised: 6px 8px 0 0 rgba(43, 47, 74, 0.14);
+  --shadow-card-pressed: 4px 5px 0 0 rgba(43, 47, 74, 0.12);
+  --shadow-card-soft: 5px 6px 0 0 rgba(43, 47, 74, 0.1);
 }
 
 /*
@@ -92,19 +100,29 @@ html {
 }
 
 body {
-  background: var(--color-ash);
+  background-color: var(--color-ash);
   color: var(--color-bone);
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)' opacity='.15'/%3E%3C/svg%3E"),
+    radial-gradient(ellipse at 0% 0%, rgba(185, 208, 232, 0.55), transparent 46%),
+    radial-gradient(ellipse at 100% 8%, rgba(203, 195, 227, 0.4), transparent 42%),
+    radial-gradient(ellipse at 80% 100%, rgba(195, 216, 194, 0.45), transparent 40%);
 }
 
 ::selection {
-  background: var(--color-ember);
-  color: var(--color-bone);
+  background: var(--color-bleu);
+  color: var(--color-encre);
 }
 
 :focus-visible {
-  outline: 2px solid var(--color-ember-glow);
+  outline: 2px solid var(--color-encre);
   outline-offset: 3px;
   border-radius: 2px;
+}
+
+/* La sauge en filet 1px disparaît sur le papier. Le fond bg-ember reste la sauge. */
+.border-ember {
+  border-color: var(--color-encre);
 }
 
 /* ——— Hero : révélation lettre par lettre ——— */
@@ -267,10 +285,10 @@ body {
 @keyframes live-pulse {
   0%,
   100% {
-    box-shadow: 0 0 0 0 rgba(200, 73, 31, 0.55);
+    box-shadow: 0 0 0 0 rgba(43, 47, 74, 0.35);
   }
   50% {
-    box-shadow: 0 0 0 6px rgba(200, 73, 31, 0);
+    box-shadow: 0 0 0 6px rgba(43, 47, 74, 0);
   }
 }
 
@@ -282,10 +300,10 @@ body {
 @keyframes ember-breathe {
   0%,
   100% {
-    filter: drop-shadow(0 0 3px rgba(232, 112, 60, 0.5));
+    filter: drop-shadow(0 0 2px rgba(242, 167, 177, 0.45));
   }
   50% {
-    filter: drop-shadow(0 0 9px rgba(232, 112, 60, 0.9));
+    filter: drop-shadow(0 0 6px rgba(242, 167, 177, 0.85));
   }
 }
 
@@ -370,7 +388,7 @@ body {
 
   a.card-lift:hover,
   button.card-lift:hover {
-    border-color: var(--color-ember);
+    border-color: var(--color-encre);
   }
 }
 

@@ -189,7 +189,7 @@ export function PartnershipForm({ discordName }: { discordName: string | null })
               pour <span className="text-bone">{selectedType.label}</span>
             </>
           ) : null}{" "}
-          a été déposée dans le registre. Un salon privé
+          a été envoyée. Un salon privé
           {ticketChannel ? (
             <>
               {" "}
@@ -341,7 +341,7 @@ export function PartnershipForm({ discordName }: { discordName: string | null })
         <button
           type="submit"
           disabled={status === "submitting" || (Boolean(TURNSTILE_SITE_KEY) && !turnstileToken)}
-          className="pressable bg-ember px-5 py-2.5 font-tech text-[11px] uppercase tracking-[0.22em] text-bone hover:bg-ember-glow disabled:cursor-not-allowed disabled:opacity-50"
+          className="pressable border border-action bg-action px-5 py-2.5 font-tech text-[11px] uppercase tracking-[0.22em] text-white disabled:cursor-not-allowed disabled:opacity-50"
         >
           {status === "submitting" ? "Envoi…" : "Envoyer ma demande"}
         </button>

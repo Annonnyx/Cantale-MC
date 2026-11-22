@@ -211,7 +211,7 @@ export function ChatPanel({
           </button>
         </div>
         <span
-          className={`font-tech text-[10px] uppercase tracking-[0.22em] ${live ? "text-steel-light" : "text-ember"}`}
+          className={`font-tech text-[10px] uppercase tracking-[0.22em] ${live ? "text-steel-light" : "text-bone"}`}
         >
           {live ? "En direct" : "Hors ligne"}
         </span>
@@ -277,7 +277,7 @@ export function ChatPanel({
               </button>
             </div>
             {error && (
-              <p className="font-tech text-[10px] uppercase tracking-[0.2em] text-ember">{error}</p>
+              <p className="font-tech text-[10px] uppercase tracking-[0.2em] text-bone">{error}</p>
             )}
             <p className="font-tech text-[10px] uppercase tracking-[0.2em] text-steel">
               {scope === "faction"

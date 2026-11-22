@@ -50,7 +50,7 @@ export function ApplyForm({ slug, factionName }: { slug: string; factionName: st
       <div className="flex flex-col items-start gap-4 border border-ember/60 bg-iron p-6 sm:p-8">
         <Stamp tone="gold">Transmise</Stamp>
         <p className="font-display text-xl font-semibold text-bone">
-          Candidature déposée dans le registre.
+          Candidature envoyée.
         </p>
         <p className="max-w-xl text-sm leading-relaxed text-steel">
           Le leader de <span className="text-bone">{factionName}</span> la verra dans son
@@ -134,7 +134,7 @@ export function ApplyForm({ slug, factionName }: { slug: string; factionName: st
           type="button"
           onClick={submit}
           disabled={status === "sending"}
-          className="pressable bg-ember px-5 py-2.5 font-tech text-[11px] uppercase tracking-[0.22em] text-bone hover:bg-ember-glow disabled:cursor-not-allowed disabled:opacity-50"
+          className="pressable border border-action bg-action px-5 py-2.5 font-tech text-[11px] uppercase tracking-[0.22em] text-white disabled:cursor-not-allowed disabled:opacity-50"
         >
           {status === "sending" ? "Envoi…" : "Envoyer ma candidature"}
         </button>

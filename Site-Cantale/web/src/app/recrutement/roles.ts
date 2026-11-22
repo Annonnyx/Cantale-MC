@@ -96,9 +96,9 @@ export const RECRUITMENT_ROLES: RoleDefinition[] = [
     id: "graphisme",
     num: "03",
     title: "Graphisme",
-    tagline: "Donner un visage au registre",
+    tagline: "Bannières, miniatures, logos",
     description:
-      "Bannières, miniatures, logos, visuels d'events et habillage du site : tu prolonges la direction artistique « Le Registre » — sombre, chaude, exigeante.",
+      "Bannières, miniatures, logos, visuels d'events et habillage du site, dans la palette actuelle : papier, encre, pastels.",
     fields: [
       {
         id: "portfolio",
@@ -198,7 +198,7 @@ export const RECRUITMENT_ROLES: RoleDefinition[] = [
     id: "animation",
     num: "06",
     title: "Animation / Communauté",
-    tagline: "Faire vivre le serveur entre les guerres",
+    tagline: "Events et vie du Discord",
     description:
       "Events hebdomadaires, tournois, défis de factions, vie du Discord : tu crées les rendez-vous qui font revenir les joueurs, semaine après semaine.",
     fields: [

@@ -747,7 +747,7 @@ export function TerritoryCanvas({
                 {chunkToBlock(hover.target.claim.x)} · {chunkToBlock(hover.target.claim.z)}
               </span>
               {hover.target.claim.pasdic && (
-                <span className="font-tech text-[10px] uppercase tracking-[0.18em] text-gold">
+                <span className="font-tech text-[10px] uppercase tracking-[0.18em] text-bone">
                   Zone PASDIC — territoire protégé
                 </span>
               )}

@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "Factions",
   description:
-    "L'annuaire des factions de CANTALE : puissance, membres, claims et Cantox. Les camps qui se disputent le serveur, gravés dans le registre.",
+    "Factions de CANTALE : puissance, membres, claims et Cantox.",
 };
 
 /** Tri demandé dans l'URL (?tri=) → tri SQL whitelisté du repo. */
@@ -108,16 +108,12 @@ export default async function FactionsPage({
   return (
     <main className="mx-auto w-full max-w-7xl px-5 pb-24 pt-28 sm:px-8 sm:pt-32">
       <header className="flex flex-col gap-4 pb-14">
-        <span className="font-tech text-[10px] uppercase tracking-[0.3em] text-ember-glow">
-          Le registre des camps
-        </span>
         <h1 className="font-display text-4xl font-semibold leading-[1.05] text-bone sm:text-5xl">
           Factions
         </h1>
         <p className="max-w-2xl text-base leading-relaxed text-steel">
-          Chaque faction gravée ici pèse sur le serveur : sa puissance, ses terres, ses
-          Cantox. Certaines recrutent — les autres se gardent. Le registre ne fait que
-          constater.
+          Puissance, membres, claims et Cantox. Une faction qui recrute l&apos;indique sur
+          sa fiche.
         </p>
       </header>
 
@@ -125,7 +121,7 @@ export default async function FactionsPage({
         <>
           <nav aria-label="Trier les factions" className="pb-8">
             <span className="mb-3 block font-tech text-[10px] uppercase tracking-[0.24em] text-steel">
-              Ordre du registre
+              Trier
             </span>
             <div className="flex flex-wrap gap-2">
               {SORT_OPTIONS.map((option) => (
@@ -158,12 +154,10 @@ export default async function FactionsPage({
       ) : (
         <div className="flex flex-col items-start gap-4 border border-iron-line bg-iron p-8 sm:p-10">
           <p className="font-display text-xl font-semibold text-bone">
-            Le registre est muet pour l&apos;instant.
+            Aucune faction à afficher.
           </p>
           <p className="max-w-xl text-sm leading-relaxed text-steel">
-            Aucune faction ne peut être lue — les archives ne répondent pas, ou aucun
-            camp n&apos;a encore été fondé. Reviens plus tard : sur CANTALE, le vide ne
-            dure jamais longtemps.
+            La base ne répond pas, ou aucune faction n&apos;a été créée.
           </p>
         </div>
       )}

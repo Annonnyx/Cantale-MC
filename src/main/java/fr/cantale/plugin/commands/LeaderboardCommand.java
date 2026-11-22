@@ -27,7 +27,7 @@ public class LeaderboardCommand implements CommandExecutor, TabCompleter {
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (args.length == 0) {
             if (sender instanceof Player player) {
-                new fr.cantale.plugin.ui.inventory.LeaderboardUI(plugin, player).open();
+                plugin.getUIManager().openLeaderboardMenu(player);
             } else {
                 sendHelp(sender);
             }

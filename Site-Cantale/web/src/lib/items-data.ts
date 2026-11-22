@@ -165,9 +165,9 @@ export const ITEMS: CatalogItem[] = [
     name: "Pickantaxe Netherite",
     category: "outil",
     rarity: "mythique",
-    tagline: "Efficacité X, incassable : le sommet absolu du minage de zone.",
+    tagline: "Efficacité X, incassable, zone jusqu'à 7×7.",
     description:
-      "La Pickantaxe Netherite n'a pas de jauge de durabilité : elle ne se brise jamais. Avec Efficacité X et des zones allant jusqu'à 7×7, elle transforme une heure de minage en quelques minutes. On ne la croise pas par hasard — elle se gagne.",
+      "La Pickantaxe Netherite n'a pas de durabilité. Efficacité X, zones de 1×1 à 7×7. Elle ne se crafte pas.",
     stats: [
       { label: "Zone de minage", value: "1×1, 3×3, 5×5 ou 7×7 selon la variante" },
       { label: "Enchantements", value: "Efficacité X" },
@@ -192,9 +192,9 @@ export const ITEMS: CatalogItem[] = [
     name: "Cantaxe Fer",
     category: "outil",
     rarity: "epique",
-    tagline: "Un coup, un arbre entier. La déforestation en un geste.",
+    tagline: "Un coup abat l'arbre entier.",
     description:
-      "La Cantaxe abat n'importe quel arbre d'un seul coup : le premier bloc frappé emporte tout le tronc. Elle taille aussi vite qu'une hache à efficacité maximale sur le reste. Indispensable pour bâtir grand sans y passer la nuit.",
+      "La Cantaxe Fer abat le tronc entier au premier bloc frappé. Sur le reste, elle taille comme une hache à efficacité maximale.",
     stats: [
       { label: "Abattage", value: "Un arbre entier en un coup" },
       { label: "Vitesse", value: "Équivalent efficacité maximale" },
@@ -215,7 +215,7 @@ export const ITEMS: CatalogItem[] = [
     rarity: "epique",
     tagline: "L'abattage intégral, la longévité du diamant.",
     description:
-      "La Cantaxe Diamant combine l'abattage d'un arbre entier en un coup avec la solidité et la vitesse du diamant (Efficacité VII). L'outil des bâtisseurs de faction qui mesurent le bois en coffres, pas en stacks.",
+      "Même abattage qu'en fer, en diamant : Efficacité VII. Un arbre entier au premier coup.",
     stats: [
       { label: "Abattage", value: "Un arbre entier en un coup" },
       { label: "Vitesse", value: "Équivalent efficacité maximale" },
@@ -234,9 +234,9 @@ export const ITEMS: CatalogItem[] = [
     name: "Cantaxe Netherite",
     category: "outil",
     rarity: "mythique",
-    tagline: "Efficacité X sur un arbre entier — le dernier mot des haches.",
+    tagline: "Abattage entier, Efficacité X, netherite.",
     description:
-      "Le sommet de la famille : abattage intégral, Efficacité X, matériau netherite. La Cantaxe Netherite ne se contente pas de couper du bois, elle rase des forêts. Réservée aux caisses les plus rares.",
+      "Un arbre entier au premier coup, Efficacité X, netherite. Elle sort des caisses mythiques ou d'un ticket.",
     stats: [
       { label: "Abattage", value: "Un arbre entier en un coup" },
       { label: "Vitesse", value: "Équivalent efficacité maximale" },
@@ -282,7 +282,7 @@ export const ITEMS: CatalogItem[] = [
     rarity: "epique",
     tagline: "L'outil quatre-en-un en version diamant.",
     description:
-      "Toutes les fonctions du Multi-Cantool avec la robustesse du diamant : Solidité VII, Efficacité VII. Un seul slot de barre d'action pour tout un atelier — l'outil que les bâtisseurs ne lâchent plus.",
+      "Pioche, hache, pelle et cisailles, en diamant : Solidité VII, Efficacité VII. Variante 1×1 ou zone 3×3 avec arbres entiers.",
     stats: [
       { label: "Outils réunis", value: "Pioche + Hache + Pelle + Cisailles" },
       { label: "Modes", value: "1×1 (bloc unique) ou zone 3×3 / arbres entiers" },
@@ -307,7 +307,7 @@ export const ITEMS: CatalogItem[] = [
     rarity: "mythique",
     tagline: "Quatre outils en un, Efficacité X, incassable.",
     description:
-      "La version définitive : le Multi-Cantool Netherite ne s'use jamais et travaille à Efficacité X. Pioche, hache, pelle, cisailles — tout y passe, pour toujours. L'outil qu'on lègue à ses successeurs de faction.",
+      "Pioche, hache, pelle et cisailles. Pas de durabilité, Efficacité X. Variante 1×1 ou zone 3×3 avec arbres entiers.",
     stats: [
       { label: "Outils réunis", value: "Pioche + Hache + Pelle + Cisailles" },
       { label: "Modes", value: "1×1 (bloc unique) ou zone 3×3 / arbres entiers" },
@@ -333,10 +333,10 @@ export const ITEMS: CatalogItem[] = [
     rarity: "legendaire",
     tagline: "L'épée qui grandit avec chaque victime — 100 kills uniques au sommet.",
     description:
-      "La Cantalame est une épée en netherite évolutive : chaque joueur unique qu'elle terrasse la renforce définitivement. De « Débutant » à « Surpuissant », ses paliers empilent Tranchant, Pillage, Aura de feu, Balayage et Solidité jusqu'à une lame sans équivalent. Chaque kill dépose la tête du vaincu au sol — le registre se souvient, et la lame aussi.",
+      "Épée en netherite. Chaque joueur unique tué ajoute un palier, jusqu'à 100. Les paliers posent Tranchant, Pillage, Aura de feu, Balayage et Solidité. Le kill dépose la tête du joueur au sol. Elle ne s'enchante pas à la table.",
     stats: [
       { label: "Progression", value: "1 palier par kill unique, 100 maximum" },
-      { label: "Dès 5 kills", value: "Tranchant I — la lame s'éveille" },
+      { label: "Dès 5 kills", value: "Tranchant I" },
       { label: "25 kills", value: "Tranchant V · Pillage III · Aura de feu I" },
       { label: "75 kills", value: "Tranchant X · Recul II" },
       { label: "100 kills", value: "Tranchant X · Pillage V · Aura de feu III · Balayage X · Solidité X" },
@@ -356,11 +356,11 @@ export const ITEMS: CatalogItem[] = [
     name: "Vie",
     category: "consommable",
     rarity: "mythique",
-    tagline: "Une encoche de plus. Sur CANTALE, rien ne vaut plus cher.",
+    tagline: "Clic-droit : +1 vie, l'item disparaît.",
     description:
-      "Sur un serveur où trois morts signifient le bannissement, cet item est le plus précieux qui existe : un clic-droit restaure une vie, dans la limite des trois encoches. Il se consume aussitôt. Les grades le reçoivent chaque mois ; les caisses le glissent parfois entre les Cantox.",
+      "Un clic-droit consomme l'item et ajoute une vie en base. Le départ est à trois vies ; cet item n'est pas plafonné à trois. Il ne se crafte pas. Les grades en reçoivent chaque mois, les caisses peuvent en donner.",
     stats: [
-      { label: "Effet", value: "+1 vie au clic-droit (3 maximum)" },
+      { label: "Effet", value: "+1 vie au clic-droit, sans plafond sur cet item" },
       { label: "Consommation", value: "Disparaît après usage" },
       { label: "Craft", value: "Non-craftable" },
     ],
@@ -369,7 +369,7 @@ export const ITEMS: CatalogItem[] = [
       "Caisses Cadeau du Roi (Vote), Trésor Public (Rare), Médaille du Tournoi (Épique) et Pièce Mythique (Mythique)",
       "Ticket Légendaire — item au choix via ticket Discord",
     ],
-    variants: [{ name: "Vie", note: "Totem consommable" }],
+    variants: [{ name: "Vie", note: "Consommable, clic-droit" }],
     monogram: "VI",
   },
   {
@@ -396,9 +396,9 @@ export const ITEMS: CatalogItem[] = [
     name: "Armure du Garde",
     category: "armure",
     rarity: "mythique",
-    tagline: "Quatre pièces de netherite sur-enchantées, un bonus de set brutal.",
+    tagline: "Quatre pièces de netherite. Le set complet ajoute des cœurs, de la vitesse et du saut.",
     description:
-      "L'équipement de ceux qui montent la garde sur CANTALE. Chaque pièce en netherite porte Protection IX, Épines V, Solidité X et Raccommodage, plus des extras propres à l'emplacement. Surtout, chaque pièce portée ajoute +1,5 cœur, +7,5 % de vitesse et +6,25 % de saut : le set complet couronné donne +6 cœurs, +30 % de vitesse et +25 % de saut.",
+      "Chaque pièce porte Protection IX, Épines V, Solidité X et Raccommodage, plus des enchantements selon l'emplacement. Chaque pièce portée ajoute +1,5 cœur, +7,5 % de vitesse et +6,25 % de saut. Le set complet : +6 cœurs, +30 % de vitesse, +25 % de saut.",
     stats: [
       { label: "Enchantements", value: "Protection IX · Épines V · Solidité X · Raccommodage" },
       { label: "Casque", value: "Respiration III · Affinité aquatique" },

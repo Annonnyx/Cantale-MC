@@ -331,7 +331,7 @@ async function ProfileView({ user }: { user: SessionUser }) {
                 <span className="font-display text-2xl font-semibold text-bone">
                   {faction.name}
                 </span>
-                <span className="font-tech text-xs uppercase tracking-[0.24em] text-gold">
+                <span className="font-tech text-xs uppercase tracking-[0.24em] text-bone">
                   [{faction.tag}]
                 </span>
               </div>
@@ -347,13 +347,13 @@ async function ProfileView({ user }: { user: SessionUser }) {
               <span className="font-tech text-[10px] uppercase tracking-[0.24em] text-steel">
                 Faction actuelle
               </span>
-              <p className="text-sm text-steel">Aucune faction — le registre attend ton nom.</p>
+              <p className="text-sm text-steel">Aucune faction pour l&apos;instant.</p>
             </div>
           )}
 
           {user.tier === "leader" && (
             <div className="flex flex-col gap-4 border border-gold/50 bg-iron p-5">
-              <span className="font-tech text-[10px] uppercase tracking-[0.24em] text-gold">
+              <span className="font-tech text-[10px] uppercase tracking-[0.24em] text-bone">
                 Panneau de gestion de faction
               </span>
               <p className="text-sm leading-relaxed text-steel">
@@ -362,7 +362,7 @@ async function ProfileView({ user }: { user: SessionUser }) {
               </p>
               <Link
                 href="/factions"
-                className="inline-block self-start border border-gold px-4 py-2 font-tech text-[11px] uppercase tracking-[0.22em] text-gold transition-colors hover:bg-gold hover:text-ash"
+                className="inline-block self-start border border-bone px-4 py-2 font-tech text-[11px] uppercase tracking-[0.22em] text-bone transition-colors hover:bg-bone hover:text-ash"
               >
                 Ouvrir le panneau
               </Link>

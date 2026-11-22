@@ -1,8 +1,8 @@
 type NotchState = "burning" | "extinct" | "cracked";
 
 const STATE_FILL: Record<NotchState, string> = {
-  burning: "var(--color-ember-glow)",
-  extinct: "var(--color-steel)",
+  burning: "var(--color-rose)",
+  extinct: "var(--color-lilas)",
   cracked: "var(--color-iron-line)",
 };
 
@@ -18,20 +18,20 @@ function Notch({ state, label }: { state: NotchState; label: string }) {
       <path
         d="M4 2h16l2 6-4 4v22l-3 4H9l-3-4V12L2 8l2-6z"
         fill={STATE_FILL[state]}
-        stroke="var(--color-ash-deep)"
+        stroke="var(--color-encre)"
         strokeWidth="1.5"
       />
       {state === "cracked" && (
         <path
           d="M12 8l-3 8 4 5-3 7 4 6"
           fill="none"
-          stroke="var(--color-ash-deep)"
+          stroke="var(--color-encre)"
           strokeWidth="1.6"
           strokeLinecap="round"
         />
       )}
       {state === "burning" && (
-        <path d="M7 6h10l1 2.5L14 12h-4l-4-3.5L7 6z" fill="var(--color-bone)" opacity="0.35" />
+        <path d="M7 6h10l1 2.5L14 12h-4l-4-3.5L7 6z" fill="var(--color-papier)" opacity="0.7" />
       )}
     </svg>
   );

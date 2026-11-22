@@ -78,9 +78,9 @@ const SECTIONS: LegalSection[] = [
     body: (
       <>
         <p>
-          CANTALE propose un serveur Minecraft PvP factions hardcore (trois vies) et un site
-          associé : wiki, classements, carte, recrutement, partenariats, connexion Discord, et
-          éventuelle boutique cosmétique.
+          CANTALE propose un serveur Minecraft PvP factions (trois vies) et un site associé :
+          wiki, classements, carte, recrutement, partenariats, connexion Discord, et une
+          boutique en ligne actuellement fermée.
         </p>
         <p>
           Minecraft est une marque de Mojang Studios / Microsoft. CANTALE n&apos;est pas affilié,
@@ -131,9 +131,8 @@ const SECTIONS: LegalSection[] = [
     body: (
       <>
         <p>
-          La boutique en ligne du site peut être désactivée. Lorsqu&apos;elle est active, les achats
-          (grades / cosmétiques) sont soumis aux conditions affichées au moment du paiement et
-          éventuellement à celles du prestataire de paiement (ex. cantale.store).
+          La boutique en ligne est fermée. Si elle rouvre, les achats sont soumis aux conditions
+          affichées au moment du paiement et, le cas échéant, à celles du prestataire.
         </p>
         <p>
           Sauf mention contraire au moment de l&apos;achat : les avantages numériques sont livrés

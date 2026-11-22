@@ -35,13 +35,12 @@ const PROCESS_STEPS = [
 function SectionHeading({
   id,
   num,
-  kicker,
   title,
   intro,
 }: {
   id: string;
   num: string;
-  kicker: string;
+  kicker?: string;
   title: string;
   intro?: string;
 }) {
@@ -54,9 +53,6 @@ function SectionHeading({
         {num}
       </span>
       <div className="min-w-0 pb-0.5">
-        <span className="font-tech text-[10px] uppercase tracking-[0.28em] text-steel">
-          {kicker}
-        </span>
         <h2
           id={id}
           className="mt-1 font-display text-2xl font-semibold leading-tight text-bone sm:text-3xl"
@@ -82,16 +78,12 @@ export default async function RecrutementPage() {
     <main className="mx-auto w-full max-w-7xl px-5 pb-24 pt-28 sm:px-8 sm:pt-32">
       {/* ——— En-tête ——— */}
       <header className="flex flex-col gap-5 pb-12">
-        <span className="font-tech text-[10px] uppercase tracking-[0.3em] text-ember-glow">
-          Registre — Recrutement
-        </span>
         <h1 className="max-w-3xl font-display text-4xl font-semibold leading-[1.05] text-bone sm:text-5xl">
-          L&apos;équipe se construit comme le serveur : par l&apos;effort.
+          Recrutement
         </h1>
         <p className="max-w-2xl text-base leading-relaxed text-steel">
-          Cantale cherche des membres d&apos;équipe qui tiennent leurs promesses. Pas de
-          CV pompeux ni de formulaire à l&apos;ancienne : une candidature claire, lue par
-          la direction, qui débouche sur un vrai échange.
+          Postes ouverts : modération, réseaux, graphisme, build, développement, animation.
+          La candidature ouvre un ticket Discord privé avec la direction.
         </p>
         <p className="font-tech text-[10px] uppercase tracking-[0.22em] text-steel">
           <a href="#equipe" className="text-ember-glow hover:text-bone">

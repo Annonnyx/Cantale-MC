@@ -62,7 +62,7 @@ function SectionBody({ section }: { section: WikiSection }) {
       {section.tables?.map((table, tableIndex) => (
         <div key={tableIndex} className="max-w-4xl overflow-x-auto">
           {table.caption && (
-            <p className="mb-2 font-tech text-[10px] uppercase tracking-[0.22em] text-gold">
+            <p className="mb-2 font-tech text-[10px] uppercase tracking-[0.22em] text-bone">
               {table.caption}
             </p>
           )}
@@ -110,7 +110,7 @@ function SectionBody({ section }: { section: WikiSection }) {
                 {command.description}
               </p>
               {command.note && (
-                <p className="mt-2 font-tech text-[10px] uppercase tracking-[0.2em] text-gold">
+                <p className="mt-2 font-tech text-[10px] uppercase tracking-[0.2em] text-bone">
                   {command.note}
                 </p>
               )}
@@ -165,7 +165,7 @@ export default async function WikiArticlePage({ params }: ArticlePageProps) {
             className="border border-iron-line bg-iron p-5 lg:sticky lg:top-24 lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto"
           >
             <span className="font-tech text-[10px] uppercase tracking-[0.3em] text-ember-glow">
-              Sommaire du registre
+              Sommaire
             </span>
             <ul className="mt-4 flex flex-col gap-4">
               {WIKI_CATEGORIES.map((entry) => (
@@ -209,9 +209,6 @@ export default async function WikiArticlePage({ params }: ArticlePageProps) {
 
         <article className="min-w-0">
           <header className="flex flex-col gap-4 border-b border-iron-line/60 pb-10">
-            <span className="font-tech text-[10px] uppercase tracking-[0.3em] text-ember-glow">
-              {category.name}
-            </span>
             <h1 className="font-display text-4xl font-semibold leading-[1.05] text-bone sm:text-5xl">
               {article.title}
             </h1>
@@ -222,7 +219,7 @@ export default async function WikiArticlePage({ params }: ArticlePageProps) {
             aria-label="Sommaire de l'article"
             className="mt-8 border border-iron-line bg-iron p-5"
           >
-            <span className="font-tech text-[10px] uppercase tracking-[0.3em] text-gold">
+            <span className="font-tech text-[10px] uppercase tracking-[0.3em] text-bone">
               Dans cet article
             </span>
             <ul className="mt-3 flex flex-col gap-2">

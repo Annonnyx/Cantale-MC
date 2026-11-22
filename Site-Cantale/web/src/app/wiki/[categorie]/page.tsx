@@ -41,9 +41,6 @@ export default async function WikiCategoryPage({ params }: CategoryPageProps) {
       </nav>
 
       <header className="flex flex-col gap-4 pb-12">
-        <span className="font-tech text-[10px] uppercase tracking-[0.3em] text-ember-glow">
-          {category.tagline}
-        </span>
         <h1 className="font-display text-4xl font-semibold leading-[1.05] text-bone sm:text-5xl">
           {category.name}
         </h1>
@@ -57,9 +54,6 @@ export default async function WikiCategoryPage({ params }: CategoryPageProps) {
         aria-labelledby="category-articles"
         className="border-t border-iron-line/60 py-14"
       >
-        <span className="font-tech text-[10px] uppercase tracking-[0.3em] text-ember-glow">
-          {category.articles.length} article{category.articles.length > 1 ? "s" : ""}
-        </span>
         <h2 id="category-articles" className="sr-only">
           Articles de la catégorie {category.name}
         </h2>

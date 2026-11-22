@@ -37,17 +37,12 @@ export function Gallery() {
   return (
     <section aria-labelledby="galerie-title" className="border-t border-iron-line/60">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-12 px-5 py-24 sm:px-8 sm:py-32">
-        <div className="reveal flex flex-col gap-4">
-          <span className="font-tech text-[10px] uppercase tracking-[0.3em] text-ember-glow">
-            Le monde
-          </span>
-          <h2
-            id="galerie-title"
-            className="font-display text-4xl font-semibold leading-[1.05] text-bone sm:text-5xl"
-          >
-            Cantale en images.
-          </h2>
-        </div>
+        <h2
+          id="galerie-title"
+          className="font-display text-4xl font-semibold leading-[1.05] text-bone sm:text-5xl"
+        >
+          Captures du serveur
+        </h2>
         <GalleryLightbox images={images} />
       </div>
     </section>

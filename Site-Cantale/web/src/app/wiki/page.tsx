@@ -11,7 +11,7 @@ import { WikiSearch } from "./wiki-search";
 export const metadata: Metadata = {
   title: "Wiki",
   description:
-    "Le registre complet du serveur CANTALE : commandes, factions, économie, vies, événements et items forgés.",
+    "Commandes, factions, Cantox, trois vies, événements et items du serveur CANTALE.",
 };
 
 export default function WikiPage() {
@@ -21,16 +21,12 @@ export default function WikiPage() {
   return (
     <main className="mx-auto w-full max-w-7xl px-5 pb-24 pt-28 sm:px-8 sm:pt-32">
       <header className="flex flex-col gap-4 pb-12">
-        <span className="font-tech text-[10px] uppercase tracking-[0.3em] text-ember-glow">
-          Le registre du serveur
-        </span>
         <h1 className="font-display text-4xl font-semibold leading-[1.05] text-bone sm:text-5xl">
           Wiki
         </h1>
         <p className="max-w-2xl text-base leading-relaxed text-steel">
-          Tout ce que le registre consigne : commandes exactes, mécaniques des trois vies,
-          factions et claims, économie Cantox, événements et items forgés.{" "}
-          {totalArticles} articles, zéro rumeur.
+          Commandes, factions et claims, Cantox, trois vies, événements et items.{" "}
+          {totalArticles} articles.
         </p>
         <div className="mt-4 max-w-xl">
           <WikiSearch />
@@ -38,11 +34,8 @@ export default function WikiPage() {
       </header>
 
       <section aria-labelledby="wiki-categories" className="border-t border-iron-line/60 py-14">
-        <span className="font-tech text-[10px] uppercase tracking-[0.3em] text-ember-glow">
-          01 — Catégories
-        </span>
-        <h2 id="wiki-categories" className="mt-3 font-display text-3xl font-semibold text-bone">
-          Parcourir le registre
+        <h2 id="wiki-categories" className="font-display text-3xl font-semibold text-bone">
+          Catégories
         </h2>
         <div className="reveal reveal-stagger mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {WIKI_CATEGORIES.map((category, index) => (
@@ -62,9 +55,7 @@ export default function WikiPage() {
               <span className="font-display text-xl font-semibold text-steel-light transition-colors group-hover:text-bone motion-reduce:transition-none">
                 {category.name}
               </span>
-              <span className="font-tech text-[10px] uppercase tracking-[0.22em] text-gold">
-                {category.tagline}
-              </span>
+              <span className="text-sm text-steel">{category.tagline}</span>
               <span className="text-sm leading-relaxed text-steel">{category.description}</span>
               <span className="mt-auto pt-2 font-tech text-[10px] uppercase tracking-[0.25em] text-ember-glow">
                 Ouvrir <span className="cta-arrow">→</span>
@@ -75,11 +66,8 @@ export default function WikiPage() {
       </section>
 
       <section aria-labelledby="wiki-featured" className="border-t border-iron-line/60 py-14">
-        <span className="font-tech text-[10px] uppercase tracking-[0.3em] text-ember-glow">
-          02 — À la une
-        </span>
-        <h2 id="wiki-featured" className="mt-3 font-display text-3xl font-semibold text-bone">
-          Articles mis en avant
+        <h2 id="wiki-featured" className="font-display text-3xl font-semibold text-bone">
+          Articles utiles
         </h2>
         <div className="reveal reveal-stagger mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {featured.map((ref) => (

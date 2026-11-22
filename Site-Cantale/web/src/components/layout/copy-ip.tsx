@@ -4,7 +4,13 @@ import { useState } from "react";
 
 const SERVER_IP = "play.cantale.world";
 
-export function CopyIp({ className = "" }: { className?: string }) {
+export function CopyIp({
+  className = "",
+  primary = false,
+}: {
+  className?: string;
+  primary?: boolean;
+}) {
   const [copied, setCopied] = useState(false);
 
   const copy = async () => {
@@ -21,11 +27,17 @@ export function CopyIp({ className = "" }: { className?: string }) {
     <button
       type="button"
       onClick={copy}
-      className={`pressable group inline-flex w-fit items-center gap-3 border border-iron-line bg-iron px-4 py-2.5 hover:border-ember ${className}`}
+      className={`pressable group inline-flex w-fit items-center gap-3 border px-4 py-2.5 ${
+        primary
+          ? "border-action bg-action hover:border-action"
+          : "border-iron-line bg-iron hover:border-bone"
+      } ${className}`}
       aria-live="polite"
     >
-      <span className="font-tech text-xs tracking-[0.14em] text-bone">{SERVER_IP}</span>
-      <span className="font-tech text-[10px] uppercase tracking-[0.2em] text-steel-light transition-colors group-hover:text-bone">
+      <span className={`font-tech text-xs tracking-[0.14em] ${primary ? "text-white" : "text-bone"}`}>
+        {SERVER_IP}
+      </span>
+      <span className={`font-tech text-[10px] uppercase tracking-[0.2em] ${primary ? "text-white" : "text-steel-light"}`}>
         {copied ? "Copié" : "Copier"}
       </span>
     </button>

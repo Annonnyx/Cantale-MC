@@ -48,8 +48,8 @@ export function SiteFooter() {
       <div className="mx-auto grid max-w-7xl gap-10 px-5 py-14 sm:px-8 md:grid-cols-[1.4fr_repeat(4,1fr)]">
         <div className="flex flex-col gap-4">
           <span className="font-hero text-2xl tracking-[0.18em] text-bone">CANTALE</span>
-          <p className="max-w-xs text-sm leading-relaxed text-steel-light">
-            Serveur Minecraft PvP factions hardcore. Trois vies, une seule légende.
+          <p className="max-w-xs text-sm leading-relaxed text-steel">
+            Serveur Minecraft PvP factions. Trois vies, des claims, la Cantox.
           </p>
           <CopyIp />
         </div>

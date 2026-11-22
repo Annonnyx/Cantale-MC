@@ -139,18 +139,9 @@ function setCartQuantity(id: string, quantity: number): void {
 
 /* ─── Présentation ───────────────────────────────────────────────────── */
 
-function Kicker({ children }: { children: React.ReactNode }) {
-  return (
-    <span className="font-tech text-[10px] uppercase tracking-[0.3em] text-ember-glow">
-      {children}
-    </span>
-  );
-}
-
-function SectionTitle({ kicker, title, intro }: { kicker: string; title: string; intro?: string }) {
+function SectionTitle({ title, intro }: { title: string; intro?: string }) {
   return (
     <div className="flex flex-col gap-3">
-      <Kicker>{kicker}</Kicker>
       <h2 className="font-display text-2xl font-semibold text-bone sm:text-3xl">{title}</h2>
       {intro ? <p className="max-w-2xl text-sm leading-relaxed text-steel">{intro}</p> : null}
     </div>
@@ -176,14 +167,14 @@ function RankCard({
       }`}
     >
       {rank.featured && (
-        <span className="absolute -top-3 left-6 border border-gold bg-ash px-2.5 py-1 font-tech text-[9px] uppercase tracking-[0.24em] text-gold">
-          Meilleure offre
+        <span className="absolute -top-3 left-6 border border-gold bg-ash px-2.5 py-1 font-tech text-[9px] uppercase tracking-[0.24em] text-bone">
+          Mis en avant
         </span>
       )}
       <div className="flex flex-col gap-1.5">
         <span
           className={`font-tech text-[10px] uppercase tracking-[0.24em] ${
-            rank.featured ? "text-gold" : "text-steel"
+            rank.featured ? "text-bone" : "text-steel"
           }`}
         >
           Rang mensuel — {rank.inGameName} en jeu
@@ -193,7 +184,7 @@ function RankCard({
       </div>
 
       <div className="flex items-baseline gap-2">
-        <span className={`font-display text-4xl font-semibold ${rank.featured ? "text-gold" : "text-bone"}`}>
+        <span className={`font-display text-4xl font-semibold ${rank.featured ? "text-bone" : "text-bone"}`}>
           {formatPriceEur(rank.priceEur)}
         </span>
         <span className="font-tech text-[10px] uppercase tracking-[0.2em] text-steel">
@@ -237,7 +228,7 @@ function ComparisonTable() {
               <th
                 key={rank.id}
                 className={`px-4 py-3 text-center font-tech text-[10px] uppercase tracking-[0.24em] ${
-                  rank.featured ? "text-gold" : "text-bone"
+                  rank.featured ? "text-bone" : "text-bone"
                 }`}
               >
                 {rank.name}
@@ -255,7 +246,7 @@ function ComparisonTable() {
                 <td
                   key={SHOP_RANKS[index].id}
                   className={`px-4 py-3 text-center text-sm ${
-                    SHOP_RANKS[index].featured ? "text-gold" : "text-steel"
+                    SHOP_RANKS[index].featured ? "text-bone" : "text-steel"
                   }`}
                 >
                   {value}
@@ -281,7 +272,7 @@ function ItemCard({ item }: { item: ShopItem }) {
           </span>
         </div>
         {item.featured && (
-          <span className="border border-gold/60 px-2 py-1 font-tech text-[8px] uppercase tracking-[0.2em] text-gold">
+          <span className="border border-gold/60 px-2 py-1 font-tech text-[8px] uppercase tracking-[0.2em] text-bone">
             Meilleur prix
           </span>
         )}
@@ -289,7 +280,7 @@ function ItemCard({ item }: { item: ShopItem }) {
       <p className="text-sm leading-relaxed text-steel">{item.tagline}</p>
       <div className="mt-auto flex flex-col gap-3 border-t border-iron-line/60 pt-4">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <span className="font-display text-2xl font-semibold text-gold">
+          <span className="font-display text-2xl font-semibold text-bone">
             {formatPriceEur(item.priceEur)}
           </span>
           <span className="flex items-center gap-2">
@@ -409,22 +400,19 @@ export function BoutiqueShop() {
   return (
     <main className="mx-auto w-full max-w-7xl flex-1 px-5 pb-32 pt-28 sm:px-8 sm:pt-32">
       <header className="flex flex-col gap-4 pb-14">
-        <Kicker>Registre — Boutique</Kicker>
         <h1 className="font-display text-4xl font-semibold leading-[1.05] text-bone sm:text-5xl">
           La boutique
         </h1>
         <p className="max-w-2xl text-base leading-relaxed text-steel">
-          Soutiens le serveur et repars avec des avantages réels : rangs mensuels, vies
-          hardcore et clés de caisse. Chaque prix est re-vérifié côté serveur à la
-          commande.
+          Cette vue n&apos;est pas publique : la boutique du site est fermée. Le catalogue
+          ci-dessous n&apos;est pas une offre en vente.
         </p>
       </header>
 
       <section aria-labelledby="shop-rangs" className="flex flex-col gap-8 border-t border-iron-line/60 py-14">
         <SectionTitle
-          kicker="01 — Rangs"
-          title="Trois rangs, trois manières de régner"
-          intro="Avantages actifs tant que le rang est actif. Vies et Cantox sont versés automatiquement à ta connexion ; les coffres, homes et ventes s'appliquent dès l'attribution du grade en jeu."
+          title="Rangs"
+          intro="Données du catalogue, non proposées à l'achat tant que la boutique est fermée."
         />
         <div id="shop-rangs" className="reveal reveal-stagger grid gap-6 lg:grid-cols-3">
           {SHOP_RANKS.map((rank) => (
@@ -440,9 +428,8 @@ export function BoutiqueShop() {
 
       <section aria-labelledby="shop-vies" className="flex flex-col gap-8 border-t border-iron-line/60 py-14">
         <SectionTitle
-          kicker="02 — Vies"
-          title="Vies hardcore"
-          intro="Trois morts et c'est le bannissement : la Vie est le bien le plus précieux de CANTALE. Consommable au clic-droit, stockable sans limite — et moins chère en pack."
+          title="Items Vie"
+          intro="Entrées du catalogue. Elles ne sont pas en vente."
         />
         <div id="shop-vies" className="reveal reveal-stagger grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {vies.map((item) => (
@@ -453,9 +440,8 @@ export function BoutiqueShop() {
 
       <section aria-labelledby="shop-clefs" className="flex flex-col gap-8 border-t border-iron-line/60 py-14">
         <SectionTitle
-          kicker="03 — Clés de caisse"
           title="Les quatre paliers de butin"
-          intro="Chaque clé ouvre sa caisse au spawn : coffre du Trésor Public, autel de la Médaille, fontaine de la Pièce, audience du Ticket. La bordure indique le palier, comme dans le registre des items. Le Cadeau du Roi, lui, ne s'achète pas : il se gagne en votant."
+          intro="Entrées du catalogue. Elles ne sont pas en vente. Le Cadeau du Roi se gagne en votant."
         />
         <div id="shop-clefs" className="reveal reveal-stagger grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {clefs.map((item) => (
@@ -469,7 +455,7 @@ export function BoutiqueShop() {
           <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-5 py-3 sm:px-8">
             <span className="font-tech text-[10px] uppercase tracking-[0.22em] text-steel">
               Panier — {articleCount} article{articleCount > 1 ? "s" : ""} ·{" "}
-              <span className="text-gold">{formatPriceEur(totalEur)}</span>
+              <span className="text-bone">{formatPriceEur(totalEur)}</span>
             </span>
             <button
               type="button"
@@ -504,7 +490,7 @@ export function BoutiqueShop() {
 
             {resolved.length === 0 ? (
               <p className="text-sm leading-relaxed text-steel">
-                Le panier est vide. Ajoute un rang, des vies ou des clés depuis la boutique.
+                Le panier est vide. La boutique est fermée : rien ne s&apos;achète.
               </p>
             ) : (
               <>
@@ -525,7 +511,7 @@ export function BoutiqueShop() {
                               : `${formatPriceEur(line.entry.priceEur)} / unité`}
                           </span>
                         </div>
-                        <span className="font-display text-lg font-semibold text-gold">
+                        <span className="font-display text-lg font-semibold text-bone">
                           {formatPriceEur(line.entry.priceEur * line.quantity)}
                         </span>
                       </div>
@@ -573,7 +559,7 @@ export function BoutiqueShop() {
                   <span className="font-tech text-[10px] uppercase tracking-[0.24em] text-steel">
                     Total
                   </span>
-                  <span className="font-display text-2xl font-semibold text-gold">
+                  <span className="font-display text-2xl font-semibold text-bone">
                     {formatPriceEur(totalEur)}
                   </span>
                 </div>
@@ -595,7 +581,7 @@ export function BoutiqueShop() {
                   </div>
                 )}
                 {checkout.status === "info" && (
-                  <p role="status" className="border border-gold/60 bg-ash-deep px-4 py-3 text-sm text-gold">
+                  <p role="status" className="border border-gold/60 bg-ash-deep px-4 py-3 text-sm text-bone">
                     {checkout.message}
                   </p>
                 )}

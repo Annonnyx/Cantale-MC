@@ -53,9 +53,9 @@ export const WIKI_CATEGORIES: WikiCategory[] = [
   {
     slug: "commandes",
     name: "Commandes",
-    tagline: "Le réflexe du clavier",
+    tagline: "Commandes joueur, téléportations, grades",
     description:
-      "Commandes joueur (essentiels hors /f), téléportations avec cooldowns, grades VIP et permissions.",
+      "Commandes hors /f, cooldowns de téléportation, grades et permissions.",
     articles: [
       {
         slug: "commandes-joueur",
@@ -610,7 +610,7 @@ export const WIKI_CATEGORIES: WikiCategory[] = [
   {
     slug: "factions",
     name: "Factions",
-    tagline: "Le fer seul, la bannière ensemble",
+    tagline: "Création, claims, pouvoir, banque",
     description:
       "Création, claims, pouvoir, banque, homes/warps et permissions : règles exactes du plugin.",
     articles: [
@@ -1194,9 +1194,9 @@ export const WIKI_CATEGORIES: WikiCategory[] = [
   {
     slug: "economie",
     name: "Économie",
-    tagline: "La Cantox ne dort jamais",
+    tagline: "Cantox, boutique admin, ventes, votes",
     description:
-      "Cantox, /shop (caps & sinks), /ah, /daily, votes et caisses — règles tirées du plugin.",
+      "Cantox, /shop, /ah, /daily, votes et caisses. Chiffres tirés du plugin.",
     articles: [
       {
         slug: "cantox",
@@ -1509,13 +1509,13 @@ export const WIKI_CATEGORIES: WikiCategory[] = [
   {
     slug: "combat",
     name: "Combat & Vies",
-    tagline: "Trois vies, pas une de plus",
+    tagline: "Trois vies au départ, ban à zéro, primes",
     description:
       "Vies hardcore (config 3 au départ), mort, ban UUID/IP, item Vie, /givevie, combat tag, primes wanted et PvP dans les claims.",
     articles: [
       {
         slug: "trois-vies",
-        title: "Le système des trois vies",
+        title: "Trois vies",
         summary:
           "Départ à 3 vies, −1 à chaque mort, ban PROFILE+IP à 0, item Vie, grades mensuels, déco combat 20 s.",
         featured: true,
@@ -1603,7 +1603,7 @@ export const WIKI_CATEGORIES: WikiCategory[] = [
                   ["Discord /givevie", "Compte lié : 1 à 5 vies, débit émetteur, crédit cible"],
                   ["Grades mensuels", "Items Vie à la connexion (1×/mois calendaire) — voir tableau grades"],
                   ["Caisses", "Loot tables Vote / Rare / Épique / Mythique peuvent donner 1–2 items Vie"],
-                  ["Boutique site", "Packs catalogue : 1 / 5 / 10 / 30 / 50 / 100 (EUR). Checkout si SHOP_ENABLED"],
+                  ["Boutique site", "Packs prévus dans le catalogue (1 à 100). Page fermée tant que SHOP_ENABLED n'est pas true"],
                   ["/parrain <joueur>", "Invité remercie son parrain (1×) → parrain +1 vie (DB)"],
                   ["/addlife (admin/console)", "+N vies ; pardonne le ban vies si besoin"],
                 ],
@@ -1758,7 +1758,7 @@ export const WIKI_CATEGORIES: WikiCategory[] = [
   {
     slug: "evenements",
     name: "Événements",
-    tagline: "Le serveur s'embrase",
+    tagline: "Events de faction, réactions, clés",
     description:
       "Événements de faction, réactions chat, clé hebdomadaire et récompenses — valeurs issues de events.yml.",
     articles: [
@@ -2802,7 +2802,7 @@ export const WIKI_CATEGORIES: WikiCategory[] = [
   {
     slug: "autre",
     name: "Autre",
-    tagline: "Tout le reste du registre",
+    tagline: "Coffres, Discord, profil, AFK",
     description:
       "Coffres, Discord, site, AFK, clear-lag, profil et tags : les systèmes transverses.",
     articles: [

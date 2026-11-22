@@ -46,7 +46,7 @@ export async function generateMetadata({ params }: FactionPageProps): Promise<Me
 
 /** Grades : symbole + label texte, jamais la couleur seule. */
 const RANK_DISPLAY: Record<FactionRank, { symbol: string; label: string; className: string }> = {
-  LEADER: { symbol: "★", label: "Leader", className: "text-gold" },
+  LEADER: { symbol: "★", label: "Leader", className: "text-bone" },
   OFFICER: { symbol: "◆", label: "Officier", className: "text-ember-glow" },
   VETERAN: { symbol: "◆", label: "Vétéran", className: "text-ember-glow/70" },
   MEMBER: { symbol: "●", label: "Membre", className: "text-bone" },
@@ -146,11 +146,10 @@ export default async function FactionPage({ params }: FactionPageProps) {
       <main className="mx-auto w-full max-w-7xl px-5 pb-24 pt-28 sm:px-8 sm:pt-32">
         <div className="flex flex-col items-start gap-4 border border-iron-line bg-iron p-8 sm:p-10">
           <p className="font-display text-xl font-semibold text-bone">
-            Les archives ne répondent pas.
+            Factions indisponibles.
           </p>
           <p className="max-w-xl text-sm leading-relaxed text-steel">
-            Le registre des factions est injoignable pour l&apos;instant. Recharge la
-            page dans un instant — rien n&apos;est perdu, seulement indisponible.
+            La base ne répond pas. Recharge la page dans un moment.
           </p>
         </div>
       </main>
@@ -190,7 +189,7 @@ export default async function FactionPage({ params }: FactionPageProps) {
   const description =
     settings.customDescription?.trim() ||
     faction.description?.trim() ||
-    "Cette faction n'a pas encore dicté sa parole au registre.";
+    "Cette faction n'a pas encore de description.";
 
   const slugParam = encodeURIComponent(faction.name.toLowerCase().replace(/\s+/g, "-"));
 
@@ -207,8 +206,8 @@ export default async function FactionPage({ params }: FactionPageProps) {
 
       <header className="flex flex-col gap-5 pb-12">
         <div className="flex flex-wrap items-center gap-4">
-          <span className="font-tech text-[10px] uppercase tracking-[0.3em] text-ember-glow">
-            Faction [{faction.tag}]
+          <span className="font-tech text-xs text-steel">
+            [{faction.tag}]
           </span>
           {settings.recruitmentOpen ? (
             <Stamp tone="ember">Recrute</Stamp>
@@ -245,11 +244,8 @@ export default async function FactionPage({ params }: FactionPageProps) {
       )}
 
       <section aria-labelledby="roster-title" className="border-t border-iron-line/60 py-14">
-        <span className="font-tech text-[10px] uppercase tracking-[0.3em] text-ember-glow">
-          Effectif — {roster.length} membre{roster.length > 1 ? "s" : ""}
-        </span>
-        <h2 id="roster-title" className="mt-3 font-display text-3xl font-semibold text-bone">
-          Le roster
+        <h2 id="roster-title" className="font-display text-3xl font-semibold text-bone">
+          Membres ({roster.length})
         </h2>
         {roster.length > 0 ? (
           <ul className="mt-8 flex flex-col gap-2">
@@ -259,7 +255,7 @@ export default async function FactionPage({ params }: FactionPageProps) {
           </ul>
         ) : (
           <p className="mt-8 border border-iron-line bg-iron p-6 text-sm leading-relaxed text-steel">
-            Aucun membre lisible pour l&apos;instant — les archives ne répondent peut-être plus.
+            Aucun membre à afficher.
           </p>
         )}
       </section>

@@ -22,3 +22,5 @@ Thumbs.db
 *.log
 
 # NB : le dossier Maven `target/` est volontairement versionné (choix projet).
+
+run/

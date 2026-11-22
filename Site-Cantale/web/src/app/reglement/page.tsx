@@ -5,7 +5,7 @@ import { Stamp } from "@/components/ui/stamp";
 export const metadata: Metadata = {
   title: "Règlement",
   description:
-    "Le règlement officiel de CANTALE : respect, gameplay hardcore à trois vies, factions, économie, grades premium et modération. En jouant, tu l'acceptes dans son intégralité.",
+    "Règlement de CANTALE : respect, trois vies, factions, Cantox, grades et modération.",
 };
 
 type SeverityTone = "ember" | "gold" | "steel";
@@ -83,20 +83,20 @@ const SECTIONS: RuleSection[] = [
   {
     id: "gameplay",
     num: "02",
-    label: "Trois vies, une légende",
+    label: "Vies",
     title: "Gameplay & vies",
     nav: "Gameplay & Vies",
     rules: [
       {
-        title: "Trois vies, pas une de plus",
+        title: "Trois vies au départ",
         description:
-          "Chaque mort retire une vie. À zéro vie, le bannissement est automatique. Les admins ne redonnent pas de vies, sauf circonstances exceptionnelles documentées.",
+          "Chaque mort retire une vie. À zéro, le bannissement est automatique. Un admin ne rend une vie qu'avec /addlife, cas documenté.",
         severity: { tone: "ember", label: "Automatique & irréversible" },
       },
       {
         title: "Le PvP est ouvert",
         description:
-          "N’importe qui peut attaquer n’importe qui hors des zones protégées. C’est la loi de Cantale.",
+          "Le PvP est autorisé hors des zones protégées (spawn, PASDIC, et le claim de sa propre faction selon les règles du wiki).",
         severity: { tone: "steel", label: "Info" },
       },
       {
@@ -118,7 +118,7 @@ const SECTIONS: RuleSection[] = [
       {
         title: "Le système /wanted est légal",
         description:
-          "Mettre une prime sur la tête d’un joueur fait partie intégrante du gameplay. Les chasses à l’homme sont encouragées.",
+          "Poser une prime avec /wanted fait partie du jeu. Le joueur qui tue la cible encaisse la prime.",
         severity: { tone: "steel", label: "Info" },
       },
     ],
@@ -229,7 +229,7 @@ const SECTIONS: RuleSection[] = [
       {
         title: "Trois grades : Aventurier, VIP, Chèvre",
         description:
-          "Chaque grade inclut les avantages du grade inférieur. Consulte la boutique pour le détail complet de chacun.",
+          "Chaque grade inclut les avantages du grade inférieur. Le détail est dans le wiki, article Grades et permissions. La boutique du site est fermée.",
         severity: { tone: "steel", label: "Info" },
       },
       {
@@ -335,16 +335,12 @@ export default function ReglementPage() {
     <main className="mx-auto w-full max-w-7xl px-5 pb-24 pt-28 sm:px-8 sm:pt-32">
       {/* ——— En-tête ——— */}
       <header className="flex flex-col gap-5 pb-12">
-        <span className="font-tech text-[10px] uppercase tracking-[0.3em] text-ember-glow">
-          Le registre — loi du serveur
-        </span>
         <h1 className="font-display text-4xl font-semibold leading-[1.05] text-bone sm:text-5xl">
           Règlement
         </h1>
         <p className="max-w-2xl text-base leading-relaxed text-steel">
-          Le non-respect de ces règles entraîne des sanctions allant du mute au bannissement
-          définitif. Aucune exception. En jouant sur Cantale, tu acceptes ce règlement dans son
-          intégralité.
+          Mute, kick ou bannissement selon la règle. En jouant sur CANTALE, tu acceptes ce
+          règlement.
         </p>
         <div className="flex flex-wrap items-center gap-x-6 gap-y-3 border-t border-iron-line/60 pt-5">
           <span className="font-tech text-[10px] uppercase tracking-[0.24em] text-steel">
@@ -416,9 +412,6 @@ export default function ReglementPage() {
                   {section.num}
                 </span>
                 <div className="min-w-0 pb-0.5">
-                  <span className="font-tech text-[10px] uppercase tracking-[0.28em] text-steel">
-                    {section.label}
-                  </span>
                   <h2
                     id={`${section.id}-title`}
                     className="mt-1 font-display text-2xl font-semibold leading-tight text-bone sm:text-3xl"

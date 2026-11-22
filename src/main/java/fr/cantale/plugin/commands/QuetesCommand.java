@@ -3,8 +3,6 @@ package fr.cantale.plugin.commands;
 import fr.cantale.plugin.CantalePlugin;
 import fr.cantale.plugin.quests.QuestPeriod;
 import fr.cantale.plugin.quests.QuestScope;
-import fr.cantale.plugin.ui.inventory.QuestFactionUI;
-import fr.cantale.plugin.ui.inventory.QuestMainUI;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -33,10 +31,10 @@ public class QuetesCommand implements CommandExecutor, TabCompleter {
             return true;
         }
         if (args.length > 0 && args[0].equalsIgnoreCase("fac")) {
-            plugin.getUIManager().getNavigationManager().openUI(player, new QuestFactionUI(plugin, player));
+            plugin.getUIManager().openFactionQuests(player);
             return true;
         }
-        plugin.getUIManager().getNavigationManager().openUI(player, new QuestMainUI(plugin, player));
+        plugin.getUIManager().openQuestMenu(player);
         return true;
     }
 

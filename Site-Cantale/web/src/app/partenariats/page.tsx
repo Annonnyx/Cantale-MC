@@ -41,7 +41,7 @@ const PARTNER_TYPES: PartnerType[] = [
     stampLabel: "Créateur",
     title: "Créateurs de contenu",
     description:
-      "YouTube, Twitch, TikTok : viens raconter tes trois vies, tes sièges et tes trahisons. Cantale est un terrain de jeu taillé pour les récits tendus.",
+      "YouTube, Twitch, TikTok : vidéos sur le serveur, les factions, les trois vies, les items. On met le contenu en avant si le partenariat est accepté.",
     points: ["Accès anticipé aux nouveautés", "Items de tournage et cadre dédié", "Mise en avant de tes contenus"],
   },
   {
@@ -84,7 +84,7 @@ const CONDITIONS: Condition[] = [
   {
     title: "Pas de pay-to-win douteux",
     description:
-      "Aucun partenariat avec des serveurs ou boutiques fondés sur un pay-to-win agressif. La boutique de Cantale reste cosmétique et confort, et on attend la même exigence en face.",
+      "Pas de partenariat avec un projet qui vend des avantages de combat sans l'écrire dans son règlement.",
   },
 ];
 
@@ -114,13 +114,12 @@ const PERKS: Perk[] = [
 function SectionHeading({
   id,
   num,
-  kicker,
   title,
   intro,
 }: {
   id: string;
   num: string;
-  kicker: string;
+  kicker?: string;
   title: string;
   intro?: string;
 }) {
@@ -133,9 +132,6 @@ function SectionHeading({
         {num}
       </span>
       <div className="min-w-0 pb-0.5">
-        <span className="font-tech text-[10px] uppercase tracking-[0.28em] text-steel">
-          {kicker}
-        </span>
         <h2
           id={id}
           className="mt-1 font-display text-2xl font-semibold leading-tight text-bone sm:text-3xl"
@@ -161,16 +157,12 @@ export default async function PartenariatsPage() {
     <main className="mx-auto w-full max-w-7xl px-5 pb-24 pt-28 sm:px-8 sm:pt-32">
       {/* ——— En-tête ——— */}
       <header className="flex flex-col gap-5 pb-12">
-        <span className="font-tech text-[10px] uppercase tracking-[0.3em] text-ember-glow">
-          Alliances — hors du serveur
-        </span>
         <h1 className="max-w-3xl font-display text-4xl font-semibold leading-[1.05] text-bone sm:text-5xl">
-          Grandir ensemble, sans se renier.
+          Partenariats
         </h1>
         <p className="max-w-2xl text-base leading-relaxed text-steel">
-          Cantale ouvre ses portes aux projets qui partagent son exigence : serveurs partenaires,
-          créateurs de contenu, organisateurs d&apos;événements. Pas de placement opportuniste —
-          des alliances nettes, assumées, et profitables des deux côtés.
+          Serveurs, créateurs et organisateurs d&apos;événements. La demande ouvre un ticket
+          Discord avec la direction.
         </p>
         <p className="font-tech text-[10px] uppercase tracking-[0.22em] text-steel">
           <a href="#allies" className="hover:text-bone">
@@ -322,7 +314,7 @@ export default async function PartenariatsPage() {
             <div className="mt-7 flex flex-wrap items-center gap-4">
               <a
                 href="#formulaire-partenariat"
-                className="pressable bg-ember px-5 py-2.5 font-tech text-[11px] uppercase tracking-[0.22em] text-bone hover:bg-ember-glow"
+                className="pressable border border-action bg-action px-5 py-2.5 font-tech text-[11px] uppercase tracking-[0.22em] text-white"
               >
                 Remplir le formulaire
               </a>

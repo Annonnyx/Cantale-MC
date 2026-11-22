@@ -4,13 +4,12 @@ export function Hero() {
   return (
     <section
       aria-label="CANTALE — L'effort crée les forts"
-      className="relative flex min-h-svh flex-col items-center justify-center overflow-hidden bg-ash px-4"
+      className="relative flex min-h-svh flex-col items-center justify-center overflow-hidden px-4"
     >
-      {/* Halo de braise très discret derrière le mot */}
       <div
         aria-hidden
-        className="pointer-events-none absolute left-1/2 top-1/2 h-[60vmin] w-[90vmin] -translate-x-1/2 -translate-y-1/2 rounded-full opacity-[0.07]"
-        style={{ background: "radial-gradient(ellipse at center, var(--color-ember) 0%, transparent 65%)" }}
+        className="pointer-events-none absolute left-1/2 top-1/2 h-[60vmin] w-[90vmin] -translate-x-1/2 -translate-y-1/2 rounded-full opacity-80"
+        style={{ background: "radial-gradient(ellipse at center, var(--color-bleu) 0%, transparent 68%)" }}
       />
 
       <h1
@@ -31,7 +30,7 @@ export function Hero() {
       </h1>
 
       <p
-        className="hero-fade relative mt-8 pl-[0.28em] text-center font-tech text-[11px] uppercase tracking-[0.28em] text-steel sm:pl-[0.5em] sm:text-xs sm:tracking-[0.5em]"
+        className="hero-fade relative mt-8 text-center font-tech text-sm text-bone sm:text-base"
         style={{ animationDelay: "1s" }}
       >
         L&apos;effort crée les forts
@@ -42,8 +41,8 @@ export function Hero() {
         className="hero-fade absolute bottom-10 flex flex-col items-center gap-3"
         style={{ animationDelay: "1.6s" }}
       >
-        <span className="font-tech text-[9px] uppercase tracking-[0.35em] text-steel">Défiler</span>
-        <span className="h-10 w-px bg-gradient-to-b from-ember to-transparent" />
+        <span className="font-sans text-xs text-steel">Défiler</span>
+        <span className="h-10 w-px bg-gradient-to-b from-bone to-transparent" />
       </div>
     </section>
   );

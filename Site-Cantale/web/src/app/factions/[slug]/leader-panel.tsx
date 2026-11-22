@@ -278,7 +278,7 @@ export function LeaderPanel({
           className={`border px-4 py-3 text-sm ${
             notice.kind === "error"
               ? "border-ember/60 bg-ash text-ember-glow"
-              : "border-gold/50 bg-ash text-gold"
+              : "border-gold/50 bg-ash text-bone"
           }`}
         >
           {notice.text}

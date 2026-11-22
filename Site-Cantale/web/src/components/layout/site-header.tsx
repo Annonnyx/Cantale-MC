@@ -29,8 +29,11 @@ export function SiteHeader() {
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-5 sm:px-8">
         <Link
           href="/"
-          className="font-hero text-xl tracking-[0.18em] text-steel-light transition-colors hover:text-bone"
+          className="flex items-center gap-2 font-hero text-xl tracking-[0.18em] text-bone transition-colors hover:text-steel-light"
         >
+          <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4">
+            <path fill="currentColor" d="M2 5h15v5h-5.4v11h-3.2V10H2V5z" />
+          </svg>
           CANTALE
         </Link>
 
@@ -41,7 +44,7 @@ export function SiteHeader() {
           </span>
           <Link
             href="/#rejoindre"
-            className="pressable hidden border border-ember px-4 py-2 font-tech text-[11px] uppercase tracking-[0.22em] text-ember-glow hover:bg-ember hover:text-bone sm:inline-block"
+            className="pressable hidden border border-action bg-action px-4 py-2 font-tech text-[11px] uppercase tracking-[0.22em] text-white sm:inline-block"
           >
             Rejoindre
           </Link>

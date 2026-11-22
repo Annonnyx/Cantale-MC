@@ -91,7 +91,7 @@ function GlobalRewards() {
             Quand le serveur atteint{" "}
             <span className="text-bone">50 votes dans la journée</span>, un joueur en
             ligne est tiré au sort et reçoit{" "}
-            <span className="text-gold">1× Cadeau du Roi</span>. Chaque vote rapproche
+            <span className="text-bone">1× Cadeau du Roi</span>. Chaque vote rapproche
             tout le monde du compteur.
           </p>
         </div>
@@ -102,11 +102,11 @@ function GlobalRewards() {
           <p className="text-sm leading-relaxed text-steel">
             Des bonus à vie, obtenus une seule fois :{" "}
             <span className="text-bone">10 votes</span> →{" "}
-            <span className="text-gold">2× Cadeaux du Roi</span>,{" "}
+            <span className="text-bone">2× Cadeaux du Roi</span>,{" "}
             <span className="text-bone">50 votes</span> →{" "}
-            <span className="text-gold">1× Trésor Public</span>,{" "}
+            <span className="text-bone">1× Trésor Public</span>,{" "}
             <span className="text-bone">100 votes</span> →{" "}
-            <span className="text-gold">1× Médaille Épique</span>.
+            <span className="text-bone">1× Médaille Épique</span>.
           </p>
         </div>
         <div className="flex flex-col gap-3 border border-iron-line bg-iron p-6">
@@ -115,9 +115,9 @@ function GlobalRewards() {
           </span>
           <p className="text-sm leading-relaxed text-steel">
             Le compteur repart à zéro chaque 1er du mois. Les trois premiers reçoivent :{" "}
-            <span className="text-gold">1× Ticket Légendaire</span> (1er),{" "}
-            <span className="text-gold">1× Pièce Mythique</span> (2e),{" "}
-            <span className="text-gold">1× Médaille Épique</span> (3e).
+            <span className="text-bone">1× Ticket Légendaire</span> (1er),{" "}
+            <span className="text-bone">1× Pièce Mythique</span> (2e),{" "}
+            <span className="text-bone">1× Médaille Épique</span> (3e).
           </p>
         </div>
       </div>

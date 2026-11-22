@@ -292,7 +292,7 @@ function PodiumCard({
   const styles = {
     1: {
       border: "border-gold",
-      rank: "text-gold",
+      rank: "text-bone",
       avatar: "h-20 w-20",
       order: "sm:order-2",
       lift: "sm:-translate-y-4",

@@ -21,8 +21,8 @@ export default function OpengraphImage() {
           display: "flex",
           flexDirection: "column",
           justifyContent: "space-between",
-          background: "linear-gradient(160deg, #15130f 0%, #0e0c09 100%)",
-          border: "3px solid #c6491f",
+          background: "linear-gradient(160deg, #EEF1EE 0%, #E4E9E5 100%)",
+          border: "3px solid #2B2F4A",
           padding: "56px 64px",
         }}
       >
@@ -31,13 +31,13 @@ export default function OpengraphImage() {
             display: "flex",
             alignItems: "center",
             gap: 20,
-            color: "#8d877a",
+            color: "#555A72",
             fontSize: 24,
             letterSpacing: "0.35em",
             textTransform: "uppercase",
           }}
         >
-          <span style={{ width: 12, height: 12, background: "#c6491f" }} />
+          <span style={{ width: 12, height: 12, background: "#2B2F4A" }} />
           Serveur Minecraft — PvP Factions Hardcore
         </div>
 
@@ -54,7 +54,7 @@ export default function OpengraphImage() {
               fontFamily: "Zina",
               fontSize: 190,
               lineHeight: 1,
-              color: "#eee7d8",
+              color: "#2B2F4A",
               letterSpacing: "0.1em",
             }}
           >
@@ -71,15 +71,13 @@ export default function OpengraphImage() {
         >
           <span
             style={{
-              color: "#e8703c",
+              color: "#2B2F4A",
               fontSize: 30,
-              letterSpacing: "0.22em",
-              textTransform: "uppercase",
             }}
           >
-            L’effort crée les forts
+            {"L'effort crée les forts"}
           </span>
-          <span style={{ color: "#756f63", fontSize: 22, letterSpacing: "0.3em" }}>
+          <span style={{ color: "#555A72", fontSize: 22, letterSpacing: "0.12em" }}>
             CANTALE.WORLD
           </span>
         </div>

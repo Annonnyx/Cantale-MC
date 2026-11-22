@@ -14,7 +14,7 @@ export const metadata: Metadata = {
     template: "%s — CANTALE",
   },
   description:
-    "CANTALE est un serveur Minecraft PvP factions hardcore. Trois vies, une seule légende : claims, Cantox, items forgés, zones contestées.",
+    "CANTALE, serveur Minecraft PvP factions. Trois vies, claims, Cantox, items forgés, zones contestées.",
   keywords: [
     "CANTALE",
     "serveur Minecraft",

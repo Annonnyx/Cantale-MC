@@ -209,7 +209,7 @@ export default async function StatsPage() {
       <Section kicker="03 — Records" title="Les limites du registre">
         <div className="grid gap-4 sm:grid-cols-3">
           <div className="flex flex-col gap-2 border border-gold bg-iron p-6">
-            <span className="font-tech text-[10px] uppercase tracking-[0.24em] text-gold">
+            <span className="font-tech text-[10px] uppercase tracking-[0.24em] text-bone">
               Meilleure série de kills
             </span>
             {streakRecord ? (

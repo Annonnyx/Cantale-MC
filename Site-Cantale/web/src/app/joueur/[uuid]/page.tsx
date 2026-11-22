@@ -159,7 +159,7 @@ export default async function JoueurProfilePage({ params }: { params: Params }) 
                 <span className="font-display text-2xl font-semibold text-bone">
                   {faction.name}
                 </span>
-                <span className="font-tech text-xs uppercase tracking-[0.24em] text-gold">
+                <span className="font-tech text-xs uppercase tracking-[0.24em] text-bone">
                   [{faction.tag}]
                 </span>
               </div>
