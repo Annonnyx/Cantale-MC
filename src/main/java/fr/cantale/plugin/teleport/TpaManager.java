@@ -144,7 +144,7 @@ public class TpaManager {
         }
 
         final Player destFinal = destination;
-        plugin.getTeleportDelayManager().requestTeleport(mover, destFinal.getLocation(), false, () -> {
+        plugin.getTeleportDelayManager().requestTeleport(mover, destFinal.getLocation(), false, true, () -> {
             if (!mover.isOnline() || !destFinal.isOnline()) {
                 if (mover.isOnline()) {
                     mover.sendMessage("§8[§6Cantale§8] §cTéléportation annulée : joueur hors ligne.");

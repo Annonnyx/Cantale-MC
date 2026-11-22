@@ -1,5 +1,7 @@
 package fr.cantale.plugin.factions;
 
+import fr.cantale.plugin.siege.VulnerabilityWindow;
+
 import java.util.*;
 
 public class Faction {
@@ -28,6 +30,9 @@ public class Faction {
     private long discordRoleId;
     /** Nombre de points de pouvoir déjà achetés via la banque (courbe de prix). */
     private int powerPurchased;
+    /** Créneau de vulnérabilité, minutes depuis minuit. Défaut 18:00–22:00. */
+    private int vulnStartMinute = VulnerabilityWindow.DEFAULT_START_MINUTE;
+    private int vulnEndMinute = VulnerabilityWindow.DEFAULT_END_MINUTE;
 
     public Faction(int id, String name, String tag, String description, UUID leaderUuid, long createdAt, double balance, int power, String type) {
         this.id = id;
@@ -338,5 +343,21 @@ public class Faction {
 
     public void setDiscordRoleId(long discordRoleId) {
         this.discordRoleId = discordRoleId;
+    }
+
+    public int getVulnStartMinute() {
+        return vulnStartMinute;
+    }
+
+    public void setVulnStartMinute(int vulnStartMinute) {
+        this.vulnStartMinute = Math.floorMod(vulnStartMinute, VulnerabilityWindow.MINUTES_PER_DAY);
+    }
+
+    public int getVulnEndMinute() {
+        return vulnEndMinute;
+    }
+
+    public void setVulnEndMinute(int vulnEndMinute) {
+        this.vulnEndMinute = Math.floorMod(vulnEndMinute, VulnerabilityWindow.MINUTES_PER_DAY);
     }
 }

@@ -5,6 +5,7 @@ import fr.cantale.plugin.custom.CantalameManager;
 import fr.cantale.plugin.custom.CustomItemType;
 import fr.cantale.plugin.database.PlayerDAO;
 import fr.cantale.plugin.lives.LifeManager;
+import fr.cantale.plugin.lives.LifeRules;
 import fr.cantale.plugin.util.ItemStackSerializer;
 import org.bukkit.ChatColor;
 import org.bukkit.Location;
@@ -60,11 +61,26 @@ public class PlayerListener implements Listener {
         playerDAO.createOrUpdatePlayer(uuid, event.getName());
         int lives = lifeManager.getLives(uuid);
         if (lives <= 0) {
-            event.disallow(
-                AsyncPlayerPreLoginEvent.Result.KICK_BANNED,
-                ChatColor.translateAlternateColorCodes('&',
-                    "&cVous n'avez plus de vies ! Achetez-en une ou attendez qu'un ami vous en donne une.")
-            );
+            long now = System.currentTimeMillis() / 1000L;
+            if (LifeRules.shouldBlockLogin(lives, playerDAO.getLastDeath(uuid), now)
+                    || !lifeManager.grantLifeIfDepleted(uuid)) {
+                int still = lifeManager.getLives(uuid);
+                if (still <= 0) {
+                    String lang = fr.cantale.plugin.lang.LanguageCodes.FR;
+                    try (java.sql.Connection conn = plugin.getDatabaseManager().getConnection()) {
+                        lang = fr.cantale.plugin.lang.PlayerLanguageRepository.read(conn, uuid);
+                    } catch (java.sql.SQLException ignored) {
+                        lang = fr.cantale.plugin.lang.LanguageCodes.FR;
+                    }
+                    event.disallow(
+                        AsyncPlayerPreLoginEvent.Result.KICK_BANNED,
+                        ChatColor.translateAlternateColorCodes('&',
+                                plugin.messages().raw(lang, "prefix") + plugin.messages().raw(lang, "ban.zero"))
+                    );
+                    return;
+                }
+            }
+            Bukkit.getScheduler().runTask(plugin, () -> lifeManager.pardonLifeBan(uuid, event.getName()));
         }
     }
 
@@ -85,11 +101,26 @@ public class PlayerListener implements Listener {
             playerDAO.setLastIp(uuid, player.getAddress().getAddress().getHostAddress());
         }
 
+        try (java.sql.Connection conn = plugin.getDatabaseManager().getConnection()) {
+            plugin.messages().remember(uuid, fr.cantale.plugin.lang.PlayerLanguageRepository.read(conn, uuid));
+        } catch (java.sql.SQLException ignored) {
+            plugin.messages().remember(uuid, fr.cantale.plugin.lang.LanguageCodes.FR);
+        }
+
         int lives = lifeManager.getLives(uuid);
         if (lives <= 0 && plugin.getConfigManager().isBanOnZero()) {
-            player.kickPlayer(ChatColor.translateAlternateColorCodes('&',
-                    "&cVous n'avez plus de vies ! Achetez-en une ou attendez qu'un ami vous en donne une."));
-            return;
+            long now = System.currentTimeMillis() / 1000L;
+            boolean blocked = LifeRules.shouldBlockLogin(lives, playerDAO.getLastDeath(uuid), now);
+            if (blocked || !lifeManager.grantLifeIfDepleted(uuid)) {
+                if (lifeManager.getLives(uuid) <= 0) {
+                    player.kickPlayer(ChatColor.translateAlternateColorCodes('&',
+                            plugin.messages().raw(player, "prefix") + plugin.messages().raw(player, "ban.zero")));
+                    return;
+                }
+            } else {
+                lifeManager.pardonLifeBan(uuid, player.getName());
+            }
+            lives = lifeManager.getLives(uuid);
         }
 
         if (plugin.getDiscordBot() != null && plugin.getDiscordBot().isConnected()) {
@@ -118,8 +149,8 @@ public class PlayerListener implements Listener {
         // Logger la connexion
         plugin.getActionLogger().logJoin(player.getName());
 
-        player.sendMessage(formatMessage("&eBienvenue sur Cantale ! Vous avez &6" + lives + " &evie(s)."));
-        player.sendMessage(formatMessage("&7Solde : &6" + playerDAO.getBalance(uuid) + " &7Cantox"));
+        plugin.messages().send(player, "welcome.lives", lives);
+        plugin.messages().send(player, "welcome.balance", playerDAO.getBalance(uuid));
 
         // Accueil Première Connexion
         if (!player.hasPlayedBefore()) {
@@ -154,10 +185,9 @@ public class PlayerListener implements Listener {
                 );
                 pages.add(
                     "§c§lSystème de Vies\n\n" +
-                    "§7Si vous tombez à §c0 vie§7, vous serez §cbanni §7du serveur.\n\n" +
-                    "§7Vous pouvez :\n" +
-                    "§e• §7Acheter des vies au shop ou sur le site.\n" +
-                    "§e• §7En donner à vos amis avec §a/givevie§7."
+                    "§7À §c0 vie§7, vous êtes exclu §c2 heures§7.\n\n" +
+                    "§7Un officier de votre faction peut abréger cette peine avec §a/f revive§7.\n" +
+                    "§7Vous pouvez aussi donner une vie avec §a/givevie§7."
                 );
                 pages.add(
                     "§9§lMods Recommandés\n\n" +
@@ -436,13 +466,15 @@ public class PlayerListener implements Listener {
         inv.setArmorContents(new ItemStack[4]);
         inv.setItemInOffHand(new ItemStack(Material.AIR));
 
-        NamespacedKey deathLootKey = new NamespacedKey(plugin, "death_loot_until");
-        long until = System.currentTimeMillis() + 90_000L;
+        NamespacedKey deathLootKey = new NamespacedKey(plugin, DeathLootProtection.UNTIL_KEY);
+        NamespacedKey ownerKey = new NamespacedKey(plugin, DeathLootProtection.OWNER_KEY);
+        long until = DeathLootProtection.until(System.currentTimeMillis());
         for (ItemStack stack : toDrop) {
             Item dropped = world.dropItemNaturally(loc, stack);
             dropped.setInvulnerable(true);
             dropped.setFireTicks(0);
             dropped.getPersistentDataContainer().set(deathLootKey, PersistentDataType.LONG, until);
+            dropped.getPersistentDataContainer().set(ownerKey, PersistentDataType.STRING, player.getUniqueId().toString());
         }
     }
 

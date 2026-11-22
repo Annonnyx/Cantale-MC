@@ -179,6 +179,10 @@ public class QuestEngine {
             player.sendMessage("§8[§6Quêtes§8] §aBonus : §e+" + quest.bonusLives() + " vie");
         }
         player.sendMessage("§8[§6Quêtes§8] §aQuête terminée : §e" + quest.title());
+        if (plugin.getSeasonPass() != null) {
+            plugin.getSeasonPass().grantPlayXp(player.getUniqueId(),
+                    fr.cantale.plugin.cosmetics.SeasonPassRules.XP_QUEST);
+        }
         if (plugin.getCollectionManager() != null) {
             plugin.getCollectionManager().add(player.getUniqueId(), "quests", "TOTAL", 1);
         }

@@ -203,6 +203,8 @@ public class SpawnerListener implements Listener {
 
     @EventHandler
     public void onChunkLoad(ChunkLoadEvent event) {
+        var chunk = event.getChunk();
+        manager.noteChunkLoaded(chunk.getWorld().getName(), chunk.getX(), chunk.getZ());
         // Pendant ChunkLoadEvent, getBlock() peut encore renvoyer AIR — attendre 1 tick.
         Bukkit.getScheduler().runTask(plugin, () -> manager.restoreHolograms(event.getChunk()));
     }
@@ -214,7 +216,9 @@ public class SpawnerListener implements Listener {
 
     @EventHandler
     public void onChunkUnload(ChunkUnloadEvent event) {
-        manager.unloadHolograms(event.getChunk());
+        var chunk = event.getChunk();
+        manager.noteChunkUnloaded(chunk.getWorld().getName(), chunk.getX(), chunk.getZ());
+        manager.unloadHolograms(chunk);
     }
 
     private static boolean hasSilkTouchPickaxe(ItemStack tool) {

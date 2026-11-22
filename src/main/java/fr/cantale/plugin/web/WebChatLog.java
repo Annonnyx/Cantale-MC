@@ -1,6 +1,7 @@
 package fr.cantale.plugin.web;
 
 import fr.cantale.plugin.CantalePlugin;
+import fr.cantale.plugin.cache.RedisChannels;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -62,10 +63,27 @@ public final class WebChatLog {
                     }
                     ps.executeUpdate();
                 }
+                publishToWeb(plugin, cleanSource, playerUuid, name, text, factionId);
             } catch (SQLException e) {
                 plugin.getLogger().warning("[Web] web_chat_messages insert impossible : " + e.getMessage());
             }
         });
+    }
+
+    /** Temps réel vers le site. L'INSERT SQL ci-dessus reste l'archive. */
+    private static void publishToWeb(CantalePlugin plugin, String source, UUID playerUuid, String playerName,
+                                     String message, Integer factionId) {
+        var redis = plugin.getRedisCache();
+        if (redis == null || !redis.isEnabled()) {
+            return;
+        }
+        redis.publish(RedisChannels.CHAT_MC_TO_WEB, RedisBridgeMessages.outboundChat(
+                source,
+                playerUuid == null ? null : playerUuid.toString(),
+                playerName,
+                message,
+                factionId,
+                plugin.getConfigManager().getServerId()));
     }
 
     private static String stripColors(String input) {

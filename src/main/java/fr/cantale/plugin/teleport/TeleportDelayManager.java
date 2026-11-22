@@ -1,6 +1,7 @@
 package fr.cantale.plugin.teleport;
 
 import fr.cantale.plugin.CantalePlugin;
+import fr.cantale.plugin.world.WorldTransit;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.entity.Player;
@@ -97,8 +98,18 @@ public class TeleportDelayManager implements Listener {
      * @return false si bloqué avant de démarrer
      */
     public boolean requestTeleport(Player player, Location destination, boolean rtp, Runnable onSuccess) {
+        return requestTeleport(player, destination, rtp, false, onSuccess);
+    }
+
+    /**
+     * @param explicitWorldEntry {@code true} si le joueur a choisi cette destination
+     *                           (warp, home, tpa, spawn de faction). {@code /spawn} et {@code /rtp}
+     *                           restent à {@code false} : ils n'entrent pas en warzone tout seuls.
+     */
+    public boolean requestTeleport(Player player, Location destination, boolean rtp,
+                                   boolean explicitWorldEntry, Runnable onSuccess) {
         Location dest = destination != null ? destination.clone() : null;
-        return requestTeleport(player, dest, rtp, () -> {
+        return requestTeleport(player, dest, rtp, explicitWorldEntry, () -> {
             if (!player.isOnline()) {
                 return false;
             }
@@ -119,7 +130,16 @@ public class TeleportDelayManager implements Listener {
      * Les cooldowns ne sont posés que si l'action retourne {@code true}.
      */
     public boolean requestTeleport(Player player, Location destination, boolean rtp, BooleanSupplier teleportAction) {
+        return requestTeleport(player, destination, rtp, false, teleportAction);
+    }
+
+    public boolean requestTeleport(Player player, Location destination, boolean rtp,
+                                   boolean explicitWorldEntry, BooleanSupplier teleportAction) {
         if (player == null || !player.isOnline() || teleportAction == null) {
+            return false;
+        }
+        if (!warzoneEntryAllowed(player, destination, explicitWorldEntry)) {
+            player.sendMessage(PREFIX + "§cCette téléportation n'entre pas en terres de guerre sans destination choisie.");
             return false;
         }
         if (!checkTeleportAllowed(player, rtp)) {
@@ -127,7 +147,7 @@ public class TeleportDelayManager implements Listener {
         }
 
         Location dest = destination != null ? destination.clone() : null;
-        Runnable complete = () -> finishTeleport(player, dest, rtp, teleportAction);
+        Runnable complete = () -> finishTeleport(player, dest, rtp, explicitWorldEntry, teleportAction);
 
         if (getTeleportDelay(player) <= 0) {
             complete.run();
@@ -200,8 +220,20 @@ public class TeleportDelayManager implements Listener {
         return player != null && pendingTeleports.containsKey(player.getUniqueId());
     }
 
-    private void finishTeleport(Player player, Location destination, boolean rtp, BooleanSupplier teleportAction) {
+    private boolean warzoneEntryAllowed(Player player, Location destination, boolean explicitWorldEntry) {
+        if (destination == null || destination.getWorld() == null || player.getWorld() == null) {
+            return true;
+        }
+        return WorldTransit.allows(player.getWorld().getName(), destination.getWorld().getName(), explicitWorldEntry);
+    }
+
+    private void finishTeleport(Player player, Location destination, boolean rtp,
+                                boolean explicitWorldEntry, BooleanSupplier teleportAction) {
         if (!player.isOnline()) {
+            return;
+        }
+        if (!warzoneEntryAllowed(player, destination, explicitWorldEntry)) {
+            player.sendMessage(PREFIX + "§cCette téléportation n'entre pas en terres de guerre sans destination choisie.");
             return;
         }
         if (plugin.getCombatTagManager() != null && plugin.getCombatTagManager().isInCombat(player)) {

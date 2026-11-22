@@ -376,6 +376,10 @@ public class FactionMapUI extends BaseUI {
                     + FactionManager.MIN_ENEMY_CLAIM_DISTANCE + " chunks minimum).");
             return;
         }
+        if (!fr.cantale.plugin.world.WorldRules.claimsAllowed(worldName)) {
+            player.sendMessage("§8[§6Cantale§8] §cLes claims sont interdits dans ce monde.");
+            return;
+        }
         if (!factionManager.isAdjacentToOwnClaimOrFirst(worldName, chunkX, chunkZ, faction.getId())) {
             player.sendMessage("§8[§6Cantale§8] §cImpossible de claim ici : le chunk doit toucher un claim "
                     + "existant de votre faction (côtés N/S/E/O).");

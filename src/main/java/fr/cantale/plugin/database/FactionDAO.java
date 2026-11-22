@@ -171,15 +171,26 @@ public class FactionDAO {
     }
 
     public void updatePowerPurchase(int factionId, int power, int powerPurchased) {
+        try (Connection conn = databaseManager.getConnection()) {
+            if (conn == null) {
+                plugin.getLogger().severe("Erreur updatePowerPurchase : pool SQL indisponible.");
+                return;
+            }
+            updatePowerPurchase(conn, factionId, power, powerPurchased);
+        } catch (SQLException e) {
+            plugin.getLogger().severe("Erreur updatePowerPurchase : " + e.getMessage());
+        }
+    }
+
+    /** Même connexion que le débit de banque, pour valider pouvoir et solde ensemble. */
+    public void updatePowerPurchase(Connection conn, int factionId, int power, int powerPurchased)
+            throws SQLException {
         String sql = "UPDATE factions SET power = ?, power_purchased = ? WHERE id = ?";
-        try (Connection conn = databaseManager.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
+        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setInt(1, power);
             stmt.setInt(2, powerPurchased);
             stmt.setInt(3, factionId);
             stmt.executeUpdate();
-        } catch (SQLException e) {
-            plugin.getLogger().severe("Erreur updatePowerPurchase : " + e.getMessage());
         }
     }
 
@@ -277,7 +288,33 @@ public class FactionDAO {
             faction.setPowerPurchased(0);
         }
 
+        int vulnStart = plugin.getConfigManager().getSiegeVulnStartMinute();
+        int vulnEnd = plugin.getConfigManager().getSiegeVulnEndMinute();
+        try {
+            int start = rs.getInt("vuln_start_minute");
+            if (!rs.wasNull()) vulnStart = start;
+            int end = rs.getInt("vuln_end_minute");
+            if (!rs.wasNull()) vulnEnd = end;
+        } catch (SQLException ignored) {
+            // Colonnes absentes tant que la migration n'a pas tourné.
+        }
+        faction.setVulnStartMinute(vulnStart);
+        faction.setVulnEndMinute(vulnEnd);
+
         return faction;
+    }
+
+    public void updateVulnerability(int factionId, int startMinute, int endMinute) {
+        String sql = "UPDATE factions SET vuln_start_minute = ?, vuln_end_minute = ? WHERE id = ?";
+        try (Connection conn = databaseManager.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setInt(1, startMinute);
+            stmt.setInt(2, endMinute);
+            stmt.setInt(3, factionId);
+            stmt.executeUpdate();
+        } catch (SQLException e) {
+            plugin.getLogger().severe("Erreur updateVulnerability : " + e.getMessage());
+        }
     }
 
     public void updateDiscordRoleId(int factionId, long discordRoleId) {

@@ -13,7 +13,7 @@ public final class SpawnerRecord {
     private final SpawnerMob mob;
     private int tier;
     private final int factionId;
-    private long nextSpawnAtMs;
+    private volatile long nextSpawnAtMs;
 
     public SpawnerRecord(String world, int x, int y, int z, SpawnerMob mob, int tier, int factionId) {
         this.world = world;

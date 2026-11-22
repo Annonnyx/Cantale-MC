@@ -48,8 +48,7 @@ public class ViolationLogger {
         String safeDetails = details == null ? "" : (details.length() > 500 ? details.substring(0, 500) : details);
 
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
-            try {
-                Connection conn = plugin.getDatabaseManager().getConnection();
+            try (Connection conn = plugin.getDatabaseManager().getConnection()) {
                 if (conn == null) return;
                 try (PreparedStatement ps = conn.prepareStatement(
                         "INSERT INTO anticheat_violations (player_uuid, player_name, source, check_name, vl, trust_after, ping, tps, details, created_at) "
@@ -77,8 +76,7 @@ public class ViolationLogger {
      */
     public List<ViolationEntry> getRecentViolations(UUID playerId, int limit) {
         List<ViolationEntry> entries = new ArrayList<>();
-        try {
-            Connection conn = plugin.getDatabaseManager().getConnection();
+        try (Connection conn = plugin.getDatabaseManager().getConnection()) {
             if (conn == null) return entries;
             try (PreparedStatement ps = conn.prepareStatement(
                     "SELECT source, check_name, vl, trust_after, ping, tps, details, created_at "

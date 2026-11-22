@@ -9,8 +9,15 @@ import net.kyori.adventure.text.event.HoverEvent;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
 import org.bukkit.Bukkit;
+import org.bukkit.Location;
+import org.bukkit.NamespacedKey;
+import org.bukkit.World;
+import org.bukkit.entity.Entity;
+import org.bukkit.entity.Item;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.scheduler.BukkitTask;
 
 import java.util.ArrayList;
@@ -46,7 +53,8 @@ public class TradeManager {
     private final Map<UUID, PendingRequest> pendingRequests = new HashMap<>(); // clé = cible
     private final Map<UUID, Long> moneyInputs = new HashMap<>();               // saisie montant en cours
     private final Map<UUID, TradeSessionUI> openGuis = new HashMap<>();
-    private final Map<UUID, List<ItemStack>> pendingReturns = new HashMap<>(); // items à rendre au login
+    private final Map<UUID, List<PendingReturn>> pendingReturns = new HashMap<>(); // items à rendre au login
+    private final TradePendingReturnDAO pendingStore;
     private final Map<TradeSession, BukkitTask> countdownTasks = new HashMap<>();
 
     private record PendingRequest(UUID requester, String requesterName, long timestamp) {
@@ -55,51 +63,62 @@ public class TradeManager {
         }
     }
 
+    private record PendingReturn(long id, ItemStack item) {}
+
     public TradeManager(CantalePlugin plugin) {
         this.plugin = plugin;
         this.economyManager = plugin.getEconomyManager();
+        this.pendingStore = new TradePendingReturnDAO(plugin);
+        loadPendingReturns();
         // Balayage périodique : demandes, sessions et saisies expirées.
         Bukkit.getScheduler().runTaskTimer(plugin, this::cleanupExpired, 20L * 30, 20L * 30);
+    }
+
+    private void loadPendingReturns() {
+        pendingStore.abandonUnackedClaims();
+        for (TradePendingReturnDAO.StoredItem stored : pendingStore.loadAll()) {
+            pendingReturns.computeIfAbsent(stored.playerId(), key -> new ArrayList<>())
+                    .add(new PendingReturn(stored.id(), stored.item().clone()));
+        }
     }
 
     // ---------------------------------------------------------------- demandes
 
     public void sendTradeRequest(Player requester, Player target) {
         if (requester.getUniqueId().equals(target.getUniqueId())) {
-            requester.sendMessage("§8[§6Cantale§8] §cVous ne pouvez pas échanger avec vous-même.");
+            plugin.messages().send(requester, "trade.self");
             return;
         }
         if (hasActiveTrade(requester.getUniqueId())) {
-            requester.sendMessage("§8[§6Cantale§8] §cVous avez déjà un échange en cours.");
+            plugin.messages().send(requester, "trade.busy-self");
             return;
         }
         if (hasActiveTrade(target.getUniqueId())) {
-            requester.sendMessage("§8[§6Cantale§8] §e" + target.getName() + " §ca déjà un échange en cours.");
+            plugin.messages().send(requester, "trade.busy-other", target.getName());
             return;
         }
         PendingRequest existing = pendingRequests.get(target.getUniqueId());
         if (existing != null && !existing.isExpired()) {
-            requester.sendMessage("§8[§6Cantale§8] §e" + target.getName()
-                + " §ca déjà une demande d'échange en attente.");
+            plugin.messages().send(requester, "trade.pending", target.getName());
             return;
         }
 
         pendingRequests.put(target.getUniqueId(),
             new PendingRequest(requester.getUniqueId(), requester.getName(), System.currentTimeMillis()));
 
-        requester.sendMessage("§8[§6Cantale§8] §aDemande d'échange envoyée à §e" + target.getName()
-            + " §7(expire dans 60 s).");
+        plugin.messages().send(requester, "trade.sent", target.getName());
 
-        target.sendMessage(Component.text("[Cantale] ", NamedTextColor.DARK_GRAY)
-            .append(Component.text(requester.getName(), NamedTextColor.YELLOW))
-            .append(Component.text(" veut échanger avec vous : ", NamedTextColor.GRAY))
-            .append(Component.text("[Accepter]", NamedTextColor.GREEN, TextDecoration.BOLD)
+        target.sendMessage(plugin.messages().component(target, "prefix")
+            .append(plugin.messages().component(target, "trade.prompt", requester.getName()))
+            .append(Component.text(plugin.messages().raw(target, "trade.accept"), NamedTextColor.GREEN, TextDecoration.BOLD)
                 .clickEvent(ClickEvent.runCommand("/trade accept"))
-                .hoverEvent(HoverEvent.showText(Component.text("Accepter l'échange", NamedTextColor.GREEN))))
+                .hoverEvent(HoverEvent.showText(Component.text(
+                        plugin.messages().raw(target, "trade.hover-accept"), NamedTextColor.GREEN))))
             .append(Component.text(" "))
-            .append(Component.text("[Refuser]", NamedTextColor.RED, TextDecoration.BOLD)
+            .append(Component.text(plugin.messages().raw(target, "trade.refuse"), NamedTextColor.RED, TextDecoration.BOLD)
                 .clickEvent(ClickEvent.runCommand("/trade decline"))
-                .hoverEvent(HoverEvent.showText(Component.text("Refuser l'échange", NamedTextColor.RED)))));
+                .hoverEvent(HoverEvent.showText(Component.text(
+                        plugin.messages().raw(target, "trade.hover-refuse"), NamedTextColor.RED)))));
     }
 
     public boolean hasPendingRequest(UUID targetUuid) {
@@ -113,30 +132,30 @@ public class TradeManager {
         if (req != null && !req.isExpired()) {
             Player requester = Bukkit.getPlayer(req.requester());
             if (requester == null) {
-                player.sendMessage("§8[§6Cantale§8] §c" + req.requesterName() + " n'est plus en ligne.");
+                plugin.messages().send(player, "trade.offline", req.requesterName());
                 return;
             }
             if (hasActiveTrade(requester.getUniqueId()) || hasActiveTrade(player.getUniqueId())) {
-                player.sendMessage("§8[§6Cantale§8] §cImpossible de démarrer : un échange est déjà en cours.");
+                plugin.messages().send(player, "trade.cannot-start");
                 return;
             }
             startSession(requester, player);
             return;
         }
         if (req != null) {
-            player.sendMessage("§8[§6Cantale§8] §cCette demande d'échange a expiré.");
+            plugin.messages().send(player, "trade.expired");
             return;
         }
 
         TradeSession session = getSession(player.getUniqueId());
         if (session == null) {
-            player.sendMessage("§8[§6Cantale§8] §cAucune demande ni échange en cours.");
+            plugin.messages().send(player, "trade.none");
             return;
         }
         if (!session.isConfirmed(player.getUniqueId())) {
             toggleConfirm(player);
         } else {
-            player.sendMessage("§8[§6Cantale§8] §7Vous avez déjà confirmé l'échange.");
+            plugin.messages().send(player, "trade.confirmed");
         }
     }
 
@@ -144,20 +163,19 @@ public class TradeManager {
     public void decline(Player player) {
         PendingRequest req = pendingRequests.remove(player.getUniqueId());
         if (req != null) {
-            player.sendMessage("§8[§6Cantale§8] §7Demande d'échange refusée.");
+            plugin.messages().send(player, "trade.refused");
             Player requester = Bukkit.getPlayer(req.requester());
             if (requester != null) {
-                requester.sendMessage("§8[§6Cantale§8] §e" + player.getName()
-                    + " §ca refusé votre demande d'échange.");
+                plugin.messages().send(requester, "trade.refused-other", player.getName());
             }
             return;
         }
         TradeSession session = getSession(player.getUniqueId());
         if (session == null) {
-            player.sendMessage("§8[§6Cantale§8] §cAucune demande ni échange en cours.");
+            plugin.messages().send(player, "trade.none");
             return;
         }
-        cancelTrade(session, player.getName() + " a annulé l'échange.");
+        cancelTrade(session, "trade.cancelled-by", player.getName());
     }
 
     // ---------------------------------------------------------------- session
@@ -167,8 +185,8 @@ public class TradeManager {
         activeTrades.put(player1.getUniqueId(), session);
         activeTrades.put(player2.getUniqueId(), session);
 
-        player1.sendMessage("§8[§6Cantale§8] §aÉchange démarré avec §e" + player2.getName() + "§a.");
-        player2.sendMessage("§8[§6Cantale§8] §aÉchange démarré avec §e" + player1.getName() + "§a.");
+        plugin.messages().send(player1, "trade.started", player2.getName());
+        plugin.messages().send(player2, "trade.started", player1.getName());
 
         openSessionGUI(player1, session);
         openSessionGUI(player2, session);
@@ -199,7 +217,7 @@ public class TradeManager {
         session.updateActivity();
 
         if (!nowConfirmed && session.isCountingDown()) {
-            stopCountdown(session, player.getName() + " a retiré sa confirmation.");
+            stopCountdown(session, "trade.unconfirmed", player.getName());
         }
 
         if (nowConfirmed && session.bothConfirmed()) {
@@ -213,12 +231,12 @@ public class TradeManager {
         TradeSession session = getSession(player.getUniqueId());
         if (session == null || item == null || item.getType().isAir()) return false;
         if (session.isConfirmed(player.getUniqueId())) {
-            player.sendMessage("§8[§6Cantale§8] §cRetirez votre confirmation pour modifier votre offre.");
+            plugin.messages().send(player, "trade.locked");
             return false;
         }
         int index = offerIndex >= 0 ? offerIndex : session.firstFreeSlot(player.getUniqueId());
         if (index == -1) {
-            player.sendMessage("§8[§6Cantale§8] §cVotre zone d'offre est pleine.");
+            plugin.messages().send(player, "trade.full");
             return false;
         }
         session.setItem(player.getUniqueId(), index, item);
@@ -231,7 +249,7 @@ public class TradeManager {
         TradeSession session = getSession(player.getUniqueId());
         if (session == null) return;
         if (session.isConfirmed(player.getUniqueId())) {
-            player.sendMessage("§8[§6Cantale§8] §cRetirez votre confirmation pour modifier votre offre.");
+            plugin.messages().send(player, "trade.locked");
             return;
         }
         Map<Integer, ItemStack> items = session.getItems(player.getUniqueId());
@@ -245,7 +263,7 @@ public class TradeManager {
     /** Toute modification d'offre : reset des confirmations + countdown, refresh des deux GUI. */
     private void onOfferChanged(TradeSession session) {
         if (session.isCountingDown()) {
-            stopCountdown(session, "§8[§6Cantale§8] §eOffre modifiée : confirmations réinitialisées.");
+            stopCountdown(session, "trade.offer-changed");
         }
         session.resetConfirmations();
         refreshGuis(session);
@@ -258,14 +276,13 @@ public class TradeManager {
         TradeSession session = getSession(player.getUniqueId());
         if (session == null) return;
         if (session.isConfirmed(player.getUniqueId())) {
-            player.sendMessage("§8[§6Cantale§8] §cRetirez votre confirmation pour modifier le montant.");
+            plugin.messages().send(player, "trade.money-locked");
             return;
         }
         moneyInputs.put(player.getUniqueId(), System.currentTimeMillis());
         player.closeInventory();
-        player.sendMessage("§8[§6Cantale§8] §eTapez le montant à échanger dans le chat.");
-        player.sendMessage("§7Solde : §6" + formatMoney(economyManager.getBalance(player))
-            + " Cantox §7— tapez §cannuler §7pour revenir.");
+        plugin.messages().send(player, "trade.money-prompt");
+        plugin.messages().send(player, "trade.money-balance", formatMoney(economyManager.getBalance(player)));
     }
 
     public boolean isAwaitingMoneyInput(UUID uuid) {
@@ -285,7 +302,7 @@ public class TradeManager {
         if (session == null) return;
 
         if (message.equalsIgnoreCase("annuler") || message.equalsIgnoreCase("cancel")) {
-            player.sendMessage("§8[§6Cantale§8] §7Saisie annulée.");
+            plugin.messages().send(player, "trade.money-cancel");
             reopenGui(player, session);
             return;
         }
@@ -293,7 +310,7 @@ public class TradeManager {
         try {
             amount = Double.parseDouble(message.replace(",", ".").trim());
         } catch (NumberFormatException e) {
-            player.sendMessage("§8[§6Cantale§8] §cMontant invalide.");
+            plugin.messages().send(player, "trade.money-bad");
             reopenGui(player, session);
             return;
         }
@@ -301,15 +318,13 @@ public class TradeManager {
         if (amount < 0) amount = 0;
         if (amount > balance) {
             amount = balance;
-            player.sendMessage("§8[§6Cantale§8] §eMontant plafonné à votre solde : §6"
-                + formatMoney(amount) + " Cantox");
+            plugin.messages().send(player, "trade.money-capped", formatMoney(amount));
         }
         session.setMoney(player.getUniqueId(), amount);
-        player.sendMessage("§8[§6Cantale§8] §aVous proposez §6" + formatMoney(amount) + " Cantox§a.");
+        plugin.messages().send(player, "trade.money-set", formatMoney(amount));
         Player other = Bukkit.getPlayer(session.getOtherPlayer(player.getUniqueId()));
         if (other != null) {
-            other.sendMessage("§8[§6Cantale§8] §e" + player.getName() + " §7propose désormais §6"
-                + formatMoney(amount) + " Cantox§7.");
+            plugin.messages().send(other, "trade.money-other", player.getName(), formatMoney(amount));
         }
         onOfferChanged(session);
         reopenGui(player, session);
@@ -320,7 +335,7 @@ public class TradeManager {
         TradeSession session = getSession(player.getUniqueId());
         if (session == null) return;
         if (session.isConfirmed(player.getUniqueId())) {
-            player.sendMessage("§8[§6Cantale§8] §cRetirez votre confirmation pour modifier le montant.");
+            plugin.messages().send(player, "trade.money-locked");
             return;
         }
         double balance = economyManager.getBalance(player);
@@ -342,7 +357,7 @@ public class TradeManager {
         for (UUID uuid : new UUID[]{session.getPlayer1Uuid(), session.getPlayer2Uuid()}) {
             Player p = Bukkit.getPlayer(uuid);
             if (p != null) {
-                p.sendMessage("§8[§6Cantale§8] §aLes deux joueurs ont confirmé ! §7Échange dans §e5 s§7...");
+                plugin.messages().send(p, "trade.both-confirmed");
             }
         }
         java.util.concurrent.atomic.AtomicReference<BukkitTask> taskRef =
@@ -369,7 +384,7 @@ public class TradeManager {
                 for (UUID uuid : new UUID[]{session.getPlayer1Uuid(), session.getPlayer2Uuid()}) {
                     Player p = Bukkit.getPlayer(uuid);
                     if (p != null) {
-                        p.sendActionBar(Component.text("Échange dans " + remaining + " s...",
+                        p.sendActionBar(Component.text(plugin.messages().raw(p, "trade.countdown", remaining),
                             NamedTextColor.GOLD, TextDecoration.BOLD));
                     }
                 }
@@ -381,17 +396,16 @@ public class TradeManager {
         countdownTasks.put(session, task);
     }
 
-    private void stopCountdown(TradeSession session, String reason) {
+    private void stopCountdown(TradeSession session, String key, Object... args) {
         session.stopCountdown();
         BukkitTask task = countdownTasks.remove(session);
         if (task != null) task.cancel();
-        if (reason != null) {
+        if (key != null) {
             for (UUID uuid : new UUID[]{session.getPlayer1Uuid(), session.getPlayer2Uuid()}) {
                 Player p = Bukkit.getPlayer(uuid);
                 if (p != null) {
                     p.sendActionBar(Component.empty());
-                    p.sendMessage(reason.startsWith("§") ? reason
-                        : "§8[§6Cantale§8] §c" + reason + " §7Compte à rebours annulé.");
+                    plugin.messages().send(p, key, args);
                 }
             }
         }
@@ -407,7 +421,7 @@ public class TradeManager {
 
         // Les deux joueurs doivent être en ligne à la complétion (la déconnexion annule).
         if (player1 == null || player2 == null) {
-            cancelTrade(session, "Échange annulé : un joueur s'est déconnecté.");
+            cancelTrade(session, "trade.disconnect");
             return;
         }
 
@@ -415,7 +429,7 @@ public class TradeManager {
         double money1 = session.getMoney(p1);
         double money2 = session.getMoney(p2);
         if (economyManager.getBalance(p1) < money1 || economyManager.getBalance(p2) < money2) {
-            cancelTrade(session, "Échange annulé : solde insuffisant chez l'un des joueurs.");
+            cancelTrade(session, "trade.funds");
             return;
         }
 
@@ -444,11 +458,11 @@ public class TradeManager {
 
         if (player1 != null) {
             player1.sendActionBar(Component.empty());
-            player1.sendMessage("§8[§6Cantale§8] §aÉchange réussi avec §e" + nameOf(p2, player2) + " §a!");
+            plugin.messages().send(player1, "trade.success", nameOf(p2, player2));
         }
         if (player2 != null) {
             player2.sendActionBar(Component.empty());
-            player2.sendMessage("§8[§6Cantale§8] §aÉchange réussi avec §e" + nameOf(p1, player1) + " §a!");
+            plugin.messages().send(player2, "trade.success", nameOf(p1, player1));
         }
         plugin.getLogger().info("[Trade] Échange complété entre " + nameOf(p1, player1) + " et "
             + nameOf(p2, player2) + " (" + session.getItemList(p1).size() + " item(s) + "
@@ -456,7 +470,7 @@ public class TradeManager {
             + " item(s) + " + formatMoney(money2) + " Cantox)");
     }
 
-    public void cancelTrade(TradeSession session, String reason) {
+    public void cancelTrade(TradeSession session, String key, Object... args) {
         UUID p1 = session.getPlayer1Uuid();
         UUID p2 = session.getPlayer2Uuid();
 
@@ -477,25 +491,25 @@ public class TradeManager {
         closeGuiIfOpen(player2);
         if (player1 != null) {
             player1.sendActionBar(Component.empty());
-            player1.sendMessage("§8[§6Cantale§8] §c" + reason);
+            plugin.messages().send(player1, key, args);
         }
         if (player2 != null) {
             player2.sendActionBar(Component.empty());
-            player2.sendMessage("§8[§6Cantale§8] §c" + reason);
+            plugin.messages().send(player2, key, args);
         }
     }
 
     /** Annule l'échange d'un joueur (fermeture du GUI, commande, etc.). */
-    public void cancelTradeOf(Player player, String reason) {
+    public void cancelTradeOf(Player player, String key, Object... args) {
         TradeSession session = getSession(player.getUniqueId());
-        if (session != null) cancelTrade(session, reason);
+        if (session != null) cancelTrade(session, key, args);
     }
 
     private void transferItems(TradeSession session, UUID to, List<ItemStack> items) {
         if (items.isEmpty()) return;
         Player target = Bukkit.getPlayer(to);
         if (target == null) {
-            pendingReturns.computeIfAbsent(to, k -> new ArrayList<>()).addAll(items);
+            rememberOffline(to, items);
             return;
         }
         for (ItemStack item : items) {
@@ -511,14 +525,54 @@ public class TradeManager {
                 giveOrDrop(player, item);
             }
         } else {
-            pendingReturns.computeIfAbsent(uuid, k -> new ArrayList<>()).addAll(items);
+            rememberOffline(uuid, items);
+        }
+    }
+
+    private void rememberOffline(UUID uuid, List<ItemStack> items) {
+        synchronized (pendingReturns) {
+            List<PendingReturn> queued = pendingReturns.computeIfAbsent(uuid, key -> new ArrayList<>());
+            for (ItemStack item : items) {
+                if (item == null || item.getType().isAir()) {
+                    continue;
+                }
+                ItemStack copy = item.clone();
+                long id = pendingStore.insert(uuid, copy);
+                queued.add(new PendingReturn(id, copy));
+            }
+        }
+    }
+
+    /**
+     * @return {@code false} seulement si rien n'a été posé (joueur absent ou item vide)
+     */
+    private boolean placeReturn(Player player, ItemStack item) {
+        if (player == null || !player.isOnline() || item == null || item.getType().isAir()) {
+            return false;
+        }
+        boolean stored = false;
+        try {
+            Map<Integer, ItemStack> leftovers = player.getInventory().addItem(item.clone());
+            stored = true;
+            World world = player.getWorld();
+            Location location = player.getLocation();
+            for (ItemStack left : leftovers.values()) {
+                if (left != null && !left.getType().isAir()) {
+                    world.dropItemNaturally(location, left);
+                }
+            }
+            return true;
+        } catch (RuntimeException e) {
+            if (!stored) {
+                return false;
+            }
+            plugin.getLogger().warning("[Trade] Surplus non déposé au sol : " + e.getMessage());
+            return true;
         }
     }
 
     private void giveOrDrop(Player player, ItemStack item) {
-        Map<Integer, ItemStack> leftovers = player.getInventory().addItem(item.clone());
-        leftovers.values().forEach(left ->
-            player.getWorld().dropItemNaturally(player.getLocation(), left));
+        placeReturn(player, item);
     }
 
     // ---------------------------------------------------------------- connexions
@@ -532,18 +586,110 @@ public class TradeManager {
         openGuis.remove(uuid);
         TradeSession session = activeTrades.get(uuid);
         if (session != null) {
-            cancelTrade(session, player.getName() + " s'est déconnecté : échange annulé.");
+            cancelTrade(session, "trade.quit", player.getName());
         }
     }
 
     /** Connexion : rend les items bloqués par une annulation hors ligne. */
     public void handleJoin(Player player) {
-        List<ItemStack> returns = pendingReturns.remove(player.getUniqueId());
-        if (returns == null || returns.isEmpty()) return;
-        for (ItemStack item : returns) {
-            giveOrDrop(player, item);
+        List<PendingReturn> memory;
+        synchronized (pendingReturns) {
+            memory = pendingReturns.remove(player.getUniqueId());
         }
-        player.sendMessage("§8[§6Cantale§8] §aLes items de votre échange annulé vous ont été rendus.");
+        boolean gave = false;
+        for (TradePendingReturnDAO.StoredItem stored : pendingStore.load(player.getUniqueId())) {
+            if (deliverPersisted(player, stored.id(), stored.item())) {
+                gave = true;
+            }
+        }
+        if (memory != null) {
+            for (PendingReturn pending : memory) {
+                if (pending.id() <= 0 && placeReturn(player, pending.item())) {
+                    gave = true;
+                }
+            }
+        }
+        if (gave) {
+            plugin.messages().send(player, "trade.returned");
+        }
+    }
+
+    /**
+     * Donne au plus une fois. Un crash après le don n'est pas rejoué si l'objet
+     * est encore chez le joueur ou si l'accusé a été écrit. Un don qui n'a pas
+     * eu lieu laisse la ligne en base.
+     */
+    private boolean deliverPersisted(Player player, long id, ItemStack item) {
+        boolean witnessed = alreadyHolding(player, id);
+        TradePendingReturnDAO.Claim claim = pendingStore.claim(id, witnessed);
+        if (claim.delivery() != TradePendingReturnRepository.Delivery.GIVE) {
+            return false;
+        }
+        if (!placeReturn(player, tagReturn(item, id))) {
+            pendingStore.release(id, claim.token());
+            return false;
+        }
+        if (!pendingStore.acknowledge(id)) {
+            plugin.getLogger().severe("[Trade] Don effectué mais accusé impossible (id=" + id + "). "
+                    + "Le marqueur sur l'objet empêchera un second don.");
+            return true;
+        }
+        pendingStore.finishAcked(id);
+        return true;
+    }
+
+    private ItemStack tagReturn(ItemStack source, long id) {
+        ItemStack item = source.clone();
+        ItemMeta meta = item.getItemMeta();
+        if (meta != null) {
+            meta.getPersistentDataContainer().set(returnKey(), PersistentDataType.LONG, id);
+            item.setItemMeta(meta);
+        }
+        return item;
+    }
+
+    private boolean alreadyHolding(Player player, long id) {
+        if (player == null || id <= 0) {
+            return false;
+        }
+        if (containsReturn(player.getItemOnCursor(), id)) {
+            return true;
+        }
+        ItemStack[] contents = player.getInventory().getContents();
+        if (contents != null) {
+            for (ItemStack stack : contents) {
+                if (containsReturn(stack, id)) {
+                    return true;
+                }
+            }
+        }
+        World world = player.getWorld();
+        if (world == null) {
+            return false;
+        }
+        Location location = player.getLocation();
+        for (Entity entity : world.getNearbyEntities(location, 8, 8, 8)) {
+            if (entity instanceof Item dropped && containsReturn(dropped.getItemStack(), id)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean containsReturn(ItemStack stack, long id) {
+        if (stack == null || stack.getType().isAir()) {
+            return false;
+        }
+        ItemMeta meta = stack.getItemMeta();
+        if (meta == null) {
+            return false;
+        }
+        Long marked = meta.getPersistentDataContainer().get(returnKey(), PersistentDataType.LONG);
+        return marked != null && marked == id;
+    }
+
+    private NamespacedKey returnKey() {
+        return new NamespacedKey(plugin, "trade_return");
     }
 
     // ---------------------------------------------------------------- utilitaires
@@ -582,7 +728,7 @@ public class TradeManager {
     private void cleanupExpired() {
         for (TradeSession session : new HashMap<>(activeTrades).values()) {
             if (session.isExpired(TRADE_TIMEOUT_MS)) {
-                cancelTrade(session, "Échange expiré (inactivité).");
+                cancelTrade(session, "trade.idle");
             }
         }
         pendingRequests.values().removeIf(PendingRequest::isExpired);

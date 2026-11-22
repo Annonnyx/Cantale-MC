@@ -22,25 +22,25 @@ public class BalanceCommand implements CommandExecutor {
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (args.length == 0) {
             if (!(sender instanceof Player player)) {
-                sender.sendMessage("§cUsage console : /balance <joueur>");
+                plugin.messages().send(sender, "balance.console");
                 return true;
             }
             double balance = economyManager.getBalance(player);
-            player.sendMessage("§8[§6Cantale§8] §7Votre solde : §6" + balance + " §7Cantox");
+            plugin.messages().send(player, "balance.self", balance);
         } else {
             // Admin check
             if (!sender.hasPermission("cantale.admin.balance")) {
-                sender.sendMessage("§cPermission refusée.");
+                plugin.messages().send(sender, "balance.denied");
                 return true;
             }
 
             Player target = Bukkit.getPlayer(args[0]);
             if (target == null) {
-                sender.sendMessage("§8[§6Cantale§8] §cJoueur introuvable.");
+                plugin.messages().send(sender, "balance.unknown");
                 return true;
             }
             double balance = economyManager.getBalance(target);
-            sender.sendMessage("§8[§6Cantale§8] §7Solde de §e" + target.getName() + "§7 : §6" + balance + " §7Cantox");
+            plugin.messages().send(sender, "balance.other", target.getName(), balance);
         }
 
         return true;

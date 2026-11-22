@@ -60,11 +60,11 @@ public class RankCommand implements CommandExecutor, TabCompleter {
                     // Ré-applique immédiatement les perms Bukkit du nouveau grade (staff non-op).
                     plugin.getRankPermissionBridge().refresh(target);
                     if (rank == PlayerRank.CHEVRE) {
-                        target.sendMessage("§8[§6Cantale§8] §6Avantages Chèvre : Vol illimité, 100k Cantox/jour, /pc+/pc2, 3 Vies/mois, pas de cooldown TP");
+                        target.sendMessage("§8[§6Cantale§8] §6Avantages Chèvre : /pc et /pc2, 3 vies/mois, pas de cooldown TP, +2500 Cantox au /daily. Pas de vol ni de pillage de claim.");
                     } else if (rank == PlayerRank.VIP) {
-                        target.sendMessage("§8[§6Cantale§8] §cAvantages VIP : 1 Statio-Lytra/mois, 10k Cantox/jour, /pc 54 slots, 2 Vies/mois");
+                        target.sendMessage("§8[§6Cantale§8] §cAvantages VIP : 1 Statio-Lytra/mois, +1500 Cantox au /daily, /pc 54 slots, 2 vies/mois");
                     } else if (rank == PlayerRank.AVENTURIER) {
-                        target.sendMessage("§8[§6Cantale§8] §bAvantages Aventurier : 2.5k Cantox/jour, 1 Vie/mois, 5 homes, 5 ventes /ah");
+                        target.sendMessage("§8[§6Cantale§8] §bAvantages Aventurier : +500 Cantox au /daily, 1 vie/mois, 8 homes, 5 ventes /ah");
                     } else if (rank == PlayerRank.MODERATOR) {
                         target.sendMessage("§8[§6Cantale§8] §9Grade Modo actif.");
                     } else if (rank == PlayerRank.ADMIN) {
@@ -97,8 +97,8 @@ public class RankCommand implements CommandExecutor, TabCompleter {
                     sender.sendMessage("§8[§6Cantale§8] §7  Homes : §e" + rank.getMaxHomes());
                     sender.sendMessage("§8[§6Cantale§8] §7  Ventes /ah : §e" + rank.getMaxAhListings());
                     sender.sendMessage("§8[§6Cantale§8] §7  Pas de cooldown TP : §e" + (rank.hasNoTpCooldown() ? "Oui" : "Non"));
-                    sender.sendMessage("§8[§6Cantale§8] §7  Vol créatif (claims) : §e" + (rank.hasUnlimitedFlight() ? "Oui" : "Non"));
-                    sender.sendMessage("§8[§6Cantale§8] §7  Vol coffres (claims étrangers) : §e" + (rank.canStealInClaims() ? "Oui" : "Non"));
+                    sender.sendMessage("§8[§6Cantale§8] §7  Vol créatif (claims) : §cRetiré (EULA)");
+                    sender.sendMessage("§8[§6Cantale§8] §7  Pillage de coffres : §cRetiré (EULA)");
                 }
             }
             default -> sendHelp(sender);

@@ -104,7 +104,8 @@ entries:
       Pour grief/exploser un claim ennemi, il faut être en guerre ET lancer un raid avec /f raid (Officier+).
       Pendant le raid : casser, exploser, poser des blocs (TNT, cristaux, ancres, seaux, wither). Hors raid : les étrangers ne peuvent rien poser ni casser.
       Les têtes de wither s'achètent au /shop (Guerre) 50 000 Cantox, cap 6/j.
-      Pas d'ouverture de coffres ennemis (sauf grade Chèvre). Zone PASDIC : aucun dégât, aucune pose.
+      Pas d'ouverture de coffres ennemis, quel que soit le grade. Pendant le raid, les assaillants peuvent blesser les défenseurs dans leur claim.
+      Zone PASDIC : aucun dégât, aucune pose.
       Le claim du f-spawn n'a plus d'immunité explosion : il se comporte comme un claim normal.
 
   - id: faction_spawn
@@ -541,11 +542,9 @@ entries:
       - "comment acheter un grade"
     response: |
       Les grades sont : AVENTURIER, VIP, CHEVRE, MODERATOR, ADMIN, OWNER.
-      Vol en claim (Chèvre uniquement, pas modos/staff) :
-      - vol créatif (double-tap) dans les claims de TA faction ;
-      - fouiller les coffres/conteneurs des claims ÉTRANGERS (alliés ou ennemis).
+      Aucun grade ne donne le vol en claim ni le droit de fouiller les coffres d'une autre faction.
       Les membres d'une fac ouvrent toujours leurs propres coffres.
-      Ils offrent aussi des bonus (Cantox/jour, vies/mois, homes, slots /pc, etc.).
+      Les grades offrent un petit bonus de Cantox au /daily (en plus de 1000), des vies/mois, des homes et des slots /pc.
       Utilise /rank info <pseudo> pour voir les avantages.
 
   - id: events

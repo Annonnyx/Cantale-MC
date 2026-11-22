@@ -7,6 +7,7 @@ import fr.cantale.plugin.factions.Claim;
 import fr.cantale.plugin.factions.Faction;
 import fr.cantale.plugin.factions.FactionManager;
 import fr.cantale.plugin.factions.FactionRank;
+import fr.cantale.plugin.siege.VulnerabilityWindow;
 import fr.cantale.plugin.factions.secret.SecretTaxManager;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
@@ -101,6 +102,10 @@ public class RaidManager {
         if (attacker == null) return "Tu n'as pas de faction.";
         if (defender == null) return "Ce chunk n'appartient à aucune faction.";
         if (attacker.getId() == defender.getId()) return "Tu ne peux pas raider ta propre faction.";
+        if (!VulnerabilityWindow.isOpen(defender.getVulnStartMinute(), defender.getVulnEndMinute(),
+                VulnerabilityWindow.minuteOfDay(System.currentTimeMillis()))) {
+            return "Cette faction est hors de son créneau de vulnérabilité.";
+        }
         FactionRank rank = attacker.getMemberRank(player.getUniqueId());
         if (rank == null || rank.isLessThan(FactionRank.OFFICER)) return "Rang insuffisant (Officier requis).";
         // La guerre n'est PAS requise pour lancer un raid (elle ouvre la pénétration
@@ -227,17 +232,15 @@ public class RaidManager {
     }
 
     /**
-     * {@code true} si le joueur peut agir dans ce claim comme un assaillant de raid :
-     * raid actif de SA faction sur la faction du claim, ou guerre entre sa faction et celle du claim.
+     * {@code true} seulement pendant un raid enregistré et encore actif, mené par la faction
+     * du joueur contre la faction du claim. Une guerre déclarée ne suffit pas.
      */
-    public boolean isAttackingInRaid(Player player, Claim claim) {
-        if (claim == null) return false;
+    public boolean isAttackingInActiveRaid(Player player, Claim claim) {
+        if (claim == null || player == null) return false;
         Faction attacker = factionManager.getPlayerFaction(player.getUniqueId());
         if (attacker == null) return false;
         Faction defender = factionManager.getFaction(claim.getFactionId());
         if (defender == null || attacker.getId() == defender.getId()) return false;
-        boolean atWar = diplomacyManager != null
-                && diplomacyManager.isAtWar(attacker.getId(), defender.getId());
         long now = System.currentTimeMillis() / 1000;
         for (Raid raid : activeRaids.values()) {
             if (!raid.isActive(now)) continue;
@@ -246,8 +249,25 @@ public class RaidManager {
                 return true;
             }
         }
-        // Guerre : pénétration permanente des claims ennemis
-        return atWar;
+        return false;
+    }
+
+    /**
+     * {@code true} si le joueur peut agir dans ce claim comme un assaillant :
+     * raid actif de SA faction sur la faction du claim, ou guerre entre sa faction et celle du claim.
+     * Le PvP contre un défenseur dans sa base n'utilise pas la branche guerre : voir
+     * {@link #isAttackingInActiveRaid}.
+     */
+    public boolean isAttackingInRaid(Player player, Claim claim) {
+        if (isAttackingInActiveRaid(player, claim)) return true;
+        if (claim == null || player == null) return false;
+        Faction attacker = factionManager.getPlayerFaction(player.getUniqueId());
+        if (attacker == null) return false;
+        Faction defender = factionManager.getFaction(claim.getFactionId());
+        if (defender == null || attacker.getId() == defender.getId()) return false;
+        // Guerre : pénétration permanente des claims ennemis (casse, pose, explosions).
+        return diplomacyManager != null
+                && diplomacyManager.isAtWar(attacker.getId(), defender.getId());
     }
 
     public int countActiveRaidsOn(int defenderFactionId) {

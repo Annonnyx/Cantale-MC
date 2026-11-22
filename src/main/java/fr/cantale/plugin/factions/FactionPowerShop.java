@@ -1,8 +1,14 @@
 package fr.cantale.plugin.factions;
 
 import fr.cantale.plugin.CantalePlugin;
+import fr.cantale.plugin.database.FactionBalanceRepository;
 import fr.cantale.plugin.database.FactionDAO;
 import fr.cantale.plugin.economy.BankManager;
+import fr.cantale.plugin.skills.Skill;
+import fr.cantale.plugin.skills.SkillFormulas;
+
+import java.sql.Connection;
+import java.sql.SQLException;
 
 import java.util.UUID;
 
@@ -68,7 +74,15 @@ public final class FactionPowerShop {
     }
 
     public double nextPointCost(Faction faction) {
-        return costForIndex(faction.getPowerPurchased());
+        return costForIndex(faction.getPowerPurchased()) * negociantMultiplier(faction);
+    }
+
+    private double negociantMultiplier(Faction faction) {
+        if (faction == null || plugin.getSkillService() == null) {
+            return 1.0;
+        }
+        return SkillFormulas.negociantCostMultiplier(
+                plugin.getSkillService().count(faction, Skill.NEGOCIANT));
     }
 
     public Quote quote(Faction faction, int units) {
@@ -76,8 +90,9 @@ public final class FactionPowerShop {
         int n = Math.max(0, Math.min(units, max));
         double total = 0;
         int start = faction.getPowerPurchased();
+        double multiplier = negociantMultiplier(faction);
         for (int i = 0; i < n; i++) {
-            total += costForIndex(start + i);
+            total += costForIndex(start + i) * multiplier;
         }
         int granted = powerGrantedFor(n);
         int powerAfter = faction.getPower() + granted;
@@ -96,7 +111,7 @@ public final class FactionPowerShop {
         double spent = 0;
         int n = 0;
         for (int i = 0; i < max; i++) {
-            double c = costForIndex(start + i);
+            double c = costForIndex(start + i) * negociantMultiplier(faction);
             if (spent + c > balance) break;
             spent += c;
             n++;
@@ -131,11 +146,52 @@ public final class FactionPowerShop {
             return new PurchaseOutcome(BuyResult.INSUFFICIENT_FUNDS, q);
         }
 
-        faction.setBalance(faction.getBalance() - q.totalCost());
-        faction.addPower(q.powerGranted());
-        faction.addPowerPurchased(q.units());
-        factionDAO.updatePowerPurchase(faction.getId(), faction.getPower(), faction.getPowerPurchased());
-        plugin.getFactionManager().saveFaction(faction);
+        int powerBefore = faction.getPower();
+        int purchasedBefore = faction.getPowerPurchased();
+        double balanceBefore = faction.getBalance();
+        int powerAfter = powerBefore + q.powerGranted();
+        int purchasedAfter = purchasedBefore + q.units();
+        try (Connection conn = plugin.getDatabaseManager().getConnection()) {
+            if (conn == null) {
+                return new PurchaseOutcome(BuyResult.INSUFFICIENT_FUNDS, q);
+            }
+            boolean previous = conn.getAutoCommit();
+            conn.setAutoCommit(false);
+            boolean committed = false;
+            try {
+                if (!FactionBalanceRepository.applyDelta(conn, faction.getId(), -q.totalCost())) {
+                    conn.rollback();
+                    return new PurchaseOutcome(BuyResult.INSUFFICIENT_FUNDS, q);
+                }
+                factionDAO.updatePowerPurchase(conn, faction.getId(), powerAfter, purchasedAfter);
+                double updated = FactionBalanceRepository.readBalance(conn, faction.getId());
+                faction.setPower(powerAfter);
+                faction.setPowerPurchased(purchasedAfter);
+                faction.setBalance(updated);
+                conn.commit();
+                committed = true;
+            } catch (SQLException e) {
+                if (!committed) {
+                    try {
+                        conn.rollback();
+                    } catch (SQLException ignored) {
+                        // la connexion sera rendue au pool
+                    }
+                    faction.setPower(powerBefore);
+                    faction.setPowerPurchased(purchasedBefore);
+                    faction.setBalance(balanceBefore);
+                }
+                plugin.getLogger().severe("Achat de pouvoir refusé : " + e.getMessage());
+                return new PurchaseOutcome(BuyResult.INSUFFICIENT_FUNDS, q);
+            } finally {
+                conn.setAutoCommit(previous);
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().severe("Achat de pouvoir refusé : " + e.getMessage());
+            return new PurchaseOutcome(BuyResult.INSUFFICIENT_FUNDS, q);
+        }
+        // Pas de saveFaction : il réécrirait balance avec la valeur absolue lue ici
+        // et écraserait un dépôt concurrent plus récent.
 
         bankManager.logTransaction(
                 faction.getId(),

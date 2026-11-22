@@ -3,6 +3,8 @@ package fr.cantale.client.ui;
 import fr.cantale.client.CantaleMod;
 import fr.cantale.client.data.ServerDataStore;
 import fr.cantale.client.data.WaypointManager;
+import fr.cantale.client.net.CantaleNetworkHandler;
+import fr.cantale.client.render.ClaimColors;
 import fr.cantale.client.render.MapCanvas;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.Click;
@@ -80,6 +82,16 @@ public final class MapScreen extends Screen {
 	private String pendingTpName;
 	private String pendingDeleteId;
 	private String pendingDeleteName;
+
+	private int tipSeq = -1;
+	private String tipFaction = "";
+	private String tipLeader = "";
+	private String tipRel = "";
+	private Text tipLineFaction = Text.empty();
+	private Text tipLineLeader = Text.empty();
+	private Text tipLineRelation = Text.empty();
+	private int tipAnchorX;
+	private int tipAnchorY;
 
 	private MapCanvas.MapMarker contextMarker;
 	private int ctxX;
@@ -293,6 +305,8 @@ public final class MapScreen extends Screen {
 					requestTeleport(hit.command(), hit.name());
 				} else if (hit != null) {
 					centerOn(hit.x(), hit.z());
+				} else {
+					inspectAt(click.x(), click.y());
 				}
 			}
 			return true;
@@ -306,6 +320,9 @@ public final class MapScreen extends Screen {
 		if (dragging && click.button() == GLFW.GLFW_MOUSE_BUTTON_LEFT) {
 			dragAccum += Math.hypot(offsetX, offsetY);
 			if (dragAccum >= DRAG_THRESHOLD_PX) {
+				if (!didDrag) {
+					ServerDataStore.clearTooltip();
+				}
 				didDrag = true;
 			}
 			centerX -= offsetX * currentZoom();
@@ -724,6 +741,7 @@ public final class MapScreen extends Screen {
 				paintMarkerTooltip(context, mouseX, mouseY, hover);
 			}
 		}
+		paintClaimTooltip(context);
 
 		if (overlay == Overlay.NAME) {
 			context.fill(0, 0, width, height, 0x88000000);
@@ -1080,6 +1098,64 @@ public final class MapScreen extends Screen {
 			}
 		}
 		return rows;
+	}
+
+	/**
+	 * Un clic immobile, hors marqueur, demande au serveur la fiche du claim.
+	 */
+	private void inspectAt(double mouseX, double mouseY) {
+		double worldX = screenToWorldX(mouseX);
+		double worldZ = screenToWorldZ(mouseY);
+		int chunkX = (int) Math.floor(worldX / 16.0);
+		int chunkZ = (int) Math.floor(worldZ / 16.0);
+		String world = CantaleMod.getServerWorldName();
+		ServerDataStore.ClaimCell cell = ServerDataStore.cellAt(world, chunkX, chunkZ);
+		if (cell == null) {
+			ServerDataStore.clearTooltip();
+			return;
+		}
+		ServerDataStore.FactionCard card = ServerDataStore.faction(cell.factionId());
+		String faction = card != null ? card.name() : "";
+		String leader = card != null ? card.leader() : "";
+		tipAnchorX = (int) mouseX;
+		tipAnchorY = (int) mouseY;
+		int seq = ServerDataStore.openTooltip(world, chunkX, chunkZ, cell.factionId(), cell.rel(), faction, leader);
+		CantaleNetworkHandler.sendInspect(MinecraftClient.getInstance(), world, chunkX, chunkZ, seq);
+	}
+
+	private void paintClaimTooltip(DrawContext context) {
+		ServerDataStore.ClaimTooltip tip = ServerDataStore.tooltip();
+		if (tip == null) return;
+		if (tip.seq() != tipSeq || !tip.faction().equals(tipFaction)
+				|| !tip.leader().equals(tipLeader) || !tip.rel().equals(tipRel)) {
+			tipSeq = tip.seq();
+			tipFaction = tip.faction();
+			tipLeader = tip.leader();
+			tipRel = tip.rel();
+			tipLineFaction = tipFaction.isEmpty()
+					? Text.translatable("cantale.map.unknown_faction")
+					: Text.literal(tipFaction);
+			Text leader = tipLeader.isEmpty()
+					? Text.translatable("cantale.map.unknown_leader")
+					: Text.literal(tipLeader);
+			tipLineLeader = Text.translatable("cantale.map.leader", leader);
+			tipLineRelation = Text.translatable("cantale.map.relation",
+					Text.translatable(ClaimColors.translationKey(tipRel)));
+		}
+
+		int textW = Math.max(textRenderer.getWidth(tipLineFaction),
+				Math.max(textRenderer.getWidth(tipLineLeader), textRenderer.getWidth(tipLineRelation)));
+		int boxW = textW + 16;
+		int boxH = 40;
+		int tx = Math.min(Math.max(2, tipAnchorX + 12), Math.max(2, width - boxW - 2));
+		int ty = Math.min(Math.max(TOP_H + 2, tipAnchorY + 12), Math.max(TOP_H + 2, height - boxH - 2));
+		int rgb = ClaimColors.rgb(tipRel);
+
+		context.fill(tx, ty, tx + boxW, ty + boxH, 0xF014141C);
+		context.fill(tx, ty, tx + 2, ty + boxH, 0xFF000000 | rgb);
+		context.drawTextWithShadow(textRenderer, tipLineFaction, tx + 8, ty + 4, 0xFFF4F4FA);
+		context.drawTextWithShadow(textRenderer, tipLineLeader, tx + 8, ty + 15, 0xFFD0D0DC);
+		context.drawTextWithShadow(textRenderer, tipLineRelation, tx + 8, ty + 26, 0xFF000000 | rgb);
 	}
 
 	@Override

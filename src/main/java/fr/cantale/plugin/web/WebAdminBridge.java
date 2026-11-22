@@ -13,7 +13,6 @@ import org.bukkit.OfflinePlayer;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
-import org.bukkit.scheduler.BukkitTask;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -21,27 +20,20 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeUnit;
 
 /**
- * Consomme {@code web_admin_actions} déposées par la page admin du site.
+ * Exécute les actions admin publiées sur Redis {@code cantale:admin:actions}.
+ * La table {@code web_admin_actions} reste l'archive (UPDATE de statut), sans SELECT périodique.
  */
 public class WebAdminBridge {
 
-    private static final long INTERVAL_TICKS = 40L;
-    private static final long INITIAL_DELAY_TICKS = 20L * 8;
-    private static final int BATCH_SIZE = 10;
     private static final int RESULT_MAX = 255;
     private static final int PASDIC_RESULT_MAX = 65000;
 
     private final CantalePlugin plugin;
     private final AdminInventoryMutator inventoryMutator;
-    private BukkitTask task;
 
     public WebAdminBridge(CantalePlugin plugin) {
         this.plugin = plugin;
@@ -49,79 +41,94 @@ public class WebAdminBridge {
     }
 
     public void start() {
-        if (task != null)
-            return;
-        task = Bukkit.getScheduler().runTaskTimerAsynchronously(
-                plugin, this::poll, INITIAL_DELAY_TICKS, INTERVAL_TICKS);
-        plugin.getLogger().info("[Web] WebAdminBridge démarré (web_admin_actions toutes les 2s).");
+        plugin.getLogger().info("[Web] WebAdminBridge branché sur Redis "
+                + fr.cantale.plugin.cache.RedisChannels.ADMIN_ACTIONS
+                + " (polling SQL désactivé, archivage conservé).");
     }
 
     public void stop() {
-        if (task != null) {
-            task.cancel();
-            task = null;
+        // L'abonnement est fermé par RedisCache.shutdown().
+    }
+
+    /**
+     * Appelé sur le thread Pub/Sub. {@link #dispatch} revient sur le thread principal.
+     */
+    public void onRedisMessage(String body) {
+        Pending pending = fromRedis(body);
+        if (pending == null) {
+            plugin.getLogger().warning("[Web] Action admin Redis ignorée (JSON invalide).");
+            return;
+        }
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+            if (!reserve(pending)) {
+                return;
+            }
+            try {
+                Bukkit.getScheduler().runTask(plugin, () -> handleOnMain(pending));
+            } catch (Exception e) {
+                plugin.getLogger().warning("[Web] Action admin Redis non planifiée : " + e.getMessage());
+            }
+        });
+    }
+
+    private boolean reserve(Pending pending) {
+        if (pending.id() <= 0) {
+            if (plugin.getConfigManager().isVelocityEnabled()) {
+                plugin.getLogger().warning("[Web] Action admin sans id ignorée : elle ne peut pas être dédoublonnée.");
+                return false;
+            }
+            return true;
+        }
+        try (Connection conn = plugin.getDatabaseManager().getConnection()) {
+            if (conn == null) {
+                return false;
+            }
+            return AdminActionClaim.claim(conn, pending.id());
+        } catch (SQLException e) {
+            plugin.getLogger().warning("[Web] Réservation admin #" + pending.id() + " impossible : " + e.getMessage());
+            return false;
+        }
+    }
+
+    private static Pending fromRedis(String body) {
+        RedisBridgeMessages.Admin admin = RedisBridgeMessages.parseAdmin(body);
+        if (admin == null) {
+            return null;
+        }
+        return new Pending(admin.id(), admin.type(), admin.targetUuid(), admin.targetName(),
+                admin.payload(), admin.actorDiscordId());
+    }
+
+    private void handleOnMain(Pending pending) {
+        if ("set_pasdic".equalsIgnoreCase(pending.type())) {
+            processSetPasdic(pending);
+            return;
+        }
+        String err;
+        try {
+            err = dispatch(pending);
+        } catch (Exception e) {
+            err = e.getMessage();
+        }
+        String resultError = err;
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> applyMark(pending.id(), resultError));
+    }
+
+    private void applyMark(long id, String err) {
+        if (id <= 0) {
+            return;
+        }
+        if (err == null) {
+            mark(id, "done", null);
+        } else if (err.startsWith("OK:")) {
+            mark(id, "done", truncate(err.substring(3)));
+        } else {
+            mark(id, "failed", err);
         }
     }
 
     private record Pending(
             long id, String type, String targetUuid, String targetName, String payload, String actorDiscordId) {
-    }
-
-    private void poll() {
-        for (Pending p : fetch())
-            process(p);
-    }
-
-    private List<Pending> fetch() {
-        List<Pending> list = new ArrayList<>();
-        String sql = "SELECT id, type, target_uuid, target_name, payload, actor_discord_id " +
-                "FROM web_admin_actions WHERE status = 'pending' ORDER BY id LIMIT " + BATCH_SIZE;
-        try (Connection conn = plugin.getDatabaseManager().getConnection()) {
-            if (conn == null)
-                return list;
-            try (PreparedStatement ps = conn.prepareStatement(sql);
-                    ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    list.add(new Pending(
-                            rs.getLong("id"),
-                            rs.getString("type"),
-                            rs.getString("target_uuid"),
-                            rs.getString("target_name"),
-                            rs.getString("payload"),
-                            rs.getString("actor_discord_id")));
-                }
-            }
-        } catch (SQLException e) {
-            plugin.getLogger().warning("[Web] WebAdminBridge lecture : " + e.getMessage());
-        }
-        return list;
-    }
-
-    private void process(Pending pending) {
-        if ("set_pasdic".equalsIgnoreCase(pending.type())) {
-            processSetPasdic(pending);
-            return;
-        }
-        try {
-            CompletableFuture<String> done = new CompletableFuture<>();
-            Bukkit.getScheduler().runTask(plugin, () -> {
-                try {
-                    done.complete(dispatch(pending));
-                } catch (Exception e) {
-                    done.completeExceptionally(e);
-                }
-            });
-            String err = done.get(12, TimeUnit.SECONDS);
-            if (err == null) {
-                mark(pending.id(), "done", null);
-            } else if (err.startsWith("OK:")) {
-                mark(pending.id(), "done", truncate(err.substring(3)));
-            } else {
-                mark(pending.id(), "failed", err);
-            }
-        } catch (Exception e) {
-            mark(pending.id(), "failed", truncate(e.getMessage()));
-        }
     }
 
     /**

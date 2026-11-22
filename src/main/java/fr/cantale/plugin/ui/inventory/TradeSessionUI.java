@@ -134,7 +134,7 @@ public class TradeSessionUI extends BaseUI {
             return;
         }
         if (slot == SLOT_CANCEL) {
-            plugin.getTradeManager().cancelTradeOf(player, player.getName() + " a annulé l'échange.");
+            plugin.getTradeManager().cancelTradeOf(player, "trade.cancelled-by", player.getName());
             return;
         }
         if (slot == SLOT_MONEY_LOCAL) {

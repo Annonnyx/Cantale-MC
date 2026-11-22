@@ -2,10 +2,12 @@ package fr.cantale.client;
 
 import fr.cantale.client.data.ServerDataStore;
 import fr.cantale.client.net.CantaleNetworkHandler;
+import fr.cantale.client.render.CosmeticRenderer;
 import fr.cantale.client.render.TerrainSampler;
 import fr.cantale.client.render.WaypointWorldRenderer;
 import fr.cantale.client.ui.MapScreen;
 import fr.cantale.client.ui.MinimapHud;
+import fr.cantale.client.ui.StatusHud;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
@@ -56,15 +58,18 @@ public final class CantaleMod implements ClientModInitializer {
 		CantaleNetworkHandler.register();
 		MinimapHud.init();
 		WaypointWorldRenderer.init();
+		StatusHud.init();
+		CosmeticRenderer.init();
 
 		ClientTickEvents.END_CLIENT_TICK.register(this::onClientTick);
 
-		LOGGER.info("[Cantale] Mod client initialisé — touche M : carte, touche N : minimap.");
+		LOGGER.info("[Cantale] Mod client initialisé — touche M : carte, touche N : minimap, HUD vies / combat / territoire.");
 	}
 
 	private void onClientTick(MinecraftClient client) {
 		// Consomme les messages réseau reçus + retry du handshake (thread client uniquement)
 		CantaleNetworkHandler.tick(client);
+		CosmeticRenderer.tick(client);
 		// Rafraîchissement doux du cache terrain autour du joueur
 		TerrainSampler.INSTANCE.tick(client);
 

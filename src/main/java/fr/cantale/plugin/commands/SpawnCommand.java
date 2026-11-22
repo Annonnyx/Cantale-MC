@@ -1,6 +1,8 @@
 package fr.cantale.plugin.commands;
 
 import fr.cantale.plugin.CantalePlugin;
+import fr.cantale.plugin.world.WorldTopology;
+import fr.cantale.plugin.world.WorldTransit;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.command.Command;
@@ -23,8 +25,11 @@ public class SpawnCommand implements CommandExecutor {
             return true;
         }
 
-        World world = plugin.getServer().getWorld("world");
-        if (world == null) {
+        String spawnName = WorldTransit.spawnWorld(
+                plugin.getServer().getWorld(WorldTopology.HUB) != null,
+                plugin.getServer().getWorld(WorldTopology.LEGACY) != null);
+        World world = plugin.getServer().getWorld(spawnName);
+        if (world == null || WorldTopology.WARZONE.equals(world.getName())) {
             player.sendMessage("§8[§6Cantale§8] §cLe monde du spawn est introuvable.");
             return true;
         }

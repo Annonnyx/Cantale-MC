@@ -116,6 +116,10 @@ public class CantalePlugin extends JavaPlugin {
     private fr.cantale.plugin.factions.pasdic.PasdicService pasdicService;
     private fr.cantale.plugin.factions.secret.SecretTaxManager secretTaxManager;
     private fr.cantale.plugin.factions.raid.RaidManager raidManager;
+    private fr.cantale.plugin.siege.SiegeManager siegeManager;
+    private fr.cantale.plugin.skills.SkillService skillService;
+    private fr.cantale.plugin.world.ResourceWorldMaintainer resourceMaintainer;
+    private fr.cantale.plugin.world.KothController kothController;
     private fr.cantale.plugin.discord.DiscordLinkService discordLinkService;
     private VanishCommand vanishCommand;
     private PermissionManager permissionManager;
@@ -153,6 +157,9 @@ public class CantalePlugin extends JavaPlugin {
     private fr.cantale.plugin.collections.CollectionManager collectionManager;
     private fr.cantale.plugin.combattant.CombattantManager combattantManager;
     private fr.cantale.plugin.moderation.PlayerLockManager playerLockManager;
+    private fr.cantale.plugin.lang.MessageService messages;
+    private fr.cantale.plugin.network.VelocityGuardListener velocityGuard;
+    private fr.cantale.plugin.cosmetics.SeasonPassService seasonPass;
 
     @Override
     public void onEnable() {
@@ -161,9 +168,26 @@ public class CantalePlugin extends JavaPlugin {
         saveDefaultConfig();
 
         this.configManager = new ConfigManager(this);
+        try {
+            this.messages = fr.cantale.plugin.lang.MessageService.load(this);
+        } catch (java.io.IOException e) {
+            getLogger().severe("Bundles de langue illisibles : " + e.getMessage());
+            getServer().getPluginManager().disablePlugin(this);
+            return;
+        }
+        getServer().getPluginManager().registerEvents(this.messages, this);
+        this.velocityGuard = new fr.cantale.plugin.network.VelocityGuardListener(this);
+        getServer().getPluginManager().registerEvents(this.velocityGuard, this);
+        this.velocityGuard.logStartup();
+        fr.cantale.plugin.world.WorldBootstrap.ensure(this);
         this.databaseManager = new DatabaseManager(this);
         this.factionManager = new FactionManager(this);
         this.databaseManager.init();
+        this.seasonPass = new fr.cantale.plugin.cosmetics.SeasonPassService(this);
+        this.seasonPass.start();
+        getServer().getPluginManager().registerEvents(this.seasonPass, this);
+        this.skillService = new fr.cantale.plugin.skills.SkillService(this);
+        this.skillService.load();
         // Si la DB n'est pas disponible au démarrage, planifier des reconnexions asynchrones
         if (!this.databaseManager.isConnected()) {
             getLogger().warning("DB indisponible — planification des tentatives de reconnexion automatiques.");
@@ -175,7 +199,7 @@ public class CantalePlugin extends JavaPlugin {
         this.bankManager = new BankManager(this);
         this.auctionManager = new AuctionManager(this);
         // Charger les listings d'enchères uniquement si la BDD est disponible.
-        if (this.databaseManager.getConnection() != null) {
+        if (this.databaseManager.isConnected()) {
             this.auctionManager.loadListings();
         } else {
             getLogger().warning("Base de données non disponible — chargement des listings d'enchères différé.");
@@ -186,7 +210,7 @@ public class CantalePlugin extends JavaPlugin {
                 @Override
                 public void run() {
                     attempts++;
-                    if (databaseManager.getConnection() != null) {
+                    if (databaseManager.isConnected()) {
                         try {
                             auctionManager.loadListings();
                             getLogger().info("Listings d'enchères chargés après reconnexion DB.");
@@ -208,7 +232,7 @@ public class CantalePlugin extends JavaPlugin {
         this.warpManager = new WarpManager(this);
         this.fWarpManager = new FWarpManager(this);
         this.factionWarpManager = new fr.cantale.plugin.factions.FactionWarpManager(this);
-        if (this.databaseManager.getConnection() != null) {
+        if (this.databaseManager.isConnected()) {
             this.warpManager.loadWarps();
             this.fWarpManager.loadFWarps();
         } else {
@@ -218,7 +242,7 @@ public class CantalePlugin extends JavaPlugin {
                 @Override
                 public void run() {
                     attempts++;
-                    if (databaseManager.getConnection() != null) {
+                    if (databaseManager.isConnected()) {
                         try {
                             warpManager.loadWarps();
                             fWarpManager.loadFWarps();
@@ -258,7 +282,7 @@ public class CantalePlugin extends JavaPlugin {
         Bukkit.getScheduler().runTaskLater(this, () -> this.chunkLoader.prewarmSpawn(), 40L);
         this.tutorialManager = new TutorialManager(this);
         this.npcManager = new NPCManager(this);
-        if (this.databaseManager.getConnection() != null) {
+        if (this.databaseManager.isConnected()) {
             this.npcManager.loadNPCs();
         } else {
             getLogger().warning("DB inaccessible — chargement des NPC différé.");
@@ -267,7 +291,7 @@ public class CantalePlugin extends JavaPlugin {
                 @Override
                 public void run() {
                     attempts++;
-                    if (databaseManager.getConnection() != null) {
+                    if (databaseManager.isConnected()) {
                         try {
                             npcManager.loadNPCs();
                             getLogger().info("NPC chargés après reconnexion DB.");
@@ -285,7 +309,7 @@ public class CantalePlugin extends JavaPlugin {
             }.runTaskTimerAsynchronously(this, 20L * 5, 20L * 10);
         }
         this.diplomacyManager = new DiplomacyManager(this);
-        if (this.databaseManager.getConnection() != null) {
+        if (this.databaseManager.isConnected()) {
             this.diplomacyManager.loadDiplomacy();
         } else {
             getLogger().warning("DB inaccessible — chargement de la diplomatie différé.");
@@ -294,7 +318,7 @@ public class CantalePlugin extends JavaPlugin {
                 @Override
                 public void run() {
                     attempts++;
-                    if (databaseManager.getConnection() != null) {
+                    if (databaseManager.isConnected()) {
                         try {
                             diplomacyManager.loadDiplomacy();
                             getLogger().info("Diplomatie chargée après reconnexion DB.");
@@ -319,11 +343,17 @@ public class CantalePlugin extends JavaPlugin {
         this.secretTaxManager = new fr.cantale.plugin.factions.secret.SecretTaxManager(this);
         this.raidManager = new fr.cantale.plugin.factions.raid.RaidManager(this);
         this.raidManager.startTracking();
+        this.siegeManager = new fr.cantale.plugin.siege.SiegeManager(this);
+        this.siegeManager.start();
+        this.resourceMaintainer = new fr.cantale.plugin.world.ResourceWorldMaintainer(this);
+        this.resourceMaintainer.start();
+        this.kothController = new fr.cantale.plugin.world.KothController(this);
+        this.kothController.start();
         this.redisCache = new RedisCache(this);
         this.redisCache.init();
         this.adminCommand = new AdminCommand(this);
         this.moderationCommand = new ModerationCommand(this);
-        if (this.databaseManager.getConnection() != null) {
+        if (this.databaseManager.isConnected()) {
             this.moderationCommand.getMuteManager().loadMutes();
         } else {
             getLogger().warning("DB inaccessible — chargement des mutes différé.");
@@ -332,7 +362,7 @@ public class CantalePlugin extends JavaPlugin {
                 @Override
                 public void run() {
                     attempts++;
-                    if (databaseManager.getConnection() != null) {
+                    if (databaseManager.isConnected()) {
                         try {
                             moderationCommand.getMuteManager().loadMutes();
                             getLogger().info("Mutes chargés après reconnexion DB.");
@@ -350,7 +380,7 @@ public class CantalePlugin extends JavaPlugin {
             }.runTaskTimerAsynchronously(this, 20L * 5, 20L * 10);
         }
         this.wantedCommand = new WantedCommand(this);
-        if (this.databaseManager.getConnection() != null) {
+        if (this.databaseManager.isConnected()) {
             this.wantedCommand.getWantedManager().loadWanted();
         } else {
             getLogger().warning("DB inaccessible — chargement des primes (wanted) différé.");
@@ -359,7 +389,7 @@ public class CantalePlugin extends JavaPlugin {
                 @Override
                 public void run() {
                     attempts++;
-                    if (databaseManager.getConnection() != null) {
+                    if (databaseManager.isConnected()) {
                         try {
                             wantedCommand.getWantedManager().loadWanted();
                             getLogger().info("Primes chargées après reconnexion DB.");
@@ -476,13 +506,25 @@ public class CantalePlugin extends JavaPlugin {
         this.webFactionBridge = new fr.cantale.plugin.web.WebFactionBridge(this);
         this.webFactionBridge.start();
 
-        // Bridge chat du site web (consomme web_chat_outbox toutes les 2s)
+        // Pont site : Redis Pub/Sub. Les tables outbox/actions restent l'archive, sans SELECT périodique.
         this.webChatBridge = new fr.cantale.plugin.web.WebChatBridge(this);
         this.webChatBridge.start();
 
-        // Bridge admin du site web (consomme web_admin_actions toutes les 2s)
         this.webAdminBridge = new fr.cantale.plugin.web.WebAdminBridge(this);
         this.webAdminBridge.start();
+        if (redisCache != null) {
+            redisCache.startPubSub((channel, message) -> {
+                String origin = fr.cantale.plugin.web.RedisBridgeMessages.serverIdOf(message);
+                var action = fr.cantale.plugin.web.RedisRelayPolicy.accept(channel, origin, getConfigManager().getServerId());
+                if (action == fr.cantale.plugin.web.RedisRelayPolicy.Action.RELAY_CHAT && webChatBridge != null) {
+                    webChatBridge.onRedisMessage(message);
+                } else if (action == fr.cantale.plugin.web.RedisRelayPolicy.Action.RELAY_CROSS_CHAT && webChatBridge != null) {
+                    webChatBridge.onCrossServerChat(message);
+                } else if (action == fr.cantale.plugin.web.RedisRelayPolicy.Action.ADMIN && webAdminBridge != null) {
+                    webAdminBridge.onRedisMessage(message);
+                }
+            });
+        }
 
         getLogger().info("Cantale v" + getDescription().getVersion() + " activé avec succès !");
     }
@@ -543,6 +585,15 @@ public class CantalePlugin extends JavaPlugin {
         }
         if (asyncTaskManager != null) {
             asyncTaskManager.shutdown();
+        }
+        if (kothController != null) {
+            kothController.stop();
+        }
+        if (resourceMaintainer != null) {
+            resourceMaintainer.stop();
+        }
+        if (siegeManager != null) {
+            siegeManager.stop();
         }
         if (redisCache != null) {
             redisCache.shutdown();
@@ -640,6 +691,12 @@ public class CantalePlugin extends JavaPlugin {
         getCommand("pc3").setExecutor(new Pc2Command(this));
         getCommand("day").setExecutor(new DayCommand(this));
         getCommand("daily").setExecutor(new fr.cantale.plugin.commands.DailyCommand(this));
+        fr.cantale.plugin.commands.LangCommand langCommand = new fr.cantale.plugin.commands.LangCommand(this);
+        getCommand("lang").setExecutor(langCommand);
+        getCommand("lang").setTabCompleter(langCommand);
+        fr.cantale.plugin.commands.PassCommand passCommand = new fr.cantale.plugin.commands.PassCommand(this);
+        getCommand("pass").setExecutor(passCommand);
+        getCommand("pass").setTabCompleter(passCommand);
         getCommand("bvn").setExecutor(welcomeCommand);
         fr.cantale.plugin.commands.ParrainCommand parrainCommand = new fr.cantale.plugin.commands.ParrainCommand(this);
         getCommand("parrain").setExecutor(parrainCommand);
@@ -695,6 +752,8 @@ public class CantalePlugin extends JavaPlugin {
         rankPermissionBridge = new fr.cantale.plugin.rank.RankPermissionBridge(this);
         getServer().getPluginManager().registerEvents(rankPermissionBridge, this);
         getServer().getPluginManager().registerEvents(new ClaimListener(this), this);
+        getServer().getPluginManager().registerEvents(new fr.cantale.plugin.world.WorldRulesListener(this), this);
+        getServer().getPluginManager().registerEvents(new fr.cantale.plugin.skills.SkillEffectListener(this), this);
         getServer().getPluginManager().registerEvents(new fr.cantale.plugin.listeners.WarpProtectionListener(this), this);
         getServer().getPluginManager().registerEvents(new PlayerListener(this), this);
         getServer().getPluginManager().registerEvents(new ResourcePackStatusListener(this), this);
@@ -788,6 +847,14 @@ public class CantalePlugin extends JavaPlugin {
 
     public ConfigManager getConfigManager() {
         return configManager;
+    }
+
+    public fr.cantale.plugin.lang.MessageService messages() {
+        return messages;
+    }
+
+    public fr.cantale.plugin.cosmetics.SeasonPassService getSeasonPass() {
+        return seasonPass;
     }
 
     public DatabaseManager getDatabaseManager() {
@@ -904,6 +971,14 @@ public class CantalePlugin extends JavaPlugin {
 
     public fr.cantale.plugin.factions.raid.RaidManager getRaidManager() {
         return raidManager;
+    }
+
+    public fr.cantale.plugin.siege.SiegeManager getSiegeManager() {
+        return siegeManager;
+    }
+
+    public fr.cantale.plugin.skills.SkillService getSkillService() {
+        return skillService;
     }
 
     public fr.cantale.plugin.discord.DiscordLinkService getDiscordLinkService() {

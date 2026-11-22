@@ -52,7 +52,7 @@ public class TradeListener implements Listener {
             if (session == null) return;
             if (tradeManager.isAwaitingMoneyInput(player.getUniqueId())) return;
             if (tradeManager.isTradeInventory(player, player.getOpenInventory().getTopInventory())) return;
-            tradeManager.cancelTrade(session, player.getName() + " a fermé l'échange.");
+            tradeManager.cancelTrade(session, "trade.closed", player.getName());
         });
     }
 

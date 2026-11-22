@@ -9,14 +9,31 @@ database:
   # Paramètres SQLite (ignorés si type = mysql)
   sqlite:
     file: cantale.db
-  # Paramètres MySQL (fournis par PixelHorizons)
+  # Paramètres MySQL. Les variables d'environnement priment sur ces clés :
+  # CANTALE_DB_HOST, CANTALE_DB_PORT, CANTALE_DB_NAME, CANTALE_DB_USER, CANTALE_DB_PASS.
+  # Un placeholder ${CANTALE_...} n'est pas une valeur utilisable.
   mysql:
-    host: 82.66.173.236
+    host: ${CANTALE_DB_HOST}
     port: 3306
-    database: s115_Cantale
-    username: u115_Omsepgncez
-    password: "BVN==1sMd@g2YM^0c600J4Ki"
+    database: ${CANTALE_DB_NAME}
+    username: ${CANTALE_DB_USER}
+    password: ${CANTALE_DB_PASS}
     pool-size: 10
+
+# ─── Réseau : Velocity, Redis central, MySQL partagée ─────
+# Le plugin tourne seul si CANTALE_VELOCITY_SECRET est absent.
+# S'il est défini : forwarding moderne exigé (paper-global.yml proxies.velocity,
+# même secret, hors git). Le YAML ci-dessous n'active rien et ne contient pas de secret.
+# CANTALE_SERVER_ID (défaut paper-1) est posé sur cantale:chat:* et cantale:admin:actions.
+# Redis central, pas un second pool : CANTALE_REDIS_HOST, CANTALE_REDIS_PORT, CANTALE_REDIS_PASSWORD.
+# MySQL partagée : CANTALE_DB_HOST, CANTALE_DB_PORT, CANTALE_DB_NAME, CANTALE_DB_USER, CANTALE_DB_PASS.
+network:
+  server-id: paper-1
+  velocity-secret: ${CANTALE_VELOCITY_SECRET}
+redis:
+  host: ${CANTALE_REDIS_HOST}
+  port: 6379
+  password: ${CANTALE_REDIS_PASSWORD}
 
 # ─── Système de vies ───────────────────────────────────────
 lives:
@@ -26,10 +43,10 @@ lives:
   min-lives: 0
   # Prix d'une vie en Cantox (0 = gratuit via /givevie)
   buy-price: 10000
-  # Ban IP quand un joueur atteint 0 vie
+  # Deathban temporaire de 2 h à 0 vie (profil). Pas de ban IP.
   ban-on-zero: true
-  # Message affiché au ban
-  ban-message: "&cVous n'avez plus de vies ! Achetez-en une ou attendez qu'un ami vous en donne une."
+  # Message affiché au ban. Pas d'incitation à acheter une vie.
+  ban-message: "&cVous n'avez plus de vies ! Un ami peut vous en donner une."
   # Saturation (effet PotionEffectType.SATURATION, amplifier 0) après respawn.
   # Amp 0 = régén faim utile sans être abusif ; durée rafraîchie à chaque respawn.
   # Recommandé 120–180 s ; défaut 150 (~2,5 min).
@@ -79,8 +96,9 @@ afk:
 
 # ─── Factions ────────────────────────────────────────────────
 factions:
-  # Nombre minimum de joueurs pour créer une faction
-  min-members-create: 8
+  # Joueurs sans faction, créateur inclus, dans un rayon de 32 blocs (/f create).
+  # Le défaut Java est le même : 2.
+  min-members-create: 2
   # Chunks de départ
   start-chunks: 60
   # Homes de départ par faction
@@ -371,14 +389,14 @@ optimization:
 discord:
   # Activer le bot Discord
   enabled: true
-  # Token du bot (NE PAS PARTAGER)
-  token: "MTUwNTIwMzUwMjgxMTQ1MTQ0Mw.GWRNvE.9VS9WnL4lRMyOXXcQVWvBmwnryex7cp57DcEqo"
+  # Token du bot. Variable prioritaire : CANTALE_DISCORD_TOKEN. Ne pas commiter le vrai token.
+  token: ${CANTALE_DISCORD_TOKEN}
   # ID du serveur Discord (Guild)
   guild-id: "1271523439412252722"
   # ID du client OAuth2 (pour liens web)
   client-id: "1505203502811451443"
-  # Secret OAuth2 de l'application Discord (NE PAS PARTAGER — distinct du token bot)
-  client-secret: "_TuIvBq9Qkcq_asviSEWI8jHezB5j7-o"
+  # Secret OAuth2 (distinct du token bot). Variable prioritaire : CANTALE_DISCORD_CLIENT_SECRET.
+  client-secret: ${CANTALE_DISCORD_CLIENT_SECRET}
 
   # ── Salons ──
   channels:
@@ -574,9 +592,10 @@ vote:
   # Serveur-Prive : token dashboard (onglet Paramètres) — polling API.
   # ServeurListe : token_api du dashboard (FAQ GET /api/vote) — polling IP.
   # Ce n'est PAS la clé publique / token NuVotifier.
+  # Variables prioritaires : CANTALE_VOTE_SERVEURLISTE_TOKEN, CANTALE_VOTE_SERVEURPRIVE_TOKEN.
   tokens:
-    serveurliste.com: "a2466aea-e3a1-4837-8146-eca287ff9422"
-    serveur-prive.net: "TMOJRJMZ"
+    serveurliste.com: ${CANTALE_VOTE_SERVEURLISTE_TOKEN}
+    serveur-prive.net: ${CANTALE_VOTE_SERVEURPRIVE_TOKEN}
 
   # API Serveur-Prive.net (site 2) — récompenses via polling, pas via Votifier.
   # Docs : https://developers.serveur-prive.net/getting-started#/operations/serverVotesList
@@ -877,5 +896,20 @@ runes:
     epic-chance-percent: 2.0
     mythic-chance-percent: 4.0
     legendary-chance-percent: 6.5
+
+# ─── Phase 3 : mondes, sièges, métiers ───────────────────────
+# saveDefaultConfig() ne fusionne pas. Copier ce bloc dans
+# plugins/CantalePlugin/config.yml si le fichier live existe déjà.
+# Clés absentes = défauts Java (mêmes valeurs).
+# Les mondes sont créés au démarrage s'ils manquent. Un monde déjà présent n'est pas effacé.
+# world_factions et world_warzone : relief amplifié (falaises / vallées). Pas de datapack versionné.
+# Terres sauvages : filons reposés toutes les 6 h. Gisements de warzone : toutes les 12 h.
+# Le reset ne vide pas l'inventaire et ne supprime pas le dossier du monde.
+siege:
+  duration-minutes: 20
+  regen-delay-minutes: 30
+  # Minutes depuis minuit, heure du serveur. 1080 = 18:00 inclus, 1320 = 22:00 exclus.
+  vuln-start-minute: 1080
+  vuln-end-minute: 1320
 
 

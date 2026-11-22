@@ -102,7 +102,7 @@ public class WarpManager {
             return false;
         }
 
-        return plugin.getTeleportDelayManager().requestTeleport(player, dest, false, () ->
+        return plugin.getTeleportDelayManager().requestTeleport(player, dest, false, true, () ->
                 player.sendMessage("§8[§6Cantale§8] §aTéléporté au warp §e" + warp.getName() + "§a."));
     }
 

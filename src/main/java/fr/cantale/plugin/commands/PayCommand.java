@@ -22,23 +22,23 @@ public class PayCommand implements CommandExecutor {
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (!(sender instanceof Player player)) {
-            sender.sendMessage("§cCette commande est réservée aux joueurs.");
+            plugin.messages().send(sender, "command.players-only");
             return true;
         }
 
         if (args.length < 2) {
-            player.sendMessage("§8[§6Cantale§8] §cUsage : /pay <joueur> <montant>");
+            plugin.messages().send(player, "pay.usage");
             return true;
         }
 
         Player target = Bukkit.getPlayer(args[0]);
         if (target == null) {
-            player.sendMessage("§8[§6Cantale§8] §cJoueur introuvable.");
+            plugin.messages().send(player, "pay.unknown");
             return true;
         }
 
         if (target.getUniqueId().equals(player.getUniqueId())) {
-            player.sendMessage("§8[§6Cantale§8] §cVous ne pouvez pas vous payer vous-même.");
+            plugin.messages().send(player, "pay.self");
             return true;
         }
 
@@ -46,25 +46,25 @@ public class PayCommand implements CommandExecutor {
         try {
             amount = Double.parseDouble(args[1]);
         } catch (NumberFormatException e) {
-            player.sendMessage("§8[§6Cantale§8] §cMontant invalide.");
+            plugin.messages().send(player, "pay.amount");
             return true;
         }
 
         if (amount <= 0) {
-            player.sendMessage("§8[§6Cantale§8] §cLe montant doit être positif.");
+            plugin.messages().send(player, "pay.positive");
             return true;
         }
 
         if (!economyManager.hasEnough(player, amount)) {
-            player.sendMessage("§8[§6Cantale§8] §cVous n'avez pas assez de Cantox. (Solde : " + economyManager.getBalance(player) + ")");
+            plugin.messages().send(player, "pay.funds", economyManager.getBalance(player));
             return true;
         }
 
         if (economyManager.transfer(player, target, amount)) {
-            player.sendMessage("§8[§6Cantale§8] §aVous avez payé §e" + target.getName() + " §6" + amount + " §aCantox.");
-            target.sendMessage("§8[§6Cantale§8] §e" + player.getName() + " §avous a payé §6" + amount + " §aCantox.");
+            plugin.messages().send(player, "pay.sent", target.getName(), amount);
+            plugin.messages().send(target, "pay.received", player.getName(), amount);
         } else {
-            player.sendMessage("§8[§6Cantale§8] §cTransaction échouée.");
+            plugin.messages().send(player, "pay.failed");
         }
 
         return true;

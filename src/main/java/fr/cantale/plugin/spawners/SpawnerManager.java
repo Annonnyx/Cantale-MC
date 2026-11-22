@@ -30,9 +30,12 @@ import org.bukkit.scheduler.BukkitTask;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Level;
 
 public class SpawnerManager {
@@ -49,7 +52,12 @@ public class SpawnerManager {
     private static final double HOLOGRAM_MATCH_RADIUS_SQUARED = 0.75 * 0.75;
 
     private BukkitTask spawnTask;
-    private boolean loaded;
+    private volatile boolean loaded;
+    /** Incrémenté à chaque stop : un tick ou un reload en cours ne spawn plus après. */
+    private final AtomicInteger spawnGeneration = new AtomicInteger();
+    private final AtomicBoolean spawnTickInFlight = new AtomicBoolean();
+    /** Clés {@code monde|chunkX|chunkZ} copiées depuis les events chunk. Jamais de Chunk Bukkit. */
+    private final Set<String> loadedChunks = ConcurrentHashMap.newKeySet();
     /** Ralentissement piloté par le PerformanceGovernor (1.0 = cadence nominale). */
     private volatile double rateMultiplier = 1.0;
 
@@ -70,12 +78,17 @@ public class SpawnerManager {
 
     public void start() {
         stop();
+        seedLoadedChunks();
         loadFromDatabase();
         // 1 s : assez fin pour T8 (5 s) ; intervalMs a un plancher de 1000 ms.
-        spawnTask = Bukkit.getScheduler().runTaskTimer(plugin, this::tickSpawn, 20L, 20L);
+        // Itération, cooldowns et chunks chargés : thread async. spawnEntity : batch sur le main.
+        spawnTask = Bukkit.getScheduler().runTaskTimerAsynchronously(plugin, this::tickSpawnAsync, 20L, 20L);
     }
 
     public void stop() {
+        spawnGeneration.incrementAndGet();
+        spawnTickInFlight.set(false);
+        loaded = false;
         if (spawnTask != null) {
             spawnTask.cancel();
             spawnTask = null;
@@ -90,15 +103,43 @@ public class SpawnerManager {
         holograms.clear();
     }
 
+    public void noteChunkLoaded(String world, int chunkX, int chunkZ) {
+        if (world == null) return;
+        loadedChunks.add(SpawnerTickPlanner.chunkKey(world, chunkX, chunkZ));
+    }
+
+    public void noteChunkUnloaded(String world, int chunkX, int chunkZ) {
+        if (world == null) return;
+        loadedChunks.remove(SpawnerTickPlanner.chunkKey(world, chunkX, chunkZ));
+    }
+
+    private void seedLoadedChunks() {
+        loadedChunks.clear();
+        for (World world : Bukkit.getWorlds()) {
+            for (Chunk chunk : world.getLoadedChunks()) {
+                noteChunkLoaded(world.getName(), chunk.getX(), chunk.getZ());
+            }
+        }
+    }
+
     private void loadFromDatabase() {
-        if (plugin.getDatabaseManager() == null || plugin.getDatabaseManager().getConnection() == null) {
+        final int generation = spawnGeneration.get();
+        if (plugin.getDatabaseManager() == null || !plugin.getDatabaseManager().isConnected()) {
             plugin.getLogger().warning("[Spawners] BDD indisponible — nouvel essai dans 10 s.");
-            Bukkit.getScheduler().runTaskLater(plugin, this::loadFromDatabase, 20L * 10);
+            Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                if (generation == spawnGeneration.get()) {
+                    loadFromDatabase();
+                }
+            }, 20L * 10);
             return;
         }
+        loaded = false;
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
             List<SpawnerRecord> records = dao.loadAll();
             Bukkit.getScheduler().runTask(plugin, () -> {
+                if (generation != spawnGeneration.get()) {
+                    return;
+                }
                 cache.clear();
                 long now = System.currentTimeMillis();
                 for (SpawnerRecord record : records) {
@@ -317,38 +358,100 @@ public class SpawnerManager {
         return clampTier(tier);
     }
 
-    private void tickSpawn() {
+    /**
+     * Copie des coordonnées à spawner. Aucun World, Block, Chunk ou Entity.
+     */
+    private record DueSpawn(String world, int x, int y, int z, SpawnerMob mob, int tier, int factionId) {
+    }
+
+    private void tickSpawnAsync() {
         if (!loaded || cache.isEmpty()) return;
-        long now = System.currentTimeMillis();
-        for (SpawnerRecord record : cache.values()) {
-            if (record.nextSpawnAtMs() > now) continue;
-            trySpawnCycle(record);
-            record.setNextSpawnAtMs(now + intervalMs(record));
+        if (!spawnTickInFlight.compareAndSet(false, true)) return;
+        int generation = spawnGeneration.get();
+        boolean scheduled = false;
+        try {
+            long now = System.currentTimeMillis();
+            List<DueSpawn> due = new ArrayList<>();
+            var factions = plugin.getFactionManager();
+            for (SpawnerRecord record : cache.values()) {
+                if (generation != spawnGeneration.get()) {
+                    return;
+                }
+                if (!SpawnerTickPlanner.isDue(record.nextSpawnAtMs(), now)) {
+                    continue;
+                }
+                // Même règle qu'avant : le cooldown avance même si le chunk ou le claim refuse le spawn.
+                record.setNextSpawnAtMs(SpawnerTickPlanner.scheduleNext(now, intervalMs(record)));
+                if (!record.mob().obtainable()) {
+                    continue;
+                }
+                if (!SpawnerTickPlanner.chunkLoaded(loadedChunks, record.world(), record.chunkX(), record.chunkZ())) {
+                    continue;
+                }
+                if (factions == null) {
+                    continue;
+                }
+                Claim claim = factions.getClaimAt(record.world(), record.chunkX(), record.chunkZ());
+                if (claim == null || claim.getFactionId() != record.factionId()) {
+                    continue;
+                }
+                due.add(new DueSpawn(record.world(), record.x(), record.y(), record.z(),
+                        record.mob(), record.tier(), record.factionId()));
+            }
+            if (due.isEmpty() || generation != spawnGeneration.get()) {
+                return;
+            }
+            Bukkit.getScheduler().runTask(plugin, () -> {
+                try {
+                    if (generation == spawnGeneration.get()) {
+                        spawnBatch(due);
+                    }
+                } finally {
+                    spawnTickInFlight.set(false);
+                }
+            });
+            scheduled = true;
+        } catch (Exception e) {
+            plugin.getLogger().warning("[Spawners] tick async : " + e.getMessage());
+        } finally {
+            if (!scheduled) {
+                spawnTickInFlight.set(false);
+            }
         }
     }
 
-    private void trySpawnCycle(SpawnerRecord record) {
-        Location loc = record.location();
-        if (loc == null) return;
-        World world = loc.getWorld();
-        if (world == null) return;
-        if (!world.isChunkLoaded(record.chunkX(), record.chunkZ())) return;
-        if (loc.getBlock().getType() != Material.SPAWNER) return;
-
-        Claim claim = plugin.getFactionManager().getClaimAt(record.world(), record.chunkX(), record.chunkZ());
-        if (claim == null || claim.getFactionId() != record.factionId()) {
-            return;
-        }
-        if (!record.mob().obtainable()) {
-            return;
-        }
-
-        int count = mobsPerCycle(record.tier());
+    /** Thread principal : résolution monde/blocs puis un seul passage {@code spawnEntity}. */
+    private void spawnBatch(List<DueSpawn> due) {
         int attemptsPerMob = Math.max(1, plugin.getConfig().getInt("spawners.spawn-attempts-per-mob", 8));
-        for (int i = 0; i < count; i++) {
-            Location spawnAt = findSpawnLocation(record, attemptsPerMob);
-            if (spawnAt == null) continue;
-            spawnMob(record, spawnAt);
+        var factions = plugin.getFactionManager();
+        for (DueSpawn spawn : due) {
+            if (!loaded) return;
+            SpawnerRecord record = cache.get(SpawnerRecord.key(spawn.world(), spawn.x(), spawn.y(), spawn.z()));
+            if (record == null || record.mob() != spawn.mob()) {
+                continue;
+            }
+            World world = Bukkit.getWorld(spawn.world());
+            if (world == null || !world.isChunkLoaded(record.chunkX(), record.chunkZ())) {
+                continue;
+            }
+            if (world.getBlockAt(spawn.x(), spawn.y(), spawn.z()).getType() != Material.SPAWNER) {
+                continue;
+            }
+            if (factions != null) {
+                Claim claim = factions.getClaimAt(spawn.world(), record.chunkX(), record.chunkZ());
+                if (claim == null || claim.getFactionId() != record.factionId()) {
+                    continue;
+                }
+            }
+            if (!record.mob().obtainable()) {
+                continue;
+            }
+            int count = mobsPerCycle(record.tier());
+            for (int i = 0; i < count; i++) {
+                Location spawnAt = findSpawnLocation(record, attemptsPerMob);
+                if (spawnAt == null) continue;
+                spawnMob(record, spawnAt);
+            }
         }
     }
 

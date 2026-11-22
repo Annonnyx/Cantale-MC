@@ -1,6 +1,7 @@
 package fr.cantale.plugin.commands;
 
 import fr.cantale.plugin.CantalePlugin;
+import fr.cantale.plugin.world.WorldTransit;
 import org.bukkit.Bukkit;
 import org.bukkit.Chunk;
 import org.bukkit.Location;
@@ -50,8 +51,16 @@ public class RtpCommand implements CommandExecutor {
             return true;
         }
 
-        World world = player.getWorld();
-        Location origin = player.getLocation().clone();
+        String rtpName = WorldTransit.rtpWorld(player.getWorld().getName());
+        World world = plugin.getServer().getWorld(rtpName);
+        if (world == null) {
+            searching.remove(playerId);
+            player.sendMessage("§8[§6Cantale§8] §cLe monde de téléportation est introuvable.");
+            return true;
+        }
+        Location origin = world.equals(player.getWorld())
+                ? player.getLocation().clone()
+                : world.getSpawnLocation().clone();
 
         WorldBorder border = world.getWorldBorder();
         double borderCenterX = border.getCenter().getX();

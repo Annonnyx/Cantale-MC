@@ -1,5 +1,6 @@
 import type { ResultSetHeader } from "mysql2/promise";
 import { query, type SqlValue } from "../db";
+import { publishWebChat } from "../redisPublish";
 
 /**
  * Chat public / faction — `web_chat_messages` + `web_chat_outbox`.
@@ -130,6 +131,7 @@ export async function enqueueChatMessage(input: {
   message: string;
   factionId?: number | null;
 }): Promise<number> {
+  const factionId = input.factionId && input.factionId > 0 ? input.factionId : null;
   const result = await execute(
     `INSERT INTO web_chat_outbox (player_uuid, player_name, message, faction_id, status)
      VALUES (:playerUuid, :playerName, :message, :factionId, 'pending')`,
@@ -137,10 +139,18 @@ export async function enqueueChatMessage(input: {
       playerUuid: input.playerUuid,
       playerName: input.playerName,
       message: input.message,
-      factionId: input.factionId && input.factionId > 0 ? input.factionId : null,
+      factionId,
     },
   );
-  return Number(result.insertId ?? 0);
+  const id = Number(result.insertId ?? 0);
+  await publishWebChat({
+    id,
+    playerUuid: input.playerUuid,
+    playerName: input.playerName,
+    message: input.message,
+    factionId,
+  });
+  return id;
 }
 
 /** Faction du joueur lié (lecture seule). */

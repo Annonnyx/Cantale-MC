@@ -347,7 +347,7 @@ public class AdminCommand implements CommandExecutor, TabCompleter {
         String oldName = faction.getName();
         String error = factionManager.renameFaction(faction, newName);
         if (error != null) {
-            sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&c" + error));
+            plugin.messages().sendEncoded(sender, error);
             return;
         }
 

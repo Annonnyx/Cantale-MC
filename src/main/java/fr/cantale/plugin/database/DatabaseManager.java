@@ -1,18 +1,19 @@
 package fr.cantale.plugin.database;
 
+import com.zaxxer.hikari.HikariConfig;
+import com.zaxxer.hikari.HikariDataSource;
 import fr.cantale.plugin.CantalePlugin;
 import fr.cantale.plugin.config.ConfigManager;
+import fr.cantale.plugin.trade.TradePendingReturnRepository;
 
 import java.io.File;
-import java.lang.reflect.InvocationHandler;
-import java.lang.reflect.Proxy;
 import java.sql.*;
 
 public class DatabaseManager {
 
     private final CantalePlugin plugin;
     private final Object connectionLock = new Object();
-    private Connection connection;
+    private HikariDataSource dataSource;
     private String databaseType;
 
     public DatabaseManager(CantalePlugin plugin) {
@@ -21,68 +22,124 @@ public class DatabaseManager {
 
     public void init() {
         this.databaseType = plugin.getConfigManager().getDatabaseType();
-        connect();
-        if (this.connection == null) {
-            plugin.getLogger().severe("Impossible de démarrer la base de données : connexion non établie.");
+        if (!startPool()) {
+            plugin.getLogger().severe("Impossible de démarrer la base de données : pool non établi.");
             return;
         }
         createTables();
     }
 
-    private void connect() {
+    /**
+     * Ouvre le pool, ou le recrée si les connexions ne répondent plus.
+     * Le mot de passe et l'utilisateur ne sont pas écrits dans les logs.
+     */
+    private boolean startPool() {
         synchronized (connectionLock) {
-            try {
-                if (connection != null && !connection.isClosed()) {
-                    return;
+            if (dataSource != null && !dataSource.isClosed()) {
+                try (Connection probe = dataSource.getConnection()) {
+                    if (probe.isValid(2)) {
+                        return true;
+                    }
+                } catch (SQLException ignored) {
+                    // Le pool existant est inutilisable : on le remplace.
                 }
-                if (connection != null) {
-                    try {
-                        connection.close();
-                    } catch (SQLException ignored) {
+                try {
+                    dataSource.close();
+                } catch (Exception ignored) {
+                }
+                dataSource = null;
+            }
+            if (databaseType == null) {
+                this.databaseType = plugin.getConfigManager().getDatabaseType();
+            }
+
+            HikariDataSource created = null;
+            try {
+                HikariConfig hikari = new HikariConfig();
+                hikari.setPoolName("CantalePool");
+                ConfigManager cfg = plugin.getConfigManager();
+                boolean sqlite = !databaseType.equalsIgnoreCase("mysql");
+                if (!sqlite) {
+                    String host = cfg.getMysqlHost();
+                    String database = cfg.getMysqlDatabase();
+                    String user = cfg.getMysqlUsername();
+                    if (host.isBlank() || database.isBlank() || user.isBlank()) {
+                        plugin.getLogger().severe("Identifiants MySQL incomplets. Renseigner CANTALE_DB_HOST, "
+                                + "CANTALE_DB_NAME, CANTALE_DB_USER et CANTALE_DB_PASS "
+                                + "(ou les clés database.mysql.*). Aucun secret n'est écrit dans les logs.");
+                        return false;
+                    }
+                    if (cfg.getMysqlPassword().isEmpty()) {
+                        plugin.getLogger().warning("Mot de passe MySQL vide. Définir CANTALE_DB_PASS "
+                                + "si la base en exige un. Aucun secret n'est écrit dans les logs.");
+                    }
+                    String driver = firstDriver("com.mysql.cj.jdbc.Driver", "org.mariadb.jdbc.Driver");
+                    if (driver == null) {
+                        plugin.getLogger().severe("Aucun driver JDBC MySQL ou MariaDB n'est visible par le plugin.");
+                        return false;
+                    }
+                    hikari.setDriverClassName(driver);
+                    hikari.setJdbcUrl(String.format(
+                            "jdbc:mysql://%s:%d/%s?useSSL=false&autoReconnect=true",
+                            host, cfg.getMysqlPort(), database));
+                    hikari.setUsername(user);
+                    hikari.setPassword(cfg.getMysqlPassword());
+                } else {
+                    File dataFolder = plugin.getDataFolder();
+                    if (!dataFolder.exists() && !dataFolder.mkdirs()) {
+                        plugin.getLogger().severe("Impossible de créer le dossier du plugin : " + dataFolder.getAbsolutePath());
+                    }
+                    File dbFile = new File(dataFolder, cfg.getDatabaseFile());
+                    String driver = firstDriver("org.sqlite.JDBC");
+                    if (driver == null) {
+                        plugin.getLogger().severe("Le driver SQLite (org.sqlite.JDBC) n'est pas visible par le plugin.");
+                        return false;
+                    }
+                    hikari.setDriverClassName(driver);
+                    hikari.setJdbcUrl("jdbc:sqlite:" + dbFile.getAbsolutePath());
+                    hikari.setConnectionInitSql("PRAGMA busy_timeout = 5000");
+                }
+                DatabasePoolSettings.apply(hikari, cfg.getMysqlPoolSize(), sqlite);
+                created = new HikariDataSource(hikari);
+                try (Connection probe = created.getConnection()) {
+                    if (sqlite) {
+                        try (Statement pragma = probe.createStatement()) {
+                            pragma.execute("PRAGMA journal_mode = WAL");
+                            pragma.execute("PRAGMA synchronous = NORMAL");
+                        }
+                    }
+                    if (!probe.isValid(2)) {
+                        throw new SQLException("connexion de contrôle invalide");
                     }
                 }
-                this.connection = openConnection();
-            } catch (SQLException e) {
-                plugin.getLogger().severe("Impossible de se connecter à la base de données : " + e.getMessage());
-                this.connection = null;
+                this.dataSource = created;
+                created = null;
+                plugin.getLogger().info(sqlite
+                        ? "Pool SQLite HikariCP prêt (1 connexion)."
+                        : "Pool MySQL HikariCP prêt (" + hikari.getMaximumPoolSize() + " connexions).");
+                return true;
+            } catch (Exception e) {
+                if (created != null) {
+                    try {
+                        created.close();
+                    } catch (Exception ignored) {
+                    }
+                }
+                plugin.getLogger().severe("Impossible d'ouvrir le pool SQL : " + e.getMessage());
+                return false;
             }
         }
     }
 
-    private Connection openConnection() throws SQLException {
-        if (databaseType == null) {
-            this.databaseType = plugin.getConfigManager().getDatabaseType();
-        }
-
-        if (databaseType.equalsIgnoreCase("mysql")) {
-            ConfigManager cfg = plugin.getConfigManager();
-            String url = String.format("jdbc:mysql://%s:%d/%s?useSSL=false&autoReconnect=true",
-                    cfg.getMysqlHost(), cfg.getMysqlPort(), cfg.getMysqlDatabase());
-            Connection newConnection = DriverManager.getConnection(url, cfg.getMysqlUsername(), cfg.getMysqlPassword());
-            plugin.getLogger().info("Connexion MySQL établie sur " + cfg.getMysqlHost() + ":" + cfg.getMysqlPort() + "/" + cfg.getMysqlDatabase());
-            return newConnection;
-        }
-
-        File dataFolder = plugin.getDataFolder();
-        if (!dataFolder.exists()) {
-            boolean created = dataFolder.mkdirs();
-            if (!created) {
-                plugin.getLogger().severe("Impossible de créer le dossier du plugin: " + dataFolder.getAbsolutePath());
-            } else {
-                plugin.getLogger().info("Dossier du plugin créé: " + dataFolder.getAbsolutePath());
+    private static String firstDriver(String... classNames) {
+        for (String className : classNames) {
+            try {
+                Class.forName(className);
+                return className;
+            } catch (ClassNotFoundException ignored) {
             }
         }
-        File dbFile = new File(dataFolder, plugin.getConfigManager().getDatabaseFile());
-        String url = "jdbc:sqlite:" + dbFile.getAbsolutePath();
-        Connection newConnection = DriverManager.getConnection(url);
-
-        try (Statement stmt = newConnection.createStatement()) {
-            stmt.execute("PRAGMA busy_timeout = 5000");
-            stmt.execute("PRAGMA journal_mode = WAL");
-            stmt.execute("PRAGMA synchronous = NORMAL");
-        }
-
-        return newConnection;
+        return null;
     }
 
     /**
@@ -95,11 +152,12 @@ public class DatabaseManager {
     }
 
     private void createTables() {
-        if (this.connection == null) {
-            plugin.getLogger().severe("Impossible de créer les tables car la connexion est nulle.");
+        if (dataSource == null || dataSource.isClosed()) {
+            plugin.getLogger().severe("Impossible de créer les tables : le pool SQL est indisponible.");
             return;
         }
-        try (Statement stmt = connection.createStatement()) {
+        try (Connection connection = dataSource.getConnection();
+             Statement stmt = connection.createStatement()) {
             // Joueurs (vies, économie)
             stmt.execute("""
                 CREATE TABLE IF NOT EXISTS players (
@@ -355,6 +413,21 @@ public class DatabaseManager {
             try {
                 stmt.execute("ALTER TABLE factions ADD COLUMN last_raid_at INTEGER DEFAULT 0");
             } catch (java.sql.SQLException ignored) {}
+
+            try {
+                stmt.execute("ALTER TABLE factions ADD COLUMN vuln_start_minute INTEGER DEFAULT 1080");
+            } catch (SQLException e) {
+                if (!isDuplicateColumn(e)) {
+                    plugin.getLogger().warning("Migration vuln_start_minute : " + e.getMessage());
+                }
+            }
+            try {
+                stmt.execute("ALTER TABLE factions ADD COLUMN vuln_end_minute INTEGER DEFAULT 1320");
+            } catch (SQLException e) {
+                if (!isDuplicateColumn(e)) {
+                    plugin.getLogger().warning("Migration vuln_end_minute : " + e.getMessage());
+                }
+            }
 
             // Nettoyage manuel/automatique des anciens secret_until pour ré-afficher toutes les factions
             try {
@@ -709,6 +782,10 @@ public class DatabaseManager {
                 stmt.execute("ALTER TABLE players ADD COLUMN playtime INTEGER DEFAULT 0");
             } catch (java.sql.SQLException ignored) {}
 
+            try {
+                stmt.execute("ALTER TABLE players ADD COLUMN lang VARCHAR(8) DEFAULT 'fr'");
+            } catch (java.sql.SQLException ignored) {}
+
             // Migration : victoires réactions chat
             try {
                 stmt.execute("ALTER TABLE players ADD COLUMN chat_reactions INTEGER DEFAULT 0");
@@ -1040,6 +1117,31 @@ public class DatabaseManager {
                 plugin.getLogger().warning("Migration players.referral_at (millis→s) : " + e.getMessage());
             }
 
+            stmt.execute(TradePendingReturnRepository.createTableSql(isSQLite()));
+            for (String upgrade : TradePendingReturnRepository.upgradeStatements()) {
+                try {
+                    stmt.execute(upgrade);
+                } catch (SQLException e) {
+                    if (!isDuplicateColumn(e)) {
+                        plugin.getLogger().warning("Migration trade_pending_returns : " + e.getMessage());
+                    }
+                }
+            }
+            try {
+                stmt.execute(TradePendingReturnRepository.CREATE_INDEX_SQL);
+            } catch (SQLException e) {
+                plugin.getLogger().warning("Index trade_pending_returns : " + e.getMessage());
+            }
+
+            stmt.execute(fr.cantale.plugin.siege.SiegeRepository.createSessionsSql(isSQLite()));
+            stmt.execute(fr.cantale.plugin.siege.SiegeRepository.createBlocksSql(isSQLite()));
+            stmt.execute(fr.cantale.plugin.skills.SkillRepository.createSql());
+            stmt.execute(fr.cantale.plugin.world.WorldCycleRepository.createSql());
+            stmt.execute(fr.cantale.plugin.world.KothRepository.createSql());
+            for (String sql : fr.cantale.plugin.cosmetics.SeasonPassRepository.schema()) {
+                stmt.execute(sql);
+            }
+
             plugin.getLogger().info("Tables créées / vérifiées avec succès.");
         } catch (SQLException e) {
             plugin.getLogger().severe("Erreur lors de la création des tables : " + e.getMessage());
@@ -1163,50 +1265,37 @@ public class DatabaseManager {
         return false;
     }
 
+    /**
+     * Emprunte une connexion au pool. L'appelant doit la fermer (try-with-resources) pour la rendre.
+     */
     public Connection getConnection() {
-        synchronized (connectionLock) {
-            try {
-                if (connection == null || connection.isClosed() || !connection.isValid(2)) {
-                    plugin.getLogger().info("Connexion DB fermée ou nulle, tentative de reconnexion...");
-                    connect();
-                    if (connection != null && !connection.isClosed()) {
-                        plugin.getLogger().info("Reconnexion DB réussie.");
-                    }
-                }
-
-                if (connection != null && !connection.isClosed()) {
-                    return wrapConnection(connection);
-                }
-            } catch (SQLException e) {
-                plugin.getLogger().severe("Erreur de connexion : " + e.getMessage());
+        if (dataSource == null || dataSource.isClosed()) {
+            if (!startPool()) {
+                plugin.getLogger().warning("Pool SQL indisponible : aucune connexion ne peut être empruntée.");
+                return null;
             }
+        }
+        try {
+            return dataSource.getConnection();
+        } catch (SQLException e) {
+            plugin.getLogger().severe("Impossible d'emprunter une connexion au pool : " + e.getMessage());
             return null;
         }
     }
 
-    private Connection wrapConnection(Connection baseConnection) {
-        InvocationHandler handler = (proxy, method, args) -> {
-            if (method.getName().equals("close")) {
-                return null;
-            }
-            return method.invoke(baseConnection, args);
-        };
-
-        return (Connection) Proxy.newProxyInstance(
-                Connection.class.getClassLoader(),
-                new Class<?>[]{Connection.class},
-                handler
-        );
-    }
-
     /**
-     * Indique si la connexion à la base est active et utilisable.
+     * Indique si le pool peut fournir une connexion utilisable.
+     * La connexion de contrôle est rendue au pool.
      */
     public boolean isConnected() {
-        try {
-            return connection != null && !connection.isClosed() && connection.isValid(2);
+        HikariDataSource ds = this.dataSource;
+        if (ds == null || ds.isClosed()) {
+            return false;
+        }
+        try (Connection conn = ds.getConnection()) {
+            return conn.isValid(2);
         } catch (SQLException e) {
-            plugin.getLogger().warning("Erreur lors de la vérification de la connexion DB : " + e.getMessage());
+            plugin.getLogger().warning("Erreur lors de la vérification du pool SQL : " + e.getMessage());
             return false;
         }
     }
@@ -1229,7 +1318,7 @@ public class DatabaseManager {
                     return;
                 }
                 plugin.getLogger().info("Tentative de reconnexion DB (" + attempts + "/" + maxAttempts + ")...");
-                connect();
+                startPool();
                 if (isConnected()) {
                     plugin.getLogger().info("Reconnéxion DB réussie après tentative " + attempts + ".");
                     this.cancel();
@@ -1244,13 +1333,13 @@ public class DatabaseManager {
     }
 
     public void close() {
-        try {
-            if (connection != null && !connection.isClosed()) {
-                connection.close();
-                plugin.getLogger().info("Base de données fermée.");
+        synchronized (connectionLock) {
+            HikariDataSource ds = this.dataSource;
+            this.dataSource = null;
+            if (ds != null && !ds.isClosed()) {
+                ds.close();
+                plugin.getLogger().info("Pool SQL fermé.");
             }
-        } catch (SQLException e) {
-            plugin.getLogger().warning("Erreur lors de la fermeture de la base de données : " + e.getMessage());
         }
     }
 
@@ -1345,7 +1434,8 @@ public class DatabaseManager {
             "votes", "vote_stats", "vote_party", "link_codes", "vote_milestones",
             "discord_links", "pending_rewards", "legendary_tickets", "shop_daily_limits",
             "spawners", "seasons", "quest_pools", "quest_progress",
-            "quest_contributions", "quest_winners", "collection_progress", "collection_claimed"
+            "quest_contributions", "quest_winners", "collection_progress", "collection_claimed",
+            "trade_pending_returns"
         };
 
         try (Connection conn = getConnection()) {

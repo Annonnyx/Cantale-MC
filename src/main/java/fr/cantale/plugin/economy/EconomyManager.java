@@ -37,36 +37,44 @@ public class EconomyManager {
     }
 
     public boolean deposit(Player player, double amount) {
+        return deposit(player.getUniqueId(), amount);
+    }
+
+    public boolean deposit(UUID uuid, double amount) {
         if (amount < 0) return false;
-        playerDAO.addBalance(player.getUniqueId(), amount);
+        if (!playerDAO.addBalance(uuid, amount)) {
+            plugin.getLogger().severe("Crédit Cantox refusé pour " + uuid + ".");
+            return false;
+        }
         return true;
     }
 
     public boolean withdraw(Player player, double amount) {
-        if (amount < 0 || !hasEnough(player, amount)) return false;
-        playerDAO.removeBalance(player.getUniqueId(), amount);
-        return true;
+        return withdraw(player.getUniqueId(), amount);
+    }
+
+    public boolean withdraw(UUID uuid, double amount) {
+        if (amount < 0) return false;
+        return playerDAO.removeBalance(uuid, amount);
     }
 
     public boolean transfer(Player from, Player to, double amount) {
-        if (!withdraw(from, amount)) return false;
-        deposit(to, amount);
-        return true;
+        return transfer(from.getUniqueId(), to.getUniqueId(), amount);
     }
 
     public boolean transfer(UUID from, UUID to, double amount) {
-        if (!hasEnough(from, amount)) return false;
-        playerDAO.removeBalance(from, amount);
-        playerDAO.addBalance(to, amount);
+        if (!playerDAO.transferBalance(from, to, amount)) {
+            return false;
+        }
         return true;
     }
 
     public void addBalance(UUID uuid, double amount) {
-        playerDAO.addBalance(uuid, amount);
+        deposit(uuid, amount);
     }
 
     public void removeBalance(UUID uuid, double amount) {
-        playerDAO.removeBalance(uuid, amount);
+        withdraw(uuid, amount);
     }
 
     public void resetBalance(Player player) {

@@ -11,7 +11,8 @@ import org.bukkit.entity.Player;
 public class DailyCommand implements CommandExecutor {
 
     private final CantalePlugin plugin;
-    private static final int BASE_DAILY_CANTOX = 1000;
+    /** Base versée à tout le monde. Les grades ajoutent {@link fr.cantale.plugin.rank.PlayerRank#getDailyCantox()}. */
+    public static final int BASE_DAILY_CANTOX = 1000;
 
     public DailyCommand(CantalePlugin plugin) {
         this.plugin = plugin;
@@ -20,21 +21,25 @@ public class DailyCommand implements CommandExecutor {
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (!(sender instanceof Player player)) {
-            sender.sendMessage("§cCette commande ne peut être utilisée que par un joueur.");
+            plugin.messages().send(sender, "command.players-only");
             return true;
         }
 
         int granted = plugin.getRankManager().grantDailyCantox(player, BASE_DAILY_CANTOX);
         if (granted <= 0) {
-            player.sendMessage(formatMessage("&cVous avez déjà récupéré votre récompense quotidienne aujourd'hui. Revenez demain !"));
+            plugin.messages().send(player, "daily.already");
         } else {
             PlayerRank rank = plugin.getRankManager().getRank(player);
             int rankBonus = rank.getDailyCantox();
             int base = granted - rankBonus;
             if (rankBonus > 0) {
-                player.sendMessage(formatMessage("&aRécompense quotidienne : &e" + base + " Cantox &7(base) &a+ &e" + rankBonus + " Cantox &7(" + rank.getDisplayName() + ")&a."));
+                plugin.messages().send(player, "daily.bonus", base, rankBonus, rank.getDisplayName());
             } else {
-                player.sendMessage(formatMessage("&aRécompense quotidienne récupérée : &e" + granted + " Cantox&a."));
+                plugin.messages().send(player, "daily.base", granted);
+            }
+            if (plugin.getSeasonPass() != null) {
+                plugin.getSeasonPass().grantPlayXp(player.getUniqueId(),
+                        fr.cantale.plugin.cosmetics.SeasonPassRules.XP_DAILY);
             }
         }
         return true;

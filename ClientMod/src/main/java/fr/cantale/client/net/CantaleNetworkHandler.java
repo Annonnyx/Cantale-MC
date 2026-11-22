@@ -92,10 +92,45 @@ public final class CantaleNetworkHandler {
 		try {
 			if (client == null || client.getNetworkHandler() == null) return;
 			byte[] data = ("HELLO " + PROTOCOL_VERSION).getBytes(StandardCharsets.UTF_8);
-			ClientPlayNetworking.send(new CantaleMapPayload(data));
+			sendIntent(client, "hello", data);
 		} catch (Exception e) {
 			CantaleMod.LOGGER.debug("[Cantale] Échec envoi du handshake : {}", e.toString());
 		}
+	}
+
+	/**
+	 * Intention d'affichage : le serveur revalide le chunk et répond par {@code claim_info}.
+	 * Aucun effet de jeu n'est demandé.
+	 */
+	public static void sendInspect(MinecraftClient client, String world, int chunkX, int chunkZ, int seq) {
+		try {
+			if (client == null || client.getNetworkHandler() == null) return;
+			if (seq <= 0 || world == null || world.isEmpty()) return;
+			JsonObject msg = new JsonObject();
+			msg.addProperty("v", PROTOCOL_VERSION);
+			msg.addProperty("type", "inspect");
+			msg.addProperty("world", world);
+			msg.addProperty("x", chunkX);
+			msg.addProperty("z", chunkZ);
+			msg.addProperty("seq", seq);
+			sendIntent(client, "inspect", msg.toString().getBytes(StandardCharsets.UTF_8));
+		} catch (Exception e) {
+			CantaleMod.LOGGER.debug("[Cantale] Échec de l'intention inspect : {}", e.toString());
+		}
+	}
+
+	/**
+	 * Le client n'émet que {@code hello} et {@code inspect}. Toute autre intention
+	 * (claim, économie, monde) est bloquée ici : le serveur reste la source de vérité.
+	 */
+	private static void sendIntent(MinecraftClient client, String type, byte[] data) {
+		if (!"hello".equals(type) && !"inspect".equals(type)) {
+			CantaleMod.LOGGER.warn("[Cantale] Intention bloquée côté client : {}", type);
+			return;
+		}
+		if (client == null || client.getNetworkHandler() == null) return;
+		if (data == null || data.length == 0 || data.length > 1024) return;
+		ClientPlayNetworking.send(new CantaleMapPayload(data));
 	}
 
 	// ─── Décodage des messages serveur ───────────────────────────
@@ -117,10 +152,15 @@ public final class CantaleNetworkHandler {
 				case "claims_reset" -> ServerDataStore.applyClaimsReset();
 				case "claims" -> handleClaims(msg);
 				case "claim_add" -> ServerDataStore.applyClaimAdd(
-						optString(msg, "world"), optInt(msg, "x", 0), optInt(msg, "z", 0), optString(msg, "rel"));
+						optString(msg, "world"), optInt(msg, "x", 0), optInt(msg, "z", 0), optString(msg, "rel"),
+						optInt(msg, "fid", 0), clean(optString(msg, "faction"), 16), clean(optString(msg, "leader"), 16));
 				case "claim_remove" -> ServerDataStore.applyClaimRemove(
 						optString(msg, "world"), optInt(msg, "x", 0), optInt(msg, "z", 0));
 				case "markers" -> handleMarkers(msg);
+				case "faction_index" -> handleFactionIndex(msg);
+				case "hud" -> handleHud(msg);
+				case "claim_info" -> handleClaimInfo(msg);
+				case "cosmetics" -> handleCosmetics(msg);
 				default -> CantaleMod.LOGGER.debug("[Cantale] Type de message inconnu : {}", type);
 			}
 		} catch (Exception e) {
@@ -165,7 +205,8 @@ public final class CantaleNetworkHandler {
 					JsonObject c = element.getAsJsonObject();
 					String rel = optString(c, "rel");
 					if (rel != null) {
-						chunks.add(new ServerDataStore.ClaimChunk(optInt(c, "x", 0), optInt(c, "z", 0), rel));
+						chunks.add(new ServerDataStore.ClaimChunk(
+								optInt(c, "x", 0), optInt(c, "z", 0), rel, optInt(c, "fid", 0)));
 					}
 				} catch (Exception ignored) {
 					// Chunk malformé : ignoré individuellement
@@ -211,6 +252,111 @@ public final class CantaleNetworkHandler {
 		boolean event = warpKind && obj.has("event") && obj.get("event").getAsBoolean();
 		return new ServerDataStore.Marker(name, world,
 				optDouble(obj, "x"), optDouble(obj, "y"), optDouble(obj, "z"), event);
+	}
+
+	private static void handleFactionIndex(JsonObject msg) {
+		int page = optInt(msg, "page", 0);
+		int pages = optInt(msg, "pages", 1);
+		List<ServerDataStore.FactionCard> entries = new ArrayList<>();
+		JsonArray array = msg.has("entries") && msg.get("entries").isJsonArray() ? msg.getAsJsonArray("entries") : null;
+		if (array != null) {
+			int count = 0;
+			for (JsonElement element : array) {
+				if (count++ >= 64) break;
+				try {
+					JsonObject entry = element.getAsJsonObject();
+					int id = optInt(entry, "id", 0);
+					if (id <= 0) continue;
+					entries.add(new ServerDataStore.FactionCard(id,
+							clean(optString(entry, "name"), 16),
+							clean(optString(entry, "leader"), 16),
+							clean(optString(entry, "rel"), 16)));
+				} catch (Exception ignored) {
+					// Fiche malformée : ignorée individuellement
+				}
+			}
+		}
+		ServerDataStore.applyFactionIndexPage(page, pages, entries);
+	}
+
+	private static void handleHud(JsonObject msg) {
+		int lives = Math.max(0, Math.min(optInt(msg, "lives", 0), 99));
+		int maxLives = Math.max(1, Math.min(optInt(msg, "maxLives", 10), 10));
+		boolean unlimited = false;
+		try {
+			unlimited = msg.has("unlimited") && !msg.get("unlimited").isJsonNull() && msg.get("unlimited").getAsBoolean();
+		} catch (Exception ignored) {
+			unlimited = false;
+		}
+		int combatMs = Math.max(0, Math.min(optInt(msg, "combatMs", 0), 600_000));
+		int combatMaxMs = Math.max(1, Math.min(optInt(msg, "combatMaxMs", 20_000), 600_000));
+		ServerDataStore.applyHud(lives, maxLives, unlimited, combatMs, combatMaxMs, clean(optString(msg, "opponent"), 16));
+	}
+
+	private static void handleCosmetics(JsonObject msg) {
+		Map<String, ServerDataStore.CosmeticLook> next = new LinkedHashMap<>();
+		if (!msg.has("players") || !msg.get("players").isJsonArray()) {
+			ServerDataStore.applyCosmetics(next);
+			return;
+		}
+		int kept = 0;
+		for (JsonElement element : msg.getAsJsonArray("players")) {
+			if (kept >= 100) {
+				break;
+			}
+			try {
+				JsonObject row = element.getAsJsonObject();
+				String id = clean(optString(row, "id"), 36);
+				String name = clean(optString(row, "name"), 16);
+				String title = clean(optString(row, "title"), 32);
+				String aura = clean(optString(row, "aura"), 32);
+				String cape = clean(optString(row, "cape"), 32);
+				if (title == null) title = "";
+				if (aura == null) aura = "";
+				if (cape == null) cape = "";
+				ServerDataStore.CosmeticLook look = new ServerDataStore.CosmeticLook(title, aura, cape);
+				if (id != null) {
+					next.put(id, look);
+				}
+				if (name != null) {
+					next.put(name.toLowerCase(java.util.Locale.ROOT), look);
+				}
+				kept++;
+			} catch (Exception ignored) {
+				// Ligne cosmétique malformée : on saute celle-ci seulement
+			}
+		}
+		ServerDataStore.applyCosmetics(next);
+	}
+
+	private static void handleClaimInfo(JsonObject msg) {
+		int seq = optInt(msg, "seq", -1);
+		if (seq <= 0) return;
+		boolean found = false;
+		try {
+			found = msg.has("found") && !msg.get("found").isJsonNull() && msg.get("found").getAsBoolean();
+		} catch (Exception ignored) {
+			found = false;
+		}
+		ServerDataStore.applyClaimInfo(seq, found,
+				clean(optString(msg, "world"), 64),
+				optInt(msg, "x", 0),
+				optInt(msg, "z", 0),
+				clean(optString(msg, "rel"), 16),
+				clean(optString(msg, "faction"), 16),
+				clean(optString(msg, "leader"), 16));
+	}
+
+	/** Retire les caractères de contrôle et borne la longueur (réseau, pas le rendu). */
+	private static String clean(String raw, int max) {
+		if (raw == null || raw.isEmpty() || max <= 0) return "";
+		StringBuilder sb = new StringBuilder(Math.min(raw.length(), max));
+		int n = Math.min(raw.length(), max);
+		for (int i = 0; i < n; i++) {
+			char c = raw.charAt(i);
+			if (c >= 32 && c != 127) sb.append(c);
+		}
+		return sb.toString();
 	}
 
 	// ─── Lecture JSON défensive ──────────────────────────────────

@@ -470,64 +470,20 @@ public class CustomItemListener implements Listener {
         }
         lastChevreCheckChunk.put(player.getUniqueId(), chunkKey);
 
-        // Vol créatif réservé au grade Chèvre uniquement (pas modos/admin/owner) dans ses claims
-        fr.cantale.plugin.rank.PlayerRank rank = plugin.getRankManager().getRank(player);
-        boolean hasChevreFlight = rank.hasUnlimitedFlight();
-
-        if (!hasChevreFlight) {
-            // Clean up metadata if player had it
-            if (player.hasMetadata("cantale_in_claim")) {
-                player.removeMetadata("cantale_in_claim", plugin);
-                if (player.isFlying() && !player.getGameMode().equals(org.bukkit.GameMode.CREATIVE)) {
-                    player.setFlying(false);
-                    player.setAllowFlight(false);
-                }
-            }
+        // EULA : plus aucun vol de claim lié à un grade. On coupe seulement
+        // le vol résiduel d'une session qui l'avait encore.
+        if (!player.hasMetadata("cantale_in_claim")) {
             return;
         }
-
-        boolean inClaim = isInFactionClaim(player);
-        boolean wasInClaim = player.hasMetadata("cantale_in_claim");
-
-        if (inClaim) {
-            // Activer le vol créatif dans le claim (allowFlight, pas forcer flying)
-            if (!player.getAllowFlight()) {
-                player.setAllowFlight(true);
-                if (!wasInClaim) {
-                    player.sendMessage("§8[§6Cantale§8] §6Vol Chèvre activé — Double-tap espace pour voler !");
-                }
-            }
-            // Mark player as in claim
-            if (!wasInClaim) {
-                player.setMetadata("cantale_in_claim", new org.bukkit.metadata.FixedMetadataValue(plugin, true));
-            }
-        } else if (wasInClaim) {
-            // Just left a claim — disable flight with grace warning
-            player.removeMetadata("cantale_in_claim", plugin);
-            if (player.isFlying()) {
-                // Give 3 second grace period before disabling flight
-                player.sendMessage("§8[§6Cantale§8] §cVous quittez le claim ! Vol désactivé dans 3 secondes.");
-                org.bukkit.Bukkit.getScheduler().runTaskLater(plugin, () -> {
-                    if (!isInFactionClaim(player) && player.isOnline()
-                        && !player.getGameMode().equals(org.bukkit.GameMode.CREATIVE)) {
-                        player.setFlying(false);
-                        player.setAllowFlight(false);
-                    }
-                }, 60L); // 3 seconds
-            } else {
-                player.setAllowFlight(false);
-            }
+        player.removeMetadata("cantale_in_claim", plugin);
+        org.bukkit.GameMode mode = player.getGameMode();
+        if (mode == org.bukkit.GameMode.CREATIVE || mode == org.bukkit.GameMode.SPECTATOR) {
+            return;
         }
-    }
-
-    private boolean isInFactionClaim(Player player) {
-        if (factionManager == null) return false;
-
-        var chunk = player.getLocation().getChunk();
-        var faction = factionManager.getFactionAtClaim(chunk.getWorld().getName(), chunk.getX(), chunk.getZ());
-        if (faction == null) return false;
-
-        return faction.isMember(player.getUniqueId());
+        if (player.isFlying()) {
+            player.setFlying(false);
+        }
+        player.setAllowFlight(false);
     }
 
     @EventHandler

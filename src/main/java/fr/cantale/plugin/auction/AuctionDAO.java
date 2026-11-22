@@ -79,16 +79,27 @@ public class AuctionDAO {
         return listings;
     }
 
-    public void updateListing(AuctionListing listing) {
-        String sql = "UPDATE auction_listings SET quantity = ?, buyer_uuid = ? WHERE id = ?";
-        try (Connection conn = plugin.getDatabaseManager().getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setInt(1, listing.getQuantity());
-            stmt.setString(2, listing.getBuyerUuid() != null ? listing.getBuyerUuid().toString() : null);
-            stmt.setInt(3, listing.getId());
-            stmt.executeUpdate();
+    /**
+     * Réserve le stock seulement si la quantité en base est encore {@code expectedQuantity}
+     * et que personne n'a déjà acheté le listing.
+     */
+    public boolean updateListing(AuctionListing listing, int expectedQuantity) {
+        String sql = "UPDATE auction_listings SET quantity = ?, buyer_uuid = ? WHERE id = ? AND buyer_uuid IS NULL AND quantity = ?";
+        try (Connection conn = plugin.getDatabaseManager().getConnection()) {
+            if (conn == null) {
+                plugin.getLogger().severe("Erreur updateListing : pool SQL indisponible.");
+                return false;
+            }
+            try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+                stmt.setInt(1, listing.getQuantity());
+                stmt.setString(2, listing.getBuyerUuid() != null ? listing.getBuyerUuid().toString() : null);
+                stmt.setInt(3, listing.getId());
+                stmt.setInt(4, expectedQuantity);
+                return stmt.executeUpdate() == 1;
+            }
         } catch (SQLException e) {
             plugin.getLogger().severe("Erreur updateListing : " + e.getMessage());
+            return false;
         }
     }
 

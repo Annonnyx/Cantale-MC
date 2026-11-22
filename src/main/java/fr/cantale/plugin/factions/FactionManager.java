@@ -1,5 +1,7 @@
 package fr.cantale.plugin.factions;
 
+import java.sql.Connection;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -7,6 +9,8 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
+
+import fr.cantale.plugin.database.FactionPowerRepository;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
@@ -61,13 +65,13 @@ public class FactionManager {
      */
     public String validateFactionName(String name) {
         if (name == null || name.isBlank()) {
-            return "Le nom de faction est vide.";
+            return "faction.name.empty";
         }
         if (name.length() < NAME_MIN_LENGTH || name.length() > NAME_MAX_LENGTH) {
-            return "Le nom doit faire entre " + NAME_MIN_LENGTH + " et " + NAME_MAX_LENGTH + " caractères.";
+            return "faction.name.length\u001f" + NAME_MIN_LENGTH + "\u001f" + NAME_MAX_LENGTH;
         }
         if (!NAME_PATTERN.matcher(name).matches()) {
-            return "Nom invalide : lettres, chiffres, _ et - uniquement (pas d'espaces).";
+            return "faction.name.charset";
         }
         return null;
     }
@@ -135,11 +139,11 @@ public class FactionManager {
             return validationError;
         }
         if (faction.getName().equals(newName)) {
-            return "La faction porte déjà ce nom.";
+            return "faction.name.same";
         }
         Faction existing = getFaction(newName);
         if (existing != null && existing.getId() != faction.getId()) {
-            return "Ce nom de faction existe déjà.";
+            return "faction.name.taken";
         }
 
         String newTag = generateUniqueTag(newName, faction.getId());
@@ -202,6 +206,50 @@ public class FactionManager {
             checkAndAdjustClaims(faction.getId());
         }
         return true;
+    }
+
+    /**
+     * Débite {@code cost} points de pouvoir en une requête arithmétique.
+     * Met à jour le cache puis le quota de claims si le palier baisse.
+     */
+    public boolean debitPowerAtomic(int factionId, int cost) {
+        if (factionId <= 0 || cost <= 0 || plugin.getDatabaseManager() == null) {
+            return false;
+        }
+        try (Connection conn = plugin.getDatabaseManager().getConnection()) {
+            if (conn == null || !FactionPowerRepository.debit(conn, factionId, cost)) {
+                return false;
+            }
+            Faction faction = getFaction(factionId);
+            if (faction != null) {
+                faction.setPower(FactionPowerRepository.readPower(conn, factionId));
+                checkAndAdjustClaims(factionId);
+            }
+            return true;
+        } catch (SQLException e) {
+            plugin.getLogger().severe("Erreur debitPowerAtomic : " + e.getMessage());
+            return false;
+        }
+    }
+
+    /** Recrédit le pouvoir (remboursement si le revive n'a pas pu accorder la vie). */
+    public boolean creditPowerAtomic(int factionId, int amount) {
+        if (factionId <= 0 || amount <= 0 || plugin.getDatabaseManager() == null) {
+            return false;
+        }
+        try (Connection conn = plugin.getDatabaseManager().getConnection()) {
+            if (conn == null || !FactionPowerRepository.credit(conn, factionId, amount)) {
+                return false;
+            }
+            Faction faction = getFaction(factionId);
+            if (faction != null) {
+                faction.setPower(FactionPowerRepository.readPower(conn, factionId));
+            }
+            return true;
+        } catch (SQLException e) {
+            plugin.getLogger().severe("Erreur creditPowerAtomic : " + e.getMessage());
+            return false;
+        }
     }
 
     public Faction getFaction(int id) {
@@ -410,6 +458,9 @@ public class FactionManager {
     }
 
     public boolean addClaim(int factionId, String world, int chunkX, int chunkZ) {
+        if (!fr.cantale.plugin.world.WorldRules.claimsAllowed(world)) {
+            return false;
+        }
         Claim existing = getClaimAt(world, chunkX, chunkZ);
         if (existing != null) {
             return false;

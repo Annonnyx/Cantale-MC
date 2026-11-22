@@ -89,7 +89,7 @@ public class FactionClaimsUI extends BaseUI {
         int z = claim.getChunkZ() * 16 + 8;
         int y = world.getHighestBlockYAt(x, z) + 1;
         Location dest = new Location(world, x + 0.5, y, z + 0.5);
-        plugin.getTeleportDelayManager().requestTeleport(player, dest, false, () ->
+        plugin.getTeleportDelayManager().requestTeleport(player, dest, false, true, () ->
                 player.sendMessage("§8[§6Cantale§8] §aTéléporté au claim §e(" + claim.getChunkX() + ", " + claim.getChunkZ() + ")§a."));
     }
 }

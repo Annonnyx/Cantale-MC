@@ -5,6 +5,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import fr.cantale.plugin.CantalePlugin;
+import fr.cantale.plugin.config.SecretResolver;
 import okhttp3.HttpUrl;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
@@ -86,8 +87,8 @@ public final class ServeurPriveVotePoller extends BukkitRunnable {
         String token = resolveToken();
         if (token.isEmpty()) {
             plugin.getLogger().warning("[Vote] Serveur-Prive API : token manquant. "
-                    + "Colle le token dashboard (Paramètres) dans vote.tokens.serveur-prive.net "
-                    + "ou vote.serveur-prive.api-token — voir docs/Votes.md.");
+                    + "Définir CANTALE_VOTE_SERVEURPRIVE_TOKEN ou vote.tokens.serveur-prive.net. "
+                    + "Aucun secret n'est écrit dans les logs.");
             return;
         }
         int seconds = Math.max(30, plugin.getConfig().getInt("vote.serveur-prive.poll-interval-seconds", 60));
@@ -219,10 +220,12 @@ public final class ServeurPriveVotePoller extends BukkitRunnable {
     }
 
     String resolveToken() {
-        String override = plugin.getConfig().getString("vote.serveur-prive.api-token", "");
-        if (override != null && !override.isBlank()) return override.trim();
-        String fromTokens = plugin.getConfig().getString("vote.tokens." + TOKEN_CONFIG_KEY, "");
-        return fromTokens == null ? "" : fromTokens.trim();
+        return SecretResolver.system(message -> plugin.getLogger().warning(message)).firstUsable(
+                "CANTALE_VOTE_SERVEURPRIVE_TOKEN",
+                "vote.tokens.serveur-prive.net",
+                false,
+                plugin.getConfig().getString("vote.serveur-prive.api-token", ""),
+                plugin.getConfig().getString("vote.tokens." + TOKEN_CONFIG_KEY, ""));
     }
 
     private String apiBase() {

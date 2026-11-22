@@ -3,7 +3,7 @@
 	"id": "cantale",
 	"version": "${version}",
 	"name": "Cantale Client",
-	"description": "Mod client officiel du serveur Cantale : vraie carte du monde façon JourneyMap (touche M), minimap (touche N), claims de factions colorés par relation, warps, homes et spawn de faction synchronisés depuis le serveur.",
+	"description": "Mod client officiel du serveur Cantale : carte du monde (touche M, fiche de claim au clic), minimap (touche N), HUD de vies, de combat tag et de territoire, claims colorés par relation, warps, homes et spawn de faction synchronisés depuis le serveur.",
 	"authors": [
 		"Cantale"
 	],

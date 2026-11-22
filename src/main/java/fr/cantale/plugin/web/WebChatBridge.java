@@ -1,175 +1,159 @@
 package fr.cantale.plugin.web;
 
 import fr.cantale.plugin.CantalePlugin;
+import fr.cantale.plugin.cache.RedisChannels;
 import fr.cantale.plugin.factions.Faction;
 import org.bukkit.Bukkit;
-import org.bukkit.scheduler.BukkitTask;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
-import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeUnit;
 
 /**
- * Consomme {@code web_chat_outbox} : chat global ou faction selon {@code faction_id}.
+ * Relaye le chat site → jeu depuis Redis {@code cantale:chat:web2mc}.
+ * La table {@code web_chat_outbox} reste l'archive (UPDATE de statut), sans SELECT périodique.
  */
 public class WebChatBridge {
 
-    private static final long INTERVAL_TICKS = 40L;
-    private static final long INITIAL_DELAY_TICKS = 20L * 5;
-    private static final int BATCH_SIZE = 20;
     private static final int RESULT_MAX = 255;
 
     private final CantalePlugin plugin;
-    private BukkitTask task;
 
     public WebChatBridge(CantalePlugin plugin) {
         this.plugin = plugin;
     }
 
     public void start() {
-        if (task != null) return;
-        task = Bukkit.getScheduler().runTaskTimerAsynchronously(
-                plugin, this::pollPending, INITIAL_DELAY_TICKS, INTERVAL_TICKS);
-        plugin.getLogger().info("[Web] WebChatBridge démarré (web_chat_outbox toutes les 2s).");
+        plugin.getLogger().info("[Web] WebChatBridge branché sur Redis "
+                + RedisChannels.CHAT_WEB_TO_MC + " (polling SQL désactivé, archivage conservé).");
     }
 
     public void stop() {
-        if (task != null) {
-            task.cancel();
-            task = null;
+        // L'abonnement est fermé par RedisCache.shutdown().
+    }
+
+    /**
+     * Appelé sur le thread Pub/Sub. Le broadcast Bukkit est renvoyé sur le thread principal.
+     */
+    public void onRedisMessage(String body) {
+        RedisBridgeMessages.Chat chat = RedisBridgeMessages.parseChat(body);
+        if (chat == null) {
+            plugin.getLogger().warning("[Web] Chat Redis ignoré (JSON invalide).");
+            return;
+        }
+        try {
+            Bukkit.getScheduler().runTask(plugin, () -> handleOnMain(chat));
+        } catch (Exception e) {
+            plugin.getLogger().warning("[Web] Chat Redis non planifié : " + e.getMessage());
         }
     }
 
-    private record Pending(long id, String playerUuid, String playerName, String message, Integer factionId) {}
-
-    private void pollPending() {
-        for (Pending pending : fetchPending()) {
-            process(pending);
+    /** Chat publié par un autre nœud : affiché ici, jamais réarchivé ni republié. */
+    public void onCrossServerChat(String body) {
+        RedisBridgeMessages.Chat chat = RedisBridgeMessages.parseChat(body);
+        if (chat == null) {
+            return;
+        }
+        try {
+            Bukkit.getScheduler().runTask(plugin, () -> deliver(chat));
+        } catch (Exception e) {
+            plugin.getLogger().warning("[Web] Chat cross-serveur non planifié : " + e.getMessage());
         }
     }
 
-    private List<Pending> fetchPending() {
-        List<Pending> list = new ArrayList<>();
-        String sql = "SELECT id, player_uuid, player_name, message, faction_id FROM web_chat_outbox " +
-                "WHERE status = 'pending' ORDER BY id LIMIT " + BATCH_SIZE;
-        try (Connection conn = plugin.getDatabaseManager().getConnection()) {
-            if (conn == null) return list;
-            try (PreparedStatement ps = conn.prepareStatement(sql);
-                 ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    int fid = rs.getInt("faction_id");
-                    Integer factionId = rs.wasNull() ? null : fid;
-                    list.add(new Pending(
-                            rs.getLong("id"),
-                            rs.getString("player_uuid"),
-                            rs.getString("player_name"),
-                            rs.getString("message"),
-                            factionId));
-                }
-            }
-        } catch (SQLException e) {
-            plugin.getLogger().warning("[Web] WebChatBridge lecture impossible : " + e.getMessage());
-        }
-        return list;
+    private void handleOnMain(RedisBridgeMessages.Chat chat) {
+        String error = deliver(chat);
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> finish(chat, error));
     }
 
-    private void process(Pending pending) {
+    /**
+     * @return message d'échec, ou {@code null} si le message a été diffusé
+     */
+    private String deliver(RedisBridgeMessages.Chat chat) {
         UUID uuid;
         try {
-            uuid = UUID.fromString(pending.playerUuid());
+            uuid = UUID.fromString(chat.playerUuid());
         } catch (IllegalArgumentException e) {
-            mark(pending.id(), "failed", "uuid invalide");
-            return;
+            return "uuid invalide";
         }
 
         if (plugin.getModerationCommand() != null
                 && plugin.getModerationCommand().getMuteManager() != null
                 && plugin.getModerationCommand().getMuteManager().isMuted(uuid)) {
-            mark(pending.id(), "failed", "joueur mute");
-            return;
+            return "joueur mute";
         }
 
-        String name = pending.playerName() == null || pending.playerName().isBlank()
-                ? "Joueur" : pending.playerName().trim();
-        String message = pending.message() == null ? "" : pending.message().trim();
+        String name = chat.playerName() == null || chat.playerName().isBlank()
+                ? "Joueur" : chat.playerName().trim();
+        String message = chat.message() == null ? "" : chat.message().trim();
         if (message.isEmpty()) {
-            mark(pending.id(), "failed", "message vide");
-            return;
+            return "message vide";
         }
 
-        Integer factionId = pending.factionId();
+        Integer factionId = chat.factionId();
         if (factionId != null && factionId > 0) {
-            processFaction(pending.id(), uuid, name, message, factionId);
+            var fm = plugin.getFactionManager();
+            if (fm == null) {
+                return "faction manager indisponible";
+            }
+            Faction faction = fm.getFaction(factionId);
+            if (faction == null) {
+                return "faction introuvable";
+            }
+            if (!faction.isMember(uuid)) {
+                return "pas membre de la faction";
+            }
+            fm.sendFactionMessage(uuid, name, faction, message, false);
+            return null;
+        }
+
+        Bukkit.broadcastMessage("§8[§bWeb§8] §f" + name + "§7: §f" + message);
+        return null;
+    }
+
+    private void finish(RedisBridgeMessages.Chat chat, String error) {
+        if (error != null) {
+            if (chat.id() > 0) {
+                mark(chat.id(), "failed", error);
+            }
             return;
         }
 
-        String line = "§8[§bWeb§8] §f" + name + "§7: §f" + message;
+        UUID uuid;
         try {
-            CompletableFuture<Void> done = new CompletableFuture<>();
-            Bukkit.getScheduler().runTask(plugin, () -> {
-                try {
-                    Bukkit.broadcastMessage(line);
-                    done.complete(null);
-                } catch (Exception e) {
-                    done.completeExceptionally(e);
-                }
-            });
-            done.get(5, TimeUnit.SECONDS);
-        } catch (Exception e) {
-            mark(pending.id(), "failed", truncate("broadcast: " + e.getMessage()));
+            uuid = UUID.fromString(chat.playerUuid());
+        } catch (IllegalArgumentException e) {
+            uuid = null;
+        }
+        String name = chat.playerName() == null || chat.playerName().isBlank()
+                ? "Joueur" : chat.playerName().trim();
+        String message = chat.message() == null ? "" : chat.message().trim();
+        Integer factionId = chat.factionId();
+        if (!archiveOnce(chat)) {
             return;
         }
+        WebChatLog.append(plugin, "web", uuid, name, message, factionId);
 
-        WebChatLog.append(plugin, "web", uuid, name, message, null);
-
-        if (plugin.getDiscordBot() != null && plugin.getDiscordBot().isConnected()) {
+        if ((factionId == null || factionId <= 0)
+                && plugin.getDiscordBot() != null && plugin.getDiscordBot().isConnected()) {
             plugin.getDiscordBot().sendMcMessage(name + " (web)", message);
         }
 
-        mark(pending.id(), "done", null);
+        if (chat.id() > 0) {
+            mark(chat.id(), "done", null);
+        }
     }
 
-    private void processFaction(long id, UUID uuid, String name, String message, int factionId) {
-        try {
-            CompletableFuture<String> done = new CompletableFuture<>();
-            Bukkit.getScheduler().runTask(plugin, () -> {
-                try {
-                    var fm = plugin.getFactionManager();
-                    if (fm == null) {
-                        done.complete("faction manager indisponible");
-                        return;
-                    }
-                    Faction faction = fm.getFaction(factionId);
-                    if (faction == null) {
-                        done.complete("faction introuvable");
-                        return;
-                    }
-                    if (!faction.isMember(uuid)) {
-                        done.complete("pas membre de la faction");
-                        return;
-                    }
-                    fm.sendFactionMessage(uuid, name, faction, message, false);
-                    fr.cantale.plugin.web.WebChatLog.append(
-                            plugin, "web", uuid, name, message, faction.getId());
-                    done.complete(null);
-                } catch (Exception e) {
-                    done.completeExceptionally(e);
-                }
-            });
-            String err = done.get(5, TimeUnit.SECONDS);
-            if (err != null) {
-                mark(id, "failed", err);
-                return;
-            }
-            mark(id, "done", null);
-        } catch (Exception e) {
-            mark(id, "failed", truncate("faction: " + e.getMessage()));
+    private boolean archiveOnce(RedisBridgeMessages.Chat chat) {
+        if (chat.id() <= 0) {
+            return !plugin.getConfigManager().isVelocityEnabled();
+        }
+        try (Connection conn = plugin.getDatabaseManager().getConnection()) {
+            return AdminActionClaim.claimChatArchive(conn, chat.id());
+        } catch (SQLException e) {
+            plugin.getLogger().warning("[Web] Archive chat non réservée : " + e.getMessage());
+            return false;
         }
     }
 

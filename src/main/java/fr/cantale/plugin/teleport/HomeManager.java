@@ -135,7 +135,7 @@ public class HomeManager {
             return false;
         }
 
-        return plugin.getTeleportDelayManager().requestTeleport(player, loc, false, () -> {
+        return plugin.getTeleportDelayManager().requestTeleport(player, loc, false, true, () -> {
             player.sendMessage("§8[§6Cantale§8] §aTéléporté au home §e" + name + "§a.");
             plugin.getLogger().info("TP home réussi: " + name);
         });

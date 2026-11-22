@@ -16,10 +16,12 @@ public class ConfigManager {
 
     private final CantalePlugin plugin;
     private final FileConfiguration config;
+    private final SecretResolver secrets;
 
     public ConfigManager(CantalePlugin plugin) {
         this.plugin = plugin;
         this.config = plugin.getConfig();
+        this.secrets = SecretResolver.system(message -> plugin.getLogger().warning(message));
     }
 
     public String getDatabaseType() {
@@ -31,23 +33,60 @@ public class ConfigManager {
     }
 
     public String getMysqlHost() {
-        return config.getString("database.mysql.host", "localhost");
+        return secrets.resolve("CANTALE_DB_HOST",
+                config.getString("database.mysql.host", "localhost"),
+                "database.mysql.host", true);
     }
 
     public int getMysqlPort() {
+        String fromEnv = System.getenv("CANTALE_DB_PORT");
+        if (fromEnv != null && !fromEnv.isBlank()) {
+            try {
+                int port = Integer.parseInt(fromEnv.trim());
+                if (port > 0 && port <= 65535) {
+                    return port;
+                }
+                plugin.getLogger().warning("[Config] CANTALE_DB_PORT hors plage, repli sur database.mysql.port.");
+            } catch (NumberFormatException e) {
+                plugin.getLogger().warning("[Config] CANTALE_DB_PORT illisible, repli sur database.mysql.port.");
+            }
+        }
         return config.getInt("database.mysql.port", 3306);
     }
 
     public String getMysqlDatabase() {
-        return config.getString("database.mysql.database", "cantale");
+        return secrets.resolve("CANTALE_DB_NAME",
+                config.getString("database.mysql.database", "cantale"),
+                "database.mysql.database", true);
     }
 
     public String getMysqlUsername() {
-        return config.getString("database.mysql.username", "root");
+        return secrets.resolve("CANTALE_DB_USER",
+                config.getString("database.mysql.username", "root"),
+                "database.mysql.username", true);
     }
 
     public String getMysqlPassword() {
-        return config.getString("database.mysql.password", "");
+        return secrets.resolve("CANTALE_DB_PASS",
+                config.getString("database.mysql.password", ""),
+                "database.mysql.password", true);
+    }
+
+    /** Taille demandée. {@link fr.cantale.plugin.database.DatabasePoolSettings} la borne à 10–20. */
+    public int getMysqlPoolSize() {
+        return config.getInt("database.mysql.pool-size", 10);
+    }
+
+    public String getDiscordToken() {
+        return secrets.resolve("CANTALE_DISCORD_TOKEN",
+                config.getString("discord.token", ""),
+                "discord.token", config.getBoolean("discord.enabled", false));
+    }
+
+    public String getDiscordClientSecret() {
+        return secrets.resolve("CANTALE_DISCORD_CLIENT_SECRET",
+                config.getString("discord.client-secret", ""),
+                "discord.client-secret", config.getBoolean("discord.enabled", false));
     }
 
     public int getDefaultLives() {
@@ -68,7 +107,7 @@ public class ConfigManager {
 
     public String getBanMessage() {
         return config.getString("lives.ban-message",
-                "&cVous n'avez plus de vies ! Achetez-en une ou attendez qu'un ami vous en donne une.");
+                "&cVous n'avez plus de vies ! Un ami peut vous en donner une.");
     }
 
     /**
@@ -100,7 +139,7 @@ public class ConfigManager {
     }
 
     public int getMinMembersCreate() {
-        return config.getInt("factions.min-members-create", 8);
+        return config.getInt("factions.min-members-create", 2);
     }
 
     public int getStartChunks() {
@@ -355,5 +394,37 @@ public class ConfigManager {
     /** Réparations Cantox (banque → banque) payées par la faction qui capitule. 0 = désactivé. */
     public double getWarSurrenderReparationsCantox() {
         return Math.max(0, config.getDouble("factions.war.surrender-reparations-cantox", 10000.0));
+    }
+
+    /** Durée d'un siège. Défaut 20 minutes. */
+    public int getSiegeDurationSeconds() {
+        return Math.max(60, config.getInt("siege.duration-minutes", 20) * 60);
+    }
+
+    /** Délai avant régénération du terrain. Défaut 30 minutes. */
+    public int getSiegeRegenDelaySeconds() {
+        return Math.max(60, config.getInt("siege.regen-delay-minutes", 30) * 60);
+    }
+
+    /** Début du créneau par défaut, minutes depuis minuit. 1080 = 18:00. */
+    public int getSiegeVulnStartMinute() {
+        return Math.floorMod(config.getInt("siege.vuln-start-minute", 18 * 60), 24 * 60);
+    }
+
+    /** Fin du créneau par défaut, exclusive. 1320 = 22:00. */
+    public int getSiegeVulnEndMinute() {
+        return Math.floorMod(config.getInt("siege.vuln-end-minute", 22 * 60), 24 * 60);
+    }
+
+    public String getServerId() {
+        return fr.cantale.plugin.network.NetworkIdentity.serverId(
+                System.getenv(fr.cantale.plugin.network.NetworkIdentity.ENV_SERVER_ID),
+                config.getString("network.server-id", fr.cantale.plugin.network.NetworkIdentity.DEFAULT_SERVER_ID));
+    }
+
+    /** Vrai seulement si l'environnement porte un secret utilisable. Le YAML ne suffit pas. */
+    public boolean isVelocityEnabled() {
+        return fr.cantale.plugin.network.NetworkIdentity.velocityEnabled(
+                System.getenv(fr.cantale.plugin.network.NetworkIdentity.ENV_VELOCITY_SECRET));
     }
 }

@@ -1,5 +1,6 @@
 package fr.cantale.plugin.discord;
 
+import fr.cantale.plugin.config.SecretResolver;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -186,10 +187,12 @@ public class DiscordConfig {
         }
 
         this.enabled = discord.getBoolean("enabled", false);
-        this.token = discord.getString("token", "");
+        SecretResolver secrets = SecretResolver.system(message -> plugin.getLogger().warning(message));
+        this.token = secrets.resolve("CANTALE_DISCORD_TOKEN", discord.getString("token", ""), "discord.token", this.enabled);
         this.guildId = parseLong(discord.getString("guild-id", "0"));
         this.clientId = discord.getString("client-id", "");
-        this.clientSecret = discord.getString("client-secret", "");
+        this.clientSecret = secrets.resolve("CANTALE_DISCORD_CLIENT_SECRET",
+                discord.getString("client-secret", ""), "discord.client-secret", this.enabled);
 
         ConfigurationSection channels = discord.getConfigurationSection("channels");
         if (channels != null) {
@@ -249,7 +252,8 @@ public class DiscordConfig {
         ConfigurationSection supabase = discord.getConfigurationSection("supabase");
         if (supabase != null) {
             this.supabaseUrl = supabase.getString("url", "");
-            this.supabaseKey = supabase.getString("service-key", "");
+            this.supabaseKey = secrets.resolve("CANTALE_SUPABASE_SERVICE_KEY",
+                    supabase.getString("service-key", ""), "discord.supabase.service-key", false);
             this.syncIntervalMinutes = supabase.getInt("sync-interval", 0);
         } else {
             this.supabaseUrl = "";

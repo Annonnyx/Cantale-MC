@@ -61,6 +61,12 @@
             <artifactId>gson</artifactId>
             <version>2.11.0</version>
         </dependency>
+        <!-- Pool JDBC embarqué par maven-shade-plugin, comme Jedis et JDA. -->
+        <dependency>
+            <groupId>com.zaxxer</groupId>
+            <artifactId>HikariCP</artifactId>
+            <version>5.1.0</version>
+        </dependency>
         <!-- Grim AC : intégration via API publique, fournie à runtime par le serveur (softdepend) -->
         <dependency>
             <groupId>ac.grim.grimac</groupId>
@@ -76,6 +82,12 @@
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>
             <version>5.10.2</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.xerial</groupId>
+            <artifactId>sqlite-jdbc</artifactId>
+            <version>3.47.2.0</version>
             <scope>test</scope>
         </dependency>
     </dependencies>
@@ -100,6 +112,19 @@
                         <goals>
                             <goal>shade</goal>
                         </goals>
+                        <configuration>
+                            <!-- Hikari et Jedis utilisent SLF4J. L'API n'est pas embarquée :
+                                 le classloader du plugin délègue à celle de Paper, qui a le binding. -->
+                            <filters>
+                                <filter>
+                                    <artifact>org.slf4j:slf4j-api</artifact>
+                                    <excludes>
+                                        <exclude>**</exclude>
+                                    </excludes>
+                                </filter>
+                            </filters>
+                            <createDependencyReducedPom>false</createDependencyReducedPom>
+                        </configuration>
                     </execution>
                 </executions>
             </plugin>

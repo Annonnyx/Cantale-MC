@@ -7,6 +7,8 @@ import org.bukkit.Location;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 
+import java.time.Instant;
+import java.util.Date;
 import java.util.UUID;
 
 public class LifeManager {
@@ -64,7 +66,7 @@ public class LifeManager {
         // Les admins ont des vies illimitées (pas de keepInventory forcé ici)
         if (player.hasPermission("cantale.admin")) {
             playerDAO.incrementDeaths(uuid, deathLoc, inventorySnapshot);
-            player.sendMessage(formatMessage("&cVous êtes mort ! En tant qu'admin, vous avez des vies illimitées."));
+            plugin.messages().send(player, "lives.admin");
             return;
         }
         
@@ -78,7 +80,7 @@ public class LifeManager {
             playerDAO.decrementLives(uuid);
             playerDAO.incrementDeaths(uuid, deathLoc, inventorySnapshot);
             int remaining = getLives(uuid);
-            player.sendMessage(formatMessage("&cVous êtes mort ! Il vous reste " + remaining + " vie(s)."));
+            plugin.messages().send(player, "lives.remaining", remaining);
         }
     }
 
@@ -138,9 +140,19 @@ public class LifeManager {
         }
     }
 
+    /**
+     * Accorde {@link LifeRules#LIVES_ON_RETURN} seulement si le joueur est encore à 0 vie.
+     * Un second appel (spam {@code /f revive} ou double login) ne rajoute rien.
+     */
+    public boolean grantLifeIfDepleted(UUID uuid) {
+        return playerDAO.grantLifeIfDepleted(uuid, LifeRules.LIVES_ON_RETURN);
+    }
+
     private void banPlayer(Player player) {
-        String message = ChatColor.translateAlternateColorCodes('&', plugin.getConfigManager().getBanMessage());
-        String reason = ChatColor.translateAlternateColorCodes('&', "&cVous n'avez plus de vies sur Cantale !");
+        String message = ChatColor.translateAlternateColorCodes('&',
+                plugin.messages().raw(player, "prefix") + plugin.messages().raw(player, "ban.zero"));
+        String reason = ChatColor.translateAlternateColorCodes('&', plugin.messages().raw(player, "ban.reason"));
+        Instant expires = Instant.now().plus(LifeRules.DEATHBAN);
 
         // Empêcher le bannissement avec l'inventaire : drop le stuff (hors EC/PC) puis clear.
         if (player.isOnline()) {
@@ -153,32 +165,22 @@ public class LifeManager {
             player.getInventory().clear();
         }
 
-        // Ban UUID/profil en premier — résiste au changement de pseudo.
+        // Ban profil temporaire (2 h). Pas de ban IP : l'épuisement de vies n'est plus permanent.
         // player.ban(..., kickPlayer=false) : on kick avec le message config ensuite.
         try {
-            player.ban(reason, (java.time.Instant) null, "Cantale", false);
+            player.ban(reason, expires, "Cantale", false);
         } catch (Exception e) {
             plugin.getLogger().warning("Ban PROFILE échoué pour " + player.getName() + " : " + e.getMessage());
-            // Fallback name ban si l'API profil échoue
             plugin.getServer().getBanList(org.bukkit.BanList.Type.NAME).addBan(
                     player.getName(),
                     reason,
-                    (java.util.Date) null,
+                    Date.from(expires),
                     "Cantale"
             );
         }
 
-        // Ban IP (adresse peut être null pendant un quit)
-        String ip = null;
         if (player.getAddress() != null && player.getAddress().getAddress() != null) {
-            ip = player.getAddress().getAddress().getHostAddress();
-            playerDAO.setLastIp(player.getUniqueId(), ip);
-            plugin.getServer().getBanList(org.bukkit.BanList.Type.IP).addBan(
-                    ip,
-                    reason,
-                    (java.util.Date) null,
-                    "Cantale"
-            );
+            playerDAO.setLastIp(player.getUniqueId(), player.getAddress().getAddress().getHostAddress());
         }
 
         if (player.isOnline()) {
@@ -187,8 +189,8 @@ public class LifeManager {
     }
 
     /**
-     * Lève ban NAME + PROFILE + IP après restauration de vies.
-     * L'IP vient du joueur en ligne, sinon de {@code players.last_ip}.
+     * Lève le deathban profil / pseudo. Un ancien ban IP (avant les vies 2.0) est aussi levé
+     * s'il reste une adresse connue : les nouveaux épuisements de vies ne bannissent plus l'IP.
      */
     public void pardonLifeBan(UUID uuid, String playerName) {
         if (playerName != null && !playerName.isBlank()) {

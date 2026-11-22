@@ -285,7 +285,7 @@ public final class MapCanvas {
 	private void paintClaims(DrawContext context, int drawX, int drawY, String serverWorld,
 							 double originX, double originZ, int zoom) {
 		if (!WaypointManager.isShowClaims()) return;
-		Map<Long, String> worldClaims = ServerDataStore.claimsOf(serverWorld);
+		Map<Long, ServerDataStore.ClaimCell> worldClaims = ServerDataStore.claimsOf(serverWorld);
 		if (worldClaims.isEmpty()) return;
 
 		int minChunkX = (int) Math.floor(originX / 16.0);
@@ -295,9 +295,10 @@ public final class MapCanvas {
 
 		for (int chunkZ = minChunkZ; chunkZ <= maxChunkZ; chunkZ++) {
 			for (int chunkX = minChunkX; chunkX <= maxChunkX; chunkX++) {
-				String rel = worldClaims.get(ServerDataStore.pack(chunkX, chunkZ));
-				if (rel == null) continue;
-				int rgb = colorForRelation(rel);
+				ServerDataStore.ClaimCell cell = worldClaims.get(ServerDataStore.pack(chunkX, chunkZ));
+				if (cell == null) continue;
+				String rel = cell.rel();
+				int rgb = ClaimColors.rgb(rel);
 
 				int x1 = drawX + (int) Math.floor((chunkX * 16.0 - originX) / zoom);
 				int y1 = drawY + (int) Math.floor((chunkZ * 16.0 - originZ) / zoom);
@@ -313,31 +314,24 @@ public final class MapCanvas {
 				int edge = (cw >= 6 && ch >= 6) ? 2 : 1;
 
 				// Contours uniquement aux changements de zone (voisin différent ou non claimé)
-				if (!rel.equals(worldClaims.get(ServerDataStore.pack(chunkX, chunkZ - 1)))) {
+				if (!rel.equals(relationOf(worldClaims.get(ServerDataStore.pack(chunkX, chunkZ - 1))))) {
 					context.fill(x1, y1, x2, y1 + edge, (CLAIM_EDGE_ALPHA << 24) | rgb);
 				}
-				if (!rel.equals(worldClaims.get(ServerDataStore.pack(chunkX, chunkZ + 1)))) {
+				if (!rel.equals(relationOf(worldClaims.get(ServerDataStore.pack(chunkX, chunkZ + 1))))) {
 					context.fill(x1, y2 - edge, x2, y2, (CLAIM_EDGE_ALPHA << 24) | rgb);
 				}
-				if (!rel.equals(worldClaims.get(ServerDataStore.pack(chunkX - 1, chunkZ)))) {
+				if (!rel.equals(relationOf(worldClaims.get(ServerDataStore.pack(chunkX - 1, chunkZ))))) {
 					context.fill(x1, y1, x1 + edge, y2, (CLAIM_EDGE_ALPHA << 24) | rgb);
 				}
-				if (!rel.equals(worldClaims.get(ServerDataStore.pack(chunkX + 1, chunkZ)))) {
+				if (!rel.equals(relationOf(worldClaims.get(ServerDataStore.pack(chunkX + 1, chunkZ))))) {
 					context.fill(x2 - edge, y1, x2, y2, (CLAIM_EDGE_ALPHA << 24) | rgb);
 				}
 			}
 		}
 	}
 
-	private static int colorForRelation(String rel) {
-		return switch (rel) {
-			case "OWN" -> RGB_OWN;
-			case "ALLY" -> RGB_ALLY;
-			case "WAR" -> RGB_WAR;
-			case "ENEMY" -> RGB_ENEMY;
-			case "PASDIC" -> RGB_PASDIC;
-			default -> RGB_OTHER;
-		};
+	private static String relationOf(ServerDataStore.ClaimCell cell) {
+		return cell == null ? null : cell.rel();
 	}
 
 	// ─── Marqueurs ───────────────────────────────────────────────

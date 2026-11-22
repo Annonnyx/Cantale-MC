@@ -2,6 +2,7 @@ import type { ResultSetHeader } from "mysql2/promise";
 import { cachedQuery } from "../cache";
 import { query, type SqlValue } from "../db";
 import { env, DISCORD_TICKET_CATEGORY } from "../env";
+import { publishAdminAction } from "../redisPublish";
 
 async function execute(sql: string, params: Record<string, SqlValue> = {}): Promise<ResultSetHeader> {
   return (await query<never>(sql, params)) as unknown as ResultSetHeader;
@@ -229,7 +230,16 @@ export async function enqueueAdminAction(input: {
       actorDiscordId: input.actorDiscordId,
     },
   );
-  return Number(result.insertId ?? 0);
+  const id = Number(result.insertId ?? 0);
+  await publishAdminAction({
+    id,
+    type: input.type,
+    targetUuid: input.targetUuid,
+    targetName: input.targetName,
+    payload: input.payload,
+    actorDiscordId: input.actorDiscordId,
+  });
+  return id;
 }
 
 export async function getAdminActionStatus(id: number): Promise<{

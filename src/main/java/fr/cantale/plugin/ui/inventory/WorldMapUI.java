@@ -297,7 +297,7 @@ public class WorldMapUI extends BaseUI {
         }
         World world = player.getWorld();
         Location dest = new Location(world, blockX + 0.5, 64, blockZ + 0.5);
-        boolean started = plugin.getTeleportDelayManager().requestTeleport(player, dest, true, () -> {
+        boolean started = plugin.getTeleportDelayManager().requestTeleport(player, dest, true, true, () -> {
             if (!player.isOnline()) return false;
             // Chunk préchargé par le warmup — getHighestBlockYAt est sûr ici
             int y = world.getHighestBlockYAt(blockX, blockZ) + 1;
@@ -358,6 +358,10 @@ public class WorldMapUI extends BaseUI {
         if (factionManager.isTooCloseToOtherFaction(session.world, chunkX, chunkZ, faction.getId())) {
             player.sendMessage("§8[§6Carte§8] §cTrop proche d'une autre faction (§e"
                     + FactionManager.MIN_ENEMY_CLAIM_DISTANCE + " §cchunks min).");
+            return;
+        }
+        if (!fr.cantale.plugin.world.WorldRules.claimsAllowed(session.world)) {
+            player.sendMessage("§8[§6Carte§8] §cLes claims sont interdits dans ce monde.");
             return;
         }
         if (!factionManager.isAdjacentToOwnClaimOrFirst(session.world, chunkX, chunkZ, faction.getId())) {

@@ -1,6 +1,8 @@
 package fr.cantale.plugin.rank;
 
 import fr.cantale.plugin.CantalePlugin;
+import fr.cantale.plugin.database.DailyClaimRepository;
+import fr.cantale.plugin.database.PlayerBalanceRepository;
 import org.bukkit.entity.Player;
 
 import java.sql.*;
@@ -182,17 +184,36 @@ public class RankManager {
         PlayerRank rank = getRank(uuid);
 
         String today = LocalDate.now().toString();
-        String lastClaim = getLastCantoxClaim(uuid);
-
-        if (today.equals(lastClaim)) return 0; // Already claimed today
-
         int total = Math.max(0, baseAmount) + rank.getDailyCantox();
         if (total <= 0) return 0;
 
-        plugin.getEconomyManager().addBalance(uuid, total);
-        setLastCantoxClaim(uuid, today);
-
-        return total;
+        ensureCantoxClaimColumn();
+        try (Connection conn = plugin.getDatabaseManager().getConnection()) {
+            if (conn == null) {
+                return 0;
+            }
+            boolean previous = conn.getAutoCommit();
+            conn.setAutoCommit(false);
+            try {
+                boolean won = DailyClaimRepository.tryClaim(conn, plugin.getDatabaseManager().isSQLite(),
+                        uuid.toString(), rank.name(), today, (int) (System.currentTimeMillis() / 1000));
+                if (!won || !PlayerBalanceRepository.applyDelta(conn, uuid, total)) {
+                    conn.rollback();
+                    return 0;
+                }
+                conn.commit();
+                return total;
+            } catch (SQLException e) {
+                conn.rollback();
+                plugin.getLogger().severe("Erreur grantDailyCantox: " + e.getMessage());
+                return 0;
+            } finally {
+                conn.setAutoCommit(previous);
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().severe("Erreur grantDailyCantox: " + e.getMessage());
+            return 0;
+        }
     }
 
     private String getLastCantoxClaim(UUID uuid) {

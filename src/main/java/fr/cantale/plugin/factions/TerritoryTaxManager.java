@@ -1,8 +1,14 @@
 package fr.cantale.plugin.factions;
 
 import fr.cantale.plugin.CantalePlugin;
+import fr.cantale.plugin.database.FactionBalanceRepository;
 import fr.cantale.plugin.database.FactionDAO;
 import fr.cantale.plugin.database.FortifiedChunkDAO;
+import fr.cantale.plugin.skills.Skill;
+import fr.cantale.plugin.skills.SkillFormulas;
+
+import java.sql.Connection;
+import java.sql.SQLException;
 
 import java.util.List;
 import java.util.UUID;
@@ -40,14 +46,26 @@ public class TerritoryTaxManager {
             double claimTax = claimCount > MIN_CLAIMS_FOR_TAX ? claimCount * TAX_PER_CLAIM : 0.0;
             // Taxe runes : toujours appliquée, même pour les petites factions
             double fortifiedTax = fortifiedCount * TAX_PER_FORTIFIED_CHUNK;
-            double totalTax = claimTax + fortifiedTax;
+            double rawTax = claimTax + fortifiedTax;
+            int negociants = plugin.getSkillService() == null
+                    ? 0
+                    : plugin.getSkillService().count(faction, Skill.NEGOCIANT);
+            double totalTax = SkillFormulas.discountedAmount(rawTax, negociants);
 
             if (totalTax <= 0) continue; // Rien à prélever
 
             double currentBalance = faction.getBalance();
+            boolean paid = false;
+            try (Connection conn = plugin.getDatabaseManager().getConnection()) {
+                if (conn != null && FactionBalanceRepository.applyDelta(conn, faction.getId(), -totalTax)) {
+                    faction.setBalance(FactionBalanceRepository.readBalance(conn, faction.getId()));
+                    paid = true;
+                }
+            } catch (SQLException e) {
+                plugin.getLogger().severe("Taxe non prélevée pour " + faction.getName() + " : " + e.getMessage());
+            }
 
-            if (currentBalance >= totalTax) {
-                factionDAO.removeFactionBalance(faction.getId(), totalTax);
+            if (paid) {
                 plugin.getLogger().info("Taxe prélevée pour " + faction.getName() + ": " + totalTax
                         + " Cantox (" + claimCount + " claims + " + fortifiedCount + " runes)");
 

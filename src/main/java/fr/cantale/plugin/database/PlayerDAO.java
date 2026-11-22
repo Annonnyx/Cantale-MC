@@ -88,6 +88,24 @@ public class PlayerDAO {
         }
     }
 
+    /**
+     * Passe le joueur à {@code lives} uniquement s'il est encore à 0. Retourne false si une vie est déjà là.
+     */
+    public boolean grantLifeIfDepleted(UUID uuid, int lives) {
+        if (uuid == null || lives <= 0) {
+            return false;
+        }
+        try (Connection conn = databaseManager.getConnection()) {
+            if (conn == null) {
+                return false;
+            }
+            return PlayerLifeRepository.grantIfDepleted(conn, uuid, lives);
+        } catch (SQLException e) {
+            plugin.getLogger().severe("Erreur grantLifeIfDepleted : " + e.getMessage());
+            return false;
+        }
+    }
+
     public void decrementLives(UUID uuid) {
         int current = getLives(uuid);
         setLives(uuid, current - 1);
@@ -185,12 +203,93 @@ public class PlayerDAO {
         return null;
     }
 
-    public void addBalance(UUID uuid, double amount) {
-        setBalance(uuid, getBalance(uuid) + amount);
+    /**
+     * Ajoute ou retire du Cantox en une requête. Un delta négatif est refusé si le solde deviendrait négatif.
+     */
+    public boolean applyBalanceDelta(UUID uuid, double delta) {
+        if (uuid == null || delta == 0) {
+            return delta == 0 && uuid != null;
+        }
+        try (Connection conn = databaseManager.getConnection()) {
+            if (conn == null) {
+                plugin.getLogger().severe("Solde non modifié : pool SQL indisponible.");
+                return false;
+            }
+            return PlayerBalanceRepository.applyDelta(conn, uuid, delta);
+        } catch (SQLException e) {
+            plugin.getLogger().severe("Erreur applyBalanceDelta : " + e.getMessage());
+            return false;
+        }
     }
 
-    public void removeBalance(UUID uuid, double amount) {
-        setBalance(uuid, getBalance(uuid) - amount);
+    private void refreshBalancePeak(UUID uuid) {
+        if (plugin.getCollectionManager() == null) {
+            return;
+        }
+        plugin.getCollectionManager().set(uuid, "money", "PEAK", (long) getBalance(uuid));
+    }
+
+    public boolean addBalance(UUID uuid, double amount) {
+        if (amount < 0) {
+            return false;
+        }
+        if (amount == 0) {
+            return true;
+        }
+        boolean updated = applyBalanceDelta(uuid, amount);
+        if (updated) {
+            refreshBalancePeak(uuid);
+        }
+        return updated;
+    }
+
+    public boolean removeBalance(UUID uuid, double amount) {
+        if (amount < 0) {
+            return false;
+        }
+        if (amount == 0) {
+            return true;
+        }
+        return applyBalanceDelta(uuid, -amount);
+    }
+
+    public boolean transferBalance(UUID from, UUID to, double amount) {
+        if (from == null || to == null || amount < 0 || from.equals(to)) {
+            return false;
+        }
+        if (amount == 0) {
+            return true;
+        }
+        try (Connection conn = databaseManager.getConnection()) {
+            if (conn == null) {
+                plugin.getLogger().severe("Transfert Cantox impossible : pool SQL indisponible.");
+                return false;
+            }
+            boolean previous = conn.getAutoCommit();
+            conn.setAutoCommit(false);
+            try {
+                if (!PlayerBalanceRepository.applyDelta(conn, from, -amount)) {
+                    conn.rollback();
+                    return false;
+                }
+                if (!PlayerBalanceRepository.applyDelta(conn, to, amount)) {
+                    conn.rollback();
+                    return false;
+                }
+                conn.commit();
+            } catch (SQLException e) {
+                conn.rollback();
+                plugin.getLogger().severe("Transfert Cantox échoué : " + e.getMessage());
+                return false;
+            } finally {
+                conn.setAutoCommit(previous);
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().severe("Transfert Cantox échoué : " + e.getMessage());
+            return false;
+        }
+        refreshBalancePeak(to);
+        return true;
     }
 
     public int getDeaths(UUID uuid) {

@@ -1,6 +1,8 @@
 package fr.cantale.plugin.economy;
 
 import fr.cantale.plugin.CantalePlugin;
+import fr.cantale.plugin.database.FactionBalanceRepository;
+import fr.cantale.plugin.database.PlayerBalanceRepository;
 import fr.cantale.plugin.database.PlayerDAO;
 import fr.cantale.plugin.factions.Faction;
 import fr.cantale.plugin.factions.FactionManager;
@@ -42,38 +44,81 @@ public class BankManager {
     }
 
     public boolean deposit(int factionId, UUID playerUuid, double amount) {
-        if (amount <= 0) return false;
-
-        PlayerDAO playerDAO = new PlayerDAO(plugin);
-        double playerBalance = playerDAO.getBalance(playerUuid);
-        if (playerBalance < amount) return false;
-
-        playerDAO.removeBalance(playerUuid, amount);
-
+        if (amount <= 0 || playerUuid == null) return false;
         Faction faction = factionManager.getFaction(factionId);
         if (faction == null) return false;
 
-        faction.setBalance(faction.getBalance() + amount);
-        factionManager.saveFaction(faction);
-
-        logTransaction(factionId, playerUuid, ACTION_DEPOSIT, amount, faction.getBalance(), "Dépôt par joueur");
+        Double updated = moveBalances(factionId, playerUuid, amount, -amount);
+        if (updated == null) return false;
+        if (!updated.isNaN()) {
+            faction.setBalance(updated);
+        }
+        logTransaction(factionId, playerUuid, ACTION_DEPOSIT, amount, updated, "Dépôt par joueur");
         return true;
     }
 
     public boolean withdraw(int factionId, UUID playerUuid, double amount) {
-        if (amount <= 0) return false;
-
+        if (amount <= 0 || playerUuid == null) return false;
         Faction faction = factionManager.getFaction(factionId);
-        if (faction == null || faction.getBalance() < amount) return false;
+        if (faction == null) return false;
 
-        PlayerDAO playerDAO = new PlayerDAO(plugin);
-        playerDAO.addBalance(playerUuid, amount);
-
-        faction.setBalance(faction.getBalance() - amount);
-        factionManager.saveFaction(faction);
-
-        logTransaction(factionId, playerUuid, ACTION_WITHDRAW, amount, faction.getBalance(), "Retrait par joueur");
+        Double updated = moveBalances(factionId, playerUuid, -amount, amount);
+        if (updated == null) return false;
+        if (!updated.isNaN()) {
+            faction.setBalance(updated);
+        }
+        if (plugin.getCollectionManager() != null) {
+            plugin.getCollectionManager().set(playerUuid, "money", "PEAK",
+                    (long) new PlayerDAO(plugin).getBalance(playerUuid));
+        }
+        logTransaction(factionId, playerUuid, ACTION_WITHDRAW, amount, updated, "Retrait par joueur");
         return true;
+    }
+
+    /**
+     * Débit et crédit dans la même transaction.
+     * {@code null} si le solde joueur ou faction deviendrait négatif, ou si aucune ligne n'est touchée.
+     */
+    private Double moveBalances(int factionId, UUID playerUuid, double factionDelta, double playerDelta) {
+        try (Connection conn = plugin.getDatabaseManager().getConnection()) {
+            if (conn == null) {
+                plugin.getLogger().severe("Mouvement de banque refusé : pool SQL indisponible.");
+                return null;
+            }
+            boolean previous = conn.getAutoCommit();
+            conn.setAutoCommit(false);
+            boolean committed = false;
+            try {
+                if (!PlayerBalanceRepository.applyDelta(conn, playerUuid, playerDelta)) {
+                    conn.rollback();
+                    return null;
+                }
+                if (!FactionBalanceRepository.applyDelta(conn, factionId, factionDelta)) {
+                    conn.rollback();
+                    return null;
+                }
+                conn.commit();
+                committed = true;
+                return FactionBalanceRepository.readBalance(conn, factionId);
+            } catch (SQLException e) {
+                if (!committed) {
+                    try {
+                        conn.rollback();
+                    } catch (SQLException ignored) {
+                        // la connexion sera rendue au pool
+                    }
+                    plugin.getLogger().severe("Mouvement de banque échoué : " + e.getMessage());
+                    return null;
+                }
+                plugin.getLogger().severe("Banque mise à jour, solde non relu : " + e.getMessage());
+                return Double.NaN;
+            } finally {
+                conn.setAutoCommit(previous);
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().severe("Mouvement de banque échoué : " + e.getMessage());
+            return null;
+        }
     }
 
     /**

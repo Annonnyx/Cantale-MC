@@ -2,9 +2,12 @@ package fr.cantale.plugin.commands;
 
 import fr.cantale.plugin.CantalePlugin;
 import fr.cantale.plugin.factions.AdminBypassManager;
+import fr.cantale.plugin.database.PlayerDAO;
 import fr.cantale.plugin.factions.Faction;
 import fr.cantale.plugin.factions.FactionManager;
 import fr.cantale.plugin.factions.FactionRank;
+import fr.cantale.plugin.factions.FactionReviveRules;
+import fr.cantale.plugin.lives.LifeRules;
 import fr.cantale.plugin.factions.Claim;
 import fr.cantale.plugin.factions.permissions.FactionPermission;
 import fr.cantale.plugin.factions.permissions.FactionPermissionManager;
@@ -79,6 +82,10 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
             case "go" -> handleGo(player);
             case "setspawn" -> handleSetSpawn(player);
             case "bank" -> handleBank(player, args);
+            case "revive", "reanimer" -> handleRevive(player, args);
+            case "metier", "skill" -> handleSkill(player, args);
+            case "vuln", "creneau" -> handleVulnerability(player, args);
+            case "banniere", "siege" -> handleSiegeBanner(player);
             case "power", "pouvoir" -> handlePower(player);
             case "secret" -> handleSecret(player);
             case "pasdic", "protect" -> handlePasdic(player, args);
@@ -109,23 +116,23 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
 
     private void handleCreate(Player player, String[] args) {
         if (args.length < 2) {
-            player.sendMessage(formatMessage("&cUsage : /f create <nom>"));
+            plugin.messages().send(player, "faction.create.usage");
             return;
         }
 
         String name = args[1];
         String nameError = factionManager.validateFactionName(name);
         if (nameError != null) {
-            player.sendMessage(formatMessage("&c" + nameError));
+            plugin.messages().sendEncoded(player, nameError);
             return;
         }
         if (factionManager.getPlayerFaction(player.getUniqueId()) != null) {
-            player.sendMessage(formatMessage("&cVous êtes déjà dans une faction !"));
+            plugin.messages().send(player, "faction.create.already");
             return;
         }
 
         if (factionManager.getFaction(name) != null) {
-            player.sendMessage(formatMessage("&cCe nom de faction existe déjà."));
+            plugin.messages().send(player, "faction.name.taken");
             return;
         }
 
@@ -136,24 +143,30 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
         int chunkZ = loc.getBlockZ() >> 4;
 
         if (!plugin.getSpawnProtection().canClaim(loc)) {
-            player.sendMessage(formatMessage("&cImpossible de créer une faction dans une zone protégée (spawn/warp)."));
+            plugin.messages().send(player, "faction.create.protected");
             return;
         }
 
         if (factionManager.getClaimAt(world, chunkX, chunkZ) != null) {
-            player.sendMessage(formatMessage("&cCe chunk est déjà claimé. Vous ne pouvez pas créer de faction ici."));
+            plugin.messages().send(player, "faction.create.claimed");
             return;
         }
 
         int minMembers = plugin.getConfigManager().getMinMembersCreate();
-        // TODO: Vérifier qu'il y a assez de joueurs autour
+        int founders = countEligibleFounders(player);
+        if (!fr.cantale.plugin.factions.FactionCreateRules.canFound(minMembers, founders)) {
+            int required = Math.max(1, minMembers);
+            plugin.messages().send(player, "faction.create.need", required,
+                    (int) fr.cantale.plugin.factions.FactionCreateRules.FOUNDING_RADIUS, founders);
+            return;
+        }
 
         // Générer un tag unique (4 caractères max)
         String tag = factionManager.generateUniqueTag(name, -1);
 
         Faction faction = factionManager.createFaction(name, tag, "", player.getUniqueId());
         if (faction == null) {
-            player.sendMessage(formatMessage("&cErreur lors de la création de la faction."));
+            plugin.messages().send(player, "faction.create.failed");
             return;
         }
 
@@ -171,11 +184,11 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
             plugin.getClientMapBridge().refreshMarkersForFaction(faction);
         }
 
-        player.sendMessage(formatMessage("&aFaction &e" + name + " &acrée avec succès !"));
+        plugin.messages().send(player, "faction.create.ok", name);
         if (claimed) {
-            player.sendMessage(formatMessage("&aChunk actuel claimé automatiquement."));
+            plugin.messages().send(player, "faction.create.chunk");
         }
-        player.sendMessage(formatMessage("&aSpawn de faction défini à votre position."));
+        plugin.messages().send(player, "faction.create.spawn");
 
         // Bridge Discord
         if (plugin.getDiscordBot() != null && plugin.getDiscordBot().isConnected()) {
@@ -189,6 +202,32 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
                 );
             }
         }
+    }
+
+    /** Créateur inclus. Les joueurs déjà dans une faction ne comptent pas. */
+    private int countEligibleFounders(Player creator) {
+        org.bukkit.Location origin = creator.getLocation();
+        if (origin.getWorld() == null) {
+            return 1;
+        }
+        int count = 0;
+        for (Player other : origin.getWorld().getPlayers()) {
+            if (other == null || other.getWorld() == null) {
+                continue;
+            }
+            if (factionManager.getPlayerFaction(other.getUniqueId()) != null) {
+                continue;
+            }
+            org.bukkit.Location loc = other.getLocation();
+            double dx = loc.getX() - origin.getX();
+            double dy = loc.getY() - origin.getY();
+            double dz = loc.getZ() - origin.getZ();
+            if (fr.cantale.plugin.factions.FactionCreateRules.isWithinRadius(
+                    dx, dy, dz, fr.cantale.plugin.factions.FactionCreateRules.FOUNDING_RADIUS)) {
+                count++;
+            }
+        }
+        return count;
     }
 
     private void handleInvite(Player player, String[] args) {
@@ -344,7 +383,7 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
             return;
         }
         if (!faction.isLeader(player.getUniqueId())) {
-            player.sendMessage(formatMessage("&cSeul le chef de faction peut la renommer."));
+            plugin.messages().send(player, "faction.rename.leader");
             return;
         }
 
@@ -352,7 +391,7 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
         String oldName = faction.getName();
         String error = factionManager.renameFaction(faction, newName);
         if (error != null) {
-            player.sendMessage(formatMessage("&c" + error));
+            plugin.messages().sendEncoded(player, error);
             return;
         }
 
@@ -567,6 +606,12 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
             return;
         }
 
+        if (!fr.cantale.plugin.world.WorldRules.claimsAllowed(player.getWorld().getName())) {
+            plugin.messages().send(player, "faction.claim.forbidden",
+                    fr.cantale.plugin.world.WorldTopology.FACTIONS);
+            return;
+        }
+
         // Vérifier si la location est protégée (spawn/warps)
         if (!plugin.getSpawnProtection().canClaim(player.getLocation())) {
             player.sendMessage(formatMessage("&cCette zone est protégée et ne peut pas être claimée."));
@@ -681,7 +726,7 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
             faction.getSpawnY(),
             faction.getSpawnZ()
         );
-        plugin.getTeleportDelayManager().requestTeleport(player, spawnLoc, false, () ->
+        plugin.getTeleportDelayManager().requestTeleport(player, spawnLoc, false, true, () ->
                 player.sendMessage(formatMessage("&aTéléporté au spawn de votre faction.")));
     }
 
@@ -734,6 +779,187 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
                 .openUI(player, new fr.cantale.plugin.ui.inventory.FactionPowerShopUI(plugin, player, faction));
     }
 
+    /**
+     * Officier ou chef : lève le deathban d'un membre contre {@link FactionReviveRules#POWER_COST} pouvoir.
+     * Le débit SQL est arithmétique ; la vie n'est accordée que si le joueur est encore à 0.
+     */
+    private void handleRevive(Player player, String[] args) {
+        if (args.length < 2) {
+            plugin.messages().send(player, "faction.revive.usage");
+            return;
+        }
+        Faction faction = factionManager.getPlayerFaction(player.getUniqueId());
+        if (faction == null) {
+            plugin.messages().send(player, "faction.revive.none");
+            return;
+        }
+        FactionRank rank = faction.isLeader(player.getUniqueId())
+                ? FactionRank.LEADER
+                : faction.getMemberRank(player.getUniqueId());
+
+        PlayerDAO dao = new PlayerDAO(plugin);
+        UUID targetId = dao.getUuidByUsername(args[1]);
+        if (targetId == null) {
+            Player online = Bukkit.getPlayerExact(args[1]);
+            if (online != null) {
+                targetId = online.getUniqueId();
+            }
+        }
+        if (targetId == null) {
+            plugin.messages().send(player, "faction.revive.unknown");
+            return;
+        }
+        String targetName = dao.getUsername(targetId);
+        if (targetName == null || targetName.isBlank()) {
+            targetName = args[1];
+        }
+
+        int lives = plugin.getLifeManager().getLives(targetId);
+        long now = System.currentTimeMillis() / 1000L;
+        boolean deathban = LifeRules.deathbanActive(dao.getLastDeath(targetId), now);
+        FactionReviveRules.Deny deny = FactionReviveRules.evaluate(
+                rank,
+                faction.isMember(targetId),
+                lives,
+                deathban,
+                faction.getPower());
+        if (deny != null) {
+            plugin.messages().sendEncoded(player, reviveDenyKey(deny));
+            return;
+        }
+        if (!factionManager.debitPowerAtomic(faction.getId(), FactionReviveRules.POWER_COST)) {
+            plugin.messages().send(player, "faction.revive.debit", FactionReviveRules.POWER_COST);
+            return;
+        }
+        if (!plugin.getLifeManager().grantLifeIfDepleted(targetId)) {
+            factionManager.creditPowerAtomic(faction.getId(), FactionReviveRules.POWER_COST);
+            plugin.messages().send(player, "faction.revive.raced", targetName);
+            return;
+        }
+        plugin.getLifeManager().pardonLifeBan(targetId, targetName);
+        plugin.messages().send(player, "faction.revive.ok", targetName,
+                FactionReviveRules.LIVES_GRANTED, FactionReviveRules.POWER_COST);
+        Player targetOnline = Bukkit.getPlayer(targetId);
+        if (targetOnline != null && targetOnline.isOnline()) {
+            plugin.messages().send(targetOnline, "faction.revive.target", player.getName(),
+                    FactionReviveRules.LIVES_GRANTED);
+        }
+    }
+
+    private static String reviveDenyKey(FactionReviveRules.Deny deny) {
+        return switch (deny) {
+            case NOT_OFFICER -> "faction.revive.not-officer";
+            case NOT_SAME_FACTION -> "faction.revive.not-member";
+            case NOT_DEATHBANNED -> "faction.revive.not-banned";
+            case ALREADY_HAS_LIVES -> "faction.revive.has-lives";
+            case INSUFFICIENT_POWER -> "faction.revive.power\u001f" + FactionReviveRules.POWER_COST;
+        };
+    }
+
+    private void handleSkill(Player player, String[] args) {
+        Faction faction = factionManager.getPlayerFaction(player.getUniqueId());
+        if (faction == null) {
+            plugin.messages().send(player, "faction.revive.none");
+            return;
+        }
+        fr.cantale.plugin.skills.SkillService skills = plugin.getSkillService();
+        if (skills == null) {
+            plugin.messages().send(player, "faction.skill.down");
+            return;
+        }
+        if (args.length < 2) {
+            fr.cantale.plugin.skills.Skill current = skills.skillOf(player.getUniqueId());
+            plugin.messages().send(player, "faction.skill.current",
+                    current == null ? plugin.messages().raw(player, "faction.skill.unset") : current.label());
+            plugin.messages().send(player, "faction.skill.counts",
+                    skills.count(faction, fr.cantale.plugin.skills.Skill.ARCHITECTE),
+                    skills.count(faction, fr.cantale.plugin.skills.Skill.NEGOCIANT),
+                    skills.count(faction, fr.cantale.plugin.skills.Skill.ARTISAN),
+                    skills.count(faction, fr.cantale.plugin.skills.Skill.CHEVALIER));
+            plugin.messages().send(player, "faction.skill.choices");
+            plugin.messages().send(player, "faction.skill.cost",
+                    (int) fr.cantale.plugin.skills.SkillFormulas.CHANGE_COST,
+                    fr.cantale.plugin.skills.SkillFormulas.CHANGE_COOLDOWN_SECONDS / 3600);
+            return;
+        }
+        fr.cantale.plugin.skills.Skill chosen = fr.cantale.plugin.skills.Skill.fromArgument(args[1]);
+        if (chosen == null) {
+            plugin.messages().send(player, "faction.skill.unknown");
+            return;
+        }
+        boolean inCombat = plugin.getCombatTagManager() != null
+                && plugin.getCombatTagManager().isInCombat(player);
+        fr.cantale.plugin.skills.SkillChangeRules.Deny deny = skills.change(player.getUniqueId(), chosen, inCombat);
+        if (deny == null) {
+            plugin.messages().send(player, "faction.skill.ok", chosen.label());
+            return;
+        }
+        String key = switch (deny) {
+            case COMBAT -> "faction.skill.combat";
+            case SAME -> "faction.skill.same";
+            case COOLDOWN -> "faction.skill.cooldown\u001f"
+                    + (fr.cantale.plugin.skills.SkillFormulas.CHANGE_COOLDOWN_SECONDS / 3600);
+            case FUNDS -> "faction.skill.funds\u001f" + (int) fr.cantale.plugin.skills.SkillFormulas.CHANGE_COST;
+            case NONE -> "faction.skill.none";
+        };
+        plugin.messages().sendEncoded(player, key);
+    }
+
+    private void handleVulnerability(Player player, String[] args) {
+        Faction faction = factionManager.getPlayerFaction(player.getUniqueId());
+        if (faction == null) {
+            plugin.messages().send(player, "faction.revive.none");
+            return;
+        }
+        if (args.length < 3) {
+            plugin.messages().send(player, "faction.vuln.window",
+                    fr.cantale.plugin.siege.VulnerabilityWindow.format(faction.getVulnStartMinute())
+                            + "–"
+                            + fr.cantale.plugin.siege.VulnerabilityWindow.format(faction.getVulnEndMinute()));
+            plugin.messages().send(player, "faction.vuln.hint");
+            return;
+        }
+        FactionRank rank = faction.getMemberRank(player.getUniqueId());
+        if (rank == null || rank.isLessThan(FactionRank.OFFICER)) {
+            plugin.messages().send(player, "faction.vuln.officer");
+            return;
+        }
+        int start;
+        int end;
+        try {
+            start = fr.cantale.plugin.siege.VulnerabilityWindow.parseMinute(args[1]);
+            end = fr.cantale.plugin.siege.VulnerabilityWindow.parseMinute(args[2]);
+        } catch (RuntimeException ex) {
+            plugin.messages().send(player, "faction.vuln.bad");
+            return;
+        }
+        if (start == end) {
+            plugin.messages().send(player, "faction.vuln.empty");
+            return;
+        }
+        faction.setVulnStartMinute(start);
+        faction.setVulnEndMinute(end);
+        plugin.getFactionDAO().updateVulnerability(faction.getId(), faction.getVulnStartMinute(), faction.getVulnEndMinute());
+        plugin.messages().send(player, "faction.vuln.saved",
+                fr.cantale.plugin.siege.VulnerabilityWindow.format(faction.getVulnStartMinute())
+                        + "–"
+                        + fr.cantale.plugin.siege.VulnerabilityWindow.format(faction.getVulnEndMinute()));
+    }
+
+    private void handleSiegeBanner(Player player) {
+        fr.cantale.plugin.siege.SiegeManager siege = plugin.getSiegeManager();
+        if (siege == null) {
+            plugin.messages().send(player, "faction.siege.down");
+            return;
+        }
+        String error = siege.giveBanner(player);
+        if (error != null) {
+            plugin.messages().sendEncoded(player, error);
+            return;
+        }
+        plugin.messages().send(player, "faction.siege.given");
+    }
+
     private void sendHelp(Player player) {
         player.sendMessage(ChatColor.GOLD + "=== Commandes Factions ===");
         player.sendMessage(ChatColor.GRAY + "/f create <nom> - Créer une faction");
@@ -756,6 +982,10 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
         player.sendMessage(ChatColor.GRAY + "/f warp [nom] | /f setwarp <nom> | /f delwarp <nom> - alias des FW");
         player.sendMessage(ChatColor.GRAY + "/f c [message] - Basculer ou envoyer un message dans le chat de faction");
         player.sendMessage(ChatColor.GRAY + "/f bank - Banque GUI | /f bank power [n] (sans n = GUI pouvoir)");
+        plugin.messages().send(player, "faction.help.revive", FactionReviveRules.POWER_COST);
+        plugin.messages().send(player, "faction.help.skill");
+        plugin.messages().send(player, "faction.help.vuln");
+        plugin.messages().send(player, "faction.help.banner");
         player.sendMessage(ChatColor.GRAY + "/f power - Pouvoir, quotas, paliers + achat (GUI)");
         player.sendMessage(ChatColor.GRAY + "/f perms [grade] - Voir les permissions par grade");
         player.sendMessage(ChatColor.GRAY + "/f secret - Activer le mode secret (1h)");
@@ -1387,7 +1617,8 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
             List<String> subs = new ArrayList<>(Arrays.asList("create", "rename", "name", "renommer", "invite", "accept", "deny", "leave", "info", "list", "members",
                     "join", "kick", "ban", "promote", "demote", "claim", "unclaim", "autoclaim",
                     "spawn", "go", "setspawn", "warp", "setwarp", "delwarp",
-                    "map", "bank", "power", "pouvoir", "secret", "pasdic", "protect", "raid",
+                    "map", "bank", "power", "pouvoir", "secret", "pasdic", "protect", "raid", "revive", "reanimer",
+                    "metier", "skill", "vuln", "creneau", "banniere", "siege",
                     "war", "enemy", "peace", "surrender", "ally", "perms", "help", "disband"));
             // Sous-commandes staff : ne pas les suggérer aux joueurs sans la permission.
             if (sender instanceof Player p && p.hasPermission(AdminBypassManager.PERMISSION)) {
@@ -1399,7 +1630,8 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
         if (args.length == 2) {
             String sub = args[0].toLowerCase();
             if (sub.equals("invite") || sub.equals("kick") || sub.equals("ban")
-                    || sub.equals("promote") || sub.equals("demote")) {
+                    || sub.equals("promote") || sub.equals("demote")
+                    || sub.equals("revive") || sub.equals("reanimer")) {
                 return Bukkit.getOnlinePlayers().stream().map(Player::getName)
                         .filter(n -> n.toLowerCase().startsWith(args[1].toLowerCase()))
                         .collect(Collectors.toList());
@@ -1413,6 +1645,11 @@ public class FactionCommand implements CommandExecutor, TabCompleter {
             if (sub.equals("perms")) return Arrays.asList("recruit", "member", "officer", "leader");
             if (sub.equals("bank")) {
                 return Arrays.asList("add", "take", "deposit", "withdraw", "power", "pouvoir").stream()
+                        .filter(s -> s.startsWith(args[1].toLowerCase()))
+                        .collect(Collectors.toList());
+            }
+            if (sub.equals("metier") || sub.equals("skill")) {
+                return java.util.Arrays.asList("architecte", "negociant", "artisan", "chevalier").stream()
                         .filter(s -> s.startsWith(args[1].toLowerCase()))
                         .collect(Collectors.toList());
             }

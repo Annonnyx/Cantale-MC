@@ -213,6 +213,14 @@ commands:
     description: Réclame ta récompense quotidienne
     usage: /daily
     aliases: [journalier]
+  lang:
+    description: Choisit la langue des messages (fr ou en)
+    usage: /lang <fr|en>
+    aliases: [language, langue]
+  pass:
+    description: Pass de saison cosmétique, sans avantage de jeu
+    usage: /pass [equip <id>|unequip <title|aura|cape>]
+    aliases: [cosmetic, cosmetique]
   bvn:
     description: Souhaite la bienvenue à un nouveau joueur
     usage: /bvn <pseudo>

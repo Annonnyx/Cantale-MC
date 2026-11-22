@@ -2,6 +2,10 @@ package fr.cantale.plugin.listeners;
 
 import fr.cantale.plugin.CantalePlugin;
 import fr.cantale.plugin.factions.Claim;
+import fr.cantale.plugin.siege.SiegeBanners;
+import fr.cantale.plugin.siege.SiegeManager;
+import fr.cantale.plugin.siege.VulnerabilityWindow;
+import fr.cantale.plugin.world.WorldRules;
 import fr.cantale.plugin.factions.Faction;
 import fr.cantale.plugin.factions.FactionManager;
 import fr.cantale.plugin.factions.permissions.FactionPermissions;
@@ -95,14 +99,24 @@ public class ClaimListener implements Listener {
             return;
         }
 
-        // Raid : les assaillants en guerre peuvent casser pendant un raid actif.
+        // Siège dans le créneau : la casse est ralentie par les architectes, puis enregistrée.
+        if (claim != null && siegeGrief(player, claim)) {
+            if (!plugin.getSiegeManager().allowBreak(player, claim, event.getBlock())) {
+                event.setCancelled(true);
+                plugin.messages().send(player, "claim.architect");
+                return;
+            }
+            return;
+        }
+
+        // Raid dans le créneau, ou guerre déclarée (la casse de guerre reste hors fenêtre).
         if (claim != null && isRaiding(player, claim)) {
             return;
         }
 
         // Hors raid : aucun étranger ne peut casser dans un claim.
         event.setCancelled(true);
-        player.sendMessage(formatMessage("&cTu ne peux pas casser dans ce claim sans un raid actif."));
+        plugin.messages().send(player, "claim.break");
     }
 
     @EventHandler(priority = EventPriority.HIGH)
@@ -123,13 +137,29 @@ public class ClaimListener implements Listener {
         boolean ownClaim = claim != null && playerFaction != null && claimFaction != null
                 && playerFaction.getId() == claimFaction.getId();
 
+        if (SiegeBanners.isSiegeBanner(plugin, event.getItemInHand())) {
+            SiegeManager siege = plugin.getSiegeManager();
+            if (siege == null) {
+                event.setCancelled(true);
+                plugin.messages().send(player, "claim.siege-down");
+                return;
+            }
+            String error = siege.tryPlace(player, claim, event.getBlock().getLocation(), event.getBlockReplacedState());
+            if (error != null) {
+                event.setCancelled(true);
+                plugin.messages().sendEncoded(player, error);
+                return;
+            }
+            return;
+        }
+
         // PASDIC : interdiction de poser des conteneurs de stockage, même pour les membres.
         // Admins / ops / bypass admin : exemptés.
         if (claim != null && claim.isPasdic() && isPasdicBannedContainer(type)
                 && !player.isOp() && !player.hasPermission("cantale.admin")
                 && !plugin.getAdminBypassManager().isBypassing(player)) {
             event.setCancelled(true);
-            player.sendMessage(formatMessage("&cLes conteneurs de stockage sont interdits dans un PASDIC."));
+            plugin.messages().send(player, "claim.pasdic-storage");
             return;
         }
 
@@ -140,7 +170,7 @@ public class ClaimListener implements Listener {
             if (!(claim == null && isWildernessAllowedStorage(type))) {
                 if (!ownClaim) {
                     event.setCancelled(true);
-                    player.sendMessage(formatMessage("&cTu ne peux poser du stockage que dans les claims de ta faction."));
+                    plugin.messages().send(player, "claim.storage");
                     return;
                 }
             }
@@ -157,20 +187,29 @@ public class ClaimListener implements Listener {
             return;
         }
 
-        // Raid : les assaillants en guerre peuvent poser des blocs pendant un raid actif.
+        if (claim != null && siegeGrief(player, claim)) {
+            if (!plugin.getSiegeManager().recordState(event.getBlockReplacedState())) {
+                event.setCancelled(true);
+                plugin.messages().send(player, "claim.unrecorded");
+                return;
+            }
+            return;
+        }
+
+        // Raid dans le créneau, ou guerre déclarée.
         if (claim != null && isRaiding(player, claim)) {
             return;
         }
 
         // Hors raid : aucun étranger ne peut poser dans un claim.
         event.setCancelled(true);
-        player.sendMessage(formatMessage("&cTu ne peux pas poser de bloc dans ce claim sans un raid actif."));
+        plugin.messages().send(player, "claim.place");
     }
 
     /**
      * PvP one-way dans les claims (indépendant du tag combat) :
      * <ul>
-     *   <li>Étranger → membre dans le claim de SA fac : toujours annulé</li>
+     *   <li>Étranger → membre dans le claim de SA fac : annulé, sauf assaillant d'un raid actif</li>
      *   <li>Membre / allié → étranger dans ce claim : autorisé</li>
      *   <li>PASDIC : aucun PvP</li>
      *   <li>Wilderness : inchangé (libre)</li>
@@ -201,7 +240,7 @@ public class ClaimListener implements Listener {
         // Zones PASDIC (spawn/warp) : impossible d'initier du PvP
         if (claim.isPasdic()) {
             event.setCancelled(true);
-            attacker.sendMessage(formatMessage("&cPvP interdit en zone PASDIC (spawn / warp)."));
+            plugin.messages().send(attacker, "claim.pvp-pasdic");
             return;
         }
 
@@ -210,11 +249,20 @@ public class ClaimListener implements Listener {
 
         Faction victimFaction = factionManager.getPlayerFaction(victim.getUniqueId());
 
-        // One-way : un membre chez lui ne peut pas être frappé (tag combat ou non).
-        // Les membres / alliés peuvent frapper les étrangers présents dans le claim.
+        // Hors raid et hors siège : un membre chez lui ne peut pas être frappé.
+        // Le coup passe pendant un raid actif ou un siège actif, dans le créneau.
+        // Une guerre déclarée ne suffit pas. PASDIC a déjà annulé le coup.
         if (victimFaction != null && victimFaction.getId() == claimFaction.getId()) {
-            event.setCancelled(true);
-            attacker.sendMessage(formatMessage("&cCe joueur est protégé dans le claim de sa faction."));
+            boolean activeRaid = isAttackingInActiveRaid(attacker, claim);
+            boolean activeSiege = plugin.getSiegeManager() != null
+                    && plugin.getSiegeManager().isAttackerSieging(attacker, claim);
+            boolean atWar = warGrief(attacker, claim);
+            boolean assault = ClaimPvpRules.assaultWindow(
+                    activeRaid, activeSiege, vulnerabilityOpen(claim), atWar);
+            if (ClaimPvpRules.shouldCancelDefenderHit(true, assault)) {
+                event.setCancelled(true);
+                plugin.messages().send(attacker, "claim.protected");
+            }
         }
     }
 
@@ -234,14 +282,13 @@ public class ClaimListener implements Listener {
         Player player = event.getPlayer();
         Material type = event.getClickedBlock().getType();
 
-        // Conteneurs lootables : membres de la fac OK ; alliés & ennemis = vol Chèvre uniquement.
+        // Conteneurs lootables : membres de la fac uniquement. Aucun grade ne pille un claim étranger.
         // Ateliers (table de craft, enclume…) restent sur canInteract (alliés OK).
         if (isStealableContainer(type)) {
             if (!canAccessClaimStorage(player, claim)) {
                 event.setCancelled(true);
                 if (!player.isOp() && !player.hasPermission("cantale.admin")) {
-                    player.sendMessage(formatMessage(
-                            "&cFouiller les conteneurs d'un claim étranger est réservé au grade Chèvre."));
+                    plugin.messages().send(player, "claim.loot");
                 }
             }
             return;
@@ -261,7 +308,7 @@ public class ClaimListener implements Listener {
                 event.setUseItemInHand(org.bukkit.event.Event.Result.ALLOW);
             } else {
                 event.setCancelled(true);
-                player.sendMessage(formatMessage("&cVous ne pouvez pas interagir avec ce block dans ce claim."));
+                plugin.messages().send(player, "claim.interact");
             }
         }
     }
@@ -283,6 +330,17 @@ public class ClaimListener implements Listener {
             event.setCancelled(true);
             return;
         }
+        if (claim != null && siegeGrief(player, claim)) {
+            boolean clicked = plugin.getSiegeManager().recordBlock(event.getBlockClicked());
+            boolean against = plugin.getSiegeManager().recordBlock(
+                    event.getBlockClicked().getRelative(event.getBlockFace()));
+            if (!clicked || !against) {
+                event.setCancelled(true);
+                plugin.messages().send(player, "claim.unrecorded");
+                return;
+            }
+            return;
+        }
         // Raid : eau et lave autorisées pour les assaillants.
         if (claim != null && isRaiding(player, claim)) {
             return;
@@ -290,11 +348,11 @@ public class ClaimListener implements Listener {
         Material bucket = event.getBucket();
         if (bucket == Material.WATER_BUCKET || bucket == Material.LAVA_BUCKET) {
             event.setCancelled(true);
-            player.sendMessage(formatMessage("&cTu ne peux utiliser des seaux que pendant un raid actif."));
+            plugin.messages().send(player, "claim.bucket");
             return;
         }
         event.setCancelled(true);
-        player.sendMessage(formatMessage("&cVous ne pouvez pas utiliser ça dans ce claim."));
+        plugin.messages().send(player, "claim.use");
     }
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
@@ -325,6 +383,14 @@ public class ClaimListener implements Listener {
         Claim claim = getClaimAt(loc);
         if (claim != null && claim.isPasdic()) {
             event.setCancelled(true);
+            return;
+        }
+        if (claim != null && siegeGrief(player, claim)) {
+            if (!plugin.getSiegeManager().recordBlock(loc.getBlock())) {
+                event.setCancelled(true);
+                plugin.messages().send(player, "claim.unrecorded");
+                return;
+            }
             return;
         }
         // Raid : cristaux, TNT minecart et TNT autorisées pour les assaillants.
@@ -358,8 +424,7 @@ public class ClaimListener implements Listener {
 
         if (!canAccessClaimStorage(player, claim)) {
             event.setCancelled(true);
-            player.sendMessage(formatMessage(
-                    "&cFouiller les conteneurs d'un claim étranger est réservé au grade Chèvre."));
+            plugin.messages().send(player, "claim.loot");
         }
     }
 
@@ -370,6 +435,7 @@ public class ClaimListener implements Listener {
             return;
         }
         event.blockList().removeIf(this::isExplosionProtectedBlock);
+        recordSiegeExplosion(event.blockList());
     }
 
     @EventHandler(priority = EventPriority.HIGH)
@@ -379,6 +445,7 @@ public class ClaimListener implements Listener {
             return;
         }
         event.blockList().removeIf(this::isExplosionProtectedBlock);
+        recordSiegeExplosion(event.blockList());
     }
 
     private boolean isPasdicBlock(org.bukkit.block.Block block) {
@@ -390,14 +457,22 @@ public class ClaimListener implements Listener {
         Claim claim = getClaimAt(block.getLocation());
         if (claim == null) return false;
         if (claim.isPasdic()) return true;
-        return !plugin.getRaidManager().isRaidActive(claim);
+        if (siegeTerrainOpen(claim)) return false;
+        return plugin.getRaidManager() == null || !plugin.getRaidManager().isRaidActive(claim);
+    }
+
+    private void recordSiegeExplosion(java.util.List<org.bukkit.block.Block> blocks) {
+        if (plugin.getSiegeManager() == null) return;
+        blocks.removeIf(block -> siegeTerrainOpen(getClaimAt(block.getLocation()))
+                && !plugin.getSiegeManager().recordBlock(block));
     }
 
     private boolean shouldCancelExplosion(org.bukkit.Location origin, org.bukkit.entity.Entity source) {
         Claim originClaim = getClaimAt(origin);
         if (originClaim == null) return false;
         if (originClaim.isPasdic()) return true;
-        if (plugin.getRaidManager().isRaidActive(originClaim)) return false;
+        if (siegeTerrainOpen(originClaim)) return false;
+        if (plugin.getRaidManager() != null && plugin.getRaidManager().isRaidActive(originClaim)) return false;
         // Wither : exception pour casser l'obsidienne (hors raid et hors PASDIC).
         if (source != null && isWitherEntity(source)) return false;
         Player sourcePlayer = getPlayerSource(source);
@@ -437,11 +512,13 @@ public class ClaimListener implements Listener {
         Claim toClaim = getClaimAt(event.getTo());
 
         // Auto-claim si activé et dans wilderness (silencieux si échec)
-        if (toClaim == null && factionManager.isAutoClaimEnabled(player.getUniqueId())) {
+        if (toClaim == null && event.getTo().getWorld() != null
+                && WorldRules.claimsAllowed(event.getTo().getWorld().getName())
+                && factionManager.isAutoClaimEnabled(player.getUniqueId())) {
             int chunkX = event.getTo().getBlockX() >> 4;
             int chunkZ = event.getTo().getBlockZ() >> 4;
             if (factionManager.autoClaim(player.getUniqueId(), event.getTo().getWorld().getName(), chunkX, chunkZ)) {
-                sendClaimMessage(player, "&aAuto-claim du chunk actuel !");
+                sendClaimMessage(player, "claim.autoclaim");
             }
         }
 
@@ -453,28 +530,28 @@ public class ClaimListener implements Listener {
             if (fromClaim == null && toClaim != null) {
                 Faction faction = factionManager.getFaction(toClaim.getFactionId());
                 if (faction != null) {
-                    sendClaimMessage(player, "&eEntrée dans le claim de &6" + faction.getName() + " &e(&7" + faction.getTag() + "&e)");
+                    sendClaimMessage(player, "claim.enter", faction.getName(), faction.getTag());
                 }
             } else if (fromClaim != null && toClaim == null) {
-                sendClaimMessage(player, "&eSortie du claim - Wilderness");
+                sendClaimMessage(player, "claim.leave");
             } else if (fromClaim != null && toClaim != null) {
                 Faction fromFaction = factionManager.getFaction(fromClaim.getFactionId());
                 Faction toFaction = factionManager.getFaction(toClaim.getFactionId());
                 if (fromFaction != null && toFaction != null) {
-                    sendClaimMessage(player, "&eSortie de &6" + fromFaction.getName() + " &e→ Entrée dans &6" + toFaction.getName());
+                    sendClaimMessage(player, "claim.cross", fromFaction.getName(), toFaction.getName());
                 }
             }
             player.setMetadata("cantale_last_claim_faction", new FixedMetadataValue(plugin, toFactionId));
         }
     }
 
-    private void sendClaimMessage(Player player, String message) {
+    private void sendClaimMessage(Player player, String key, Object... args) {
         long now = System.currentTimeMillis();
         UUID uuid = player.getUniqueId();
         Long last = lastClaimMessage.get(uuid);
         if (last != null && now - last < CLAIM_MESSAGE_COOLDOWN_MS) return;
         lastClaimMessage.put(uuid, now);
-        player.sendMessage(formatMessage(message));
+        plugin.messages().send(player, key, args);
     }
 
     private boolean canInteract(Player player, org.bukkit.Location location) {
@@ -485,8 +562,8 @@ public class ClaimListener implements Listener {
      * Accès aux conteneurs / blocs de stockage d'un claim.
      * <ul>
      *   <li>Membres de la fac propriétaire : toujours</li>
-     *   <li>Alliés / ennemis / sans fac : uniquement grade Chèvre ({@code canStealInClaims})</li>
-     *   <li>PASDIC : membres seulement (pas de vol, même Chèvre)</li>
+     *   <li>Alliés / ennemis / sans fac : jamais (aucun vol de claim, EULA)</li>
+     *   <li>PASDIC : membres seulement</li>
      *   <li>op / cantale.admin : bypass modération (pas un avantage de grade)</li>
      * </ul>
      */
@@ -503,13 +580,8 @@ public class ClaimListener implements Listener {
             return true;
         }
 
-        // Zones spawn/warp : pas de fouille étrangère
-        if (claim.isPasdic()) {
-            return false;
-        }
-
-        var rank = plugin.getRankManager().getRank(player);
-        return rank != null && rank.canStealInClaims();
+        // Zones spawn/warp et claims étrangers : pas de fouille.
+        return false;
     }
 
     /**
@@ -531,7 +603,7 @@ public class ClaimListener implements Listener {
             if (playerFaction != null && claimFaction != null && playerFaction.getId() == claimFaction.getId()) {
                 return true;
             }
-            player.sendMessage(formatMessage("&cCe chunk est en mode PASDIC — aucune destruction autorisée."));
+            plugin.messages().send(player, "claim.pasdic");
             return false;
         }
 
@@ -581,8 +653,47 @@ public class ClaimListener implements Listener {
     }
 
     private boolean isRaiding(Player player, Claim claim) {
+        return warGrief(player, claim) || raidGrief(player, claim) || siegeGrief(player, claim);
+    }
+
+    /** Casse et pose de guerre, y compris hors créneau. Le PvP de claim n'utilise pas cette branche. */
+    private boolean warGrief(Player player, Claim claim) {
+        if (claim == null || claim.isPasdic() || plugin.getRaidManager() == null) return false;
+        boolean activeRaid = plugin.getRaidManager().isAttackingInActiveRaid(player, claim);
+        return plugin.getRaidManager().isAttackingInRaid(player, claim) && !activeRaid;
+    }
+
+    /** Raid enregistré, seulement dans le créneau de vulnérabilité du défenseur. */
+    private boolean raidGrief(Player player, Claim claim) {
+        if (claim == null || claim.isPasdic() || plugin.getRaidManager() == null) return false;
+        return plugin.getRaidManager().isAttackingInActiveRaid(player, claim) && vulnerabilityOpen(claim);
+    }
+
+    /** Siège actif de la faction du joueur, seulement dans le créneau. */
+    private boolean siegeGrief(Player player, Claim claim) {
+        if (claim == null || claim.isPasdic() || plugin.getSiegeManager() == null) return false;
+        return plugin.getSiegeManager().isAttackerSieging(player, claim) && vulnerabilityOpen(claim);
+    }
+
+    private boolean siegeTerrainOpen(Claim claim) {
+        if (claim == null || claim.isPasdic() || plugin.getSiegeManager() == null) return false;
+        return plugin.getSiegeManager().isDefenderUnderSiege(claim.getFactionId()) && vulnerabilityOpen(claim);
+    }
+
+    private boolean vulnerabilityOpen(Claim claim) {
+        if (claim == null) return false;
+        Faction defender = factionManager.getFaction(claim.getFactionId());
+        if (defender == null) return false;
+        return VulnerabilityWindow.isOpen(
+                defender.getVulnStartMinute(),
+                defender.getVulnEndMinute(),
+                VulnerabilityWindow.minuteOfDay(System.currentTimeMillis()));
+    }
+
+    /** PvP dans la base : raid enregistré encore actif. PASDIC déjà refusé plus haut. */
+    private boolean isAttackingInActiveRaid(Player player, Claim claim) {
         if (claim == null || claim.isPasdic()) return false;
-        return plugin.getRaidManager() != null && plugin.getRaidManager().isAttackingInRaid(player, claim);
+        return plugin.getRaidManager() != null && plugin.getRaidManager().isAttackingInActiveRaid(player, claim);
     }
 
     /**
@@ -656,6 +767,8 @@ public class ClaimListener implements Listener {
     }
 
     private Claim getClaimAt(org.bukkit.Location location) {
+        if (location == null || location.getWorld() == null) return null;
+        if (!WorldRules.claimRulesApply(location.getWorld().getName())) return null;
         String world = location.getWorld().getName();
         int chunkX = location.getBlockX() >> 4;
         int chunkZ = location.getBlockZ() >> 4;
