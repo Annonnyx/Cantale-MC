@@ -1,5 +1,6 @@
 package fr.cantale.plugin.ui.inventory;
 
+import com.google.gson.JsonObject;
 import fr.cantale.plugin.CantalePlugin;
 import fr.cantale.plugin.lives.LifeManager;
 import org.bukkit.Material;
@@ -19,22 +20,31 @@ public class LifeUI extends BaseUI {
 
         setItem(4, Material.TOTEM_OF_UNDYING, "§6§lVies", "§7Vies restantes: §c" + lives);
 
-        setItem(11, Material.RED_WOOL, "§cSacrifier une vie", "§7/dropvie", "§7Transforme 1 vie en item", "§7Minimum: 2 vies requises");
-        setItem(13, Material.GOLDEN_APPLE, "§eDonner une vie", "§7/givevie <joueur>", "§7Minimum: 2 vies requises");
-        setItem(15, Material.TOTEM_OF_UNDYING, "§eUtiliser une Vie (item)", "§7Cliquez pour utiliser", "§7+1 vie en DB");
+        setItem(11, Material.RED_WOOL, "§cSacrifier une vie", "§7Transforme 1 vie en item", "§7Il faut en garder au moins une");
+        setItem(13, Material.GOLDEN_APPLE, "§eDonner une vie", "§7Choisir un joueur", "§7Il faut en garder au moins une");
+        setItem(15, Material.TOTEM_OF_UNDYING, "§eItem Vie", "§7Prends-le en main", "§7Clic droit pour gagner 1 vie");
 
         addNavigationBar(true, false);
+    }
+
+    @Override
+    public void writeClientDetail(JsonObject screen) {
+        JsonObject detail = new JsonObject();
+        detail.addProperty("lives", plugin.getLifeManager().getLives(player.getUniqueId()));
+        screen.add("detail", detail);
     }
 
     @Override
     protected void handleClick(int slot) {
         NavigationManager nav = plugin.getUIManager().getNavigationManager();
         switch (slot) {
-            case 11 -> player.performCommand("dropvie");
+            case 11 -> {
+                player.performCommand("dropvie");
+                init();
+            }
             case 13 -> nav.openUI(player, new PlayerSelectorUI(plugin, player, "§7Donner une vie à", target -> {
                 player.performCommand("givevie " + target.getName());
             }, title));
-            case 15 -> player.sendMessage("§eCliquez droit avec l'item VIE dans votre main pour l'utiliser.");
         }
     }
 }

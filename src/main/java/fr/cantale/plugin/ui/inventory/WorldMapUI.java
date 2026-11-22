@@ -184,6 +184,11 @@ public class WorldMapUI extends BaseUI {
     }
 
     @Override
+    protected boolean preferChest() {
+        return true;
+    }
+
+    @Override
     protected void handleClick(int slot) {
         // Remplacé par onClick (types de clic nécessaires — pattern FactionMapUI).
     }

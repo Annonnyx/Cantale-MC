@@ -115,9 +115,11 @@ public class CrateOpenUI extends BaseUI {
 
         // Ferme le menu après un court délai pour laisser voir la récompense
         Bukkit.getScheduler().runTaskLater(plugin, () -> {
-            if (player.isOnline() && player.getOpenInventory().getTopInventory().equals(inventory)) {
-                player.closeInventory();
-            }
+            if (!player.isOnline()) return;
+            var bridge = plugin.getClientUiBridge();
+            boolean mod = bridge != null && bridge.isShowing(player, this);
+            boolean chest = player.getOpenInventory().getTopInventory().equals(inventory);
+            if (mod || chest) close();
         }, 60L);
     }
 

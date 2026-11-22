@@ -60,5 +60,10 @@
 	"cantale.map.unknown_leader": "Inconnu",
 	"cantale.map.unknown_faction": "Faction",
 	"cantale.map.click_hint": "Clic : fiche de claim",
-	"cantale.map.terrain_only": "Terrain seul"
+	"cantale.map.terrain_only": "Terrain seul",
+	"gui.cantale.back": "Retour",
+	"gui.cantale.close": "Fermer",
+	"gui.cantale.refresh": "Actualiser",
+	"gui.cantale.trade_hint": "Clic : déposer ou reprendre l'objet en main",
+	"gui.cantale.storage_hint": "Clic : pile. Droit : un. Maj : tout"
 }

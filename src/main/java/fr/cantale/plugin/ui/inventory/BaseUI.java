@@ -38,6 +38,12 @@ public abstract class BaseUI implements Listener {
 
     public void open() {
         init();
+        if (!preferChest()) {
+            fr.cantale.plugin.ui.net.ClientUiBridge bridge = plugin.getClientUiBridge();
+            if (bridge != null && bridge.presentMenu(player, this)) {
+                return;
+            }
+        }
         if (!registered) {
             Bukkit.getPluginManager().registerEvents(this, plugin);
             registered = true;
@@ -46,11 +52,67 @@ public abstract class BaseUI implements Listener {
     }
 
     public void close() {
+        fr.cantale.plugin.ui.net.ClientUiBridge bridge = plugin.getClientUiBridge();
+        if (bridge != null && bridge.dismissIfMenu(player, this)) {
+            return;
+        }
         player.closeInventory();
+    }
+
+    /** Carte vanilla : le coffre reste, le mod ne la redessine pas. */
+    protected boolean preferChest() {
+        return false;
+    }
+
+    public Inventory getInventory() {
+        return inventory;
+    }
+
+    public int getSize() {
+        return size;
+    }
+
+    /**
+     * Clic venu du mod. Même barre de navigation que le coffre, puis l'action du menu.
+     * Le bouton et le shift sont ceux du client ; le plugin valide l'action.
+     */
+    public void clientClick(int slot, boolean right, boolean shift) {
+        if (slot < 0 || slot >= size) return;
+        if (isNav(slot, size - 9, Material.ARROW)) {
+            plugin.getUIManager().goBack(player);
+            return;
+        }
+        if (isNav(slot, size - 5, Material.BARRIER)) {
+            close();
+            return;
+        }
+        if (isNav(slot, size - 1, Material.COMPASS)) {
+            init();
+            return;
+        }
+        handleClientClick(slot, right, shift);
+    }
+
+    protected void handleClientClick(int slot, boolean right, boolean shift) {
+        handleClick(slot);
+    }
+
+    private boolean isNav(int slot, int expected, Material type) {
+        if (slot != expected) return false;
+        ItemStack item = inventory.getItem(slot);
+        return item != null && item.getType() == type;
     }
 
     public String getTitle() {
         return title;
+    }
+
+    /** Champs propres à la page, lus par le mod. Le coffre n'en a pas besoin. */
+    public void writeClientDetail(com.google.gson.JsonObject screen) {
+    }
+
+    /** Bouton du mod qui n'est pas une case : le plugin décide, comme pour un clic. */
+    public void clientAction(String id, String text) {
     }
 
     protected void setItem(int slot, Material material, String name, String... lore) {

@@ -132,6 +132,31 @@ public class ShopCategoryUI extends BaseUI {
         // Non utilisé : onClick est entièrement redéfini ci-dessous pour distinguer achat/vente.
     }
 
+    @Override
+    protected void handleClientClick(int slot, boolean right, boolean shift) {
+        if (items == null) return;
+        if (slot == size - 6 && page > 0) {
+            setPage(page - 1);
+            return;
+        }
+        if (slot == size - 4 && (page + 1) * PAGE_SIZE < items.size()) {
+            setPage(page + 1);
+            return;
+        }
+        int index = page * PAGE_SIZE + (slot - GRID_START);
+        if (slot < GRID_START || index < 0 || index >= items.size()) return;
+        ShopItem shopItem = items.get(index);
+        if (right) {
+            int quantity = shift ? Integer.MAX_VALUE : 1;
+            ShopManager.ShopResult result = plugin.getShopManager().sell(player, shopItem.getMaterial(), quantity);
+            handleResult(result, shopItem.getMaterial(), false);
+        } else {
+            int quantity = shift ? 64 : 1;
+            ShopManager.ShopResult result = plugin.getShopManager().buy(player, shopItem.getMaterial(), quantity);
+            handleResult(result, shopItem.getMaterial(), true);
+        }
+    }
+
     @EventHandler
     public void onClick(InventoryClickEvent event) {
         // Identity check: all pages of a category share the same title.

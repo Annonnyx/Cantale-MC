@@ -96,6 +96,7 @@ public class CantalePlugin extends JavaPlugin {
     private fr.cantale.plugin.factions.FactionWarpManager factionWarpManager;
     private MapUI mapUI;
     private fr.cantale.plugin.map.ClientMapBridge clientMapBridge;
+    private fr.cantale.plugin.ui.net.ClientUiBridge clientUiBridge;
     private SpawnCommand spawnCommand;
     private RtpCommand rtpCommand;
     private SpawnProtection spawnProtection;
@@ -417,6 +418,8 @@ public class CantalePlugin extends JavaPlugin {
         this.teleportDelayManager = new fr.cantale.plugin.teleport.TeleportDelayManager(this);
         this.tpaManager = new fr.cantale.plugin.teleport.TpaManager(this);
         this.uiManager = new UIManager(this);
+        this.clientUiBridge = new fr.cantale.plugin.ui.net.ClientUiBridge(this);
+        this.clientUiBridge.register();
         this.customItemManager = new CustomItemManager();
         this.crateManager = new fr.cantale.plugin.crate.CrateManager(this);
         this.legendaryTicketManager = new fr.cantale.plugin.crate.LegendaryTicketManager(this);
@@ -531,6 +534,9 @@ public class CantalePlugin extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        if (clientUiBridge != null) {
+            clientUiBridge.shutdown();
+        }
         if (clientMapBridge != null) {
             // Désenregistre le canal cantale:map et oublie les clients du mod
             clientMapBridge.shutdown();
@@ -895,6 +901,10 @@ public class CantalePlugin extends JavaPlugin {
 
     public fr.cantale.plugin.map.ClientMapBridge getClientMapBridge() {
         return clientMapBridge;
+    }
+
+    public fr.cantale.plugin.ui.net.ClientUiBridge getClientUiBridge() {
+        return clientUiBridge;
     }
 
     public SpawnProtection getSpawnProtection() {

@@ -60,5 +60,10 @@
 	"cantale.map.unknown_leader": "Unknown",
 	"cantale.map.unknown_faction": "Faction",
 	"cantale.map.click_hint": "Click a claim for details",
-	"cantale.map.terrain_only": "Terrain only"
+	"cantale.map.terrain_only": "Terrain only",
+	"gui.cantale.back": "Back",
+	"gui.cantale.close": "Close",
+	"gui.cantale.refresh": "Refresh",
+	"gui.cantale.trade_hint": "Click: offer or take back the held item",
+	"gui.cantale.storage_hint": "Click: stack. Right: one. Shift: all"
 }

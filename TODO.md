@@ -1,5 +1,11 @@
 # TODO Cantale
 
+## Menus du mod (2026-11-22)
+- [x] **Pages selon leur usage** : profil (grade au-dessus du skin, cosmétiques titre/aura/cape), vies en cœurs, stats en chiffres, faction (nom dans le menu, tableau de bord), primes en cartes, classements en tuiles puis podium, quêtes en deux chemins, économie (montant dans le menu). BossBar, item Vie et historique ne passent plus par le chat. Le coffre reste le repli sans mod.
+
+## Serveur local (2026-11-22)
+- [x] **`scripts/serveur-local.sh`** : un terminal, Paper 1.21.11 stable dans `run/server/`, `eula=true`, copie `plugins/Cantale.jar` si `target/*.jar` (hors `original-*.jar`) existe. Console au premier plan (`-Xms1G -Xmx2G nogui`). Java 21 requis. L'API Paper v2 est sunset (HTTP 410) : téléchargement via Fill v3.
+
 ## Ajouts & Correctifs Plugin (fin août 2026)
 - [x] **`/fw` warps de faction publics (fusion check + local)** : commande top-level `/fw` (aliases `/fwarp` `/fwarps`). Live = table historique `faction_warps` (données existantes, quota pouvoir, create dans un claim, UI faction, permission Officier+ `FWARP`, noms uniques globaux). `/fw` liste serveur, `/fw <nom>` TP public (warmup `/warp`), `/fw create` / `/fw delete`. Alias `/f setwarp` / `/f warp` / `/f delwarp` conservés. Spawn fac (`/f setspawn`) non touché. Le commit `check` apportait une 2e table `fwarps` (sans quota ni claim) — classes conservées, non branchées sur `/fw`.
 - [x] **Shop Update (Loots de Mobs)** : Ajout de la chair putréfiée, slimeball, œil d'araignée, crème de magma, larme de ghast, etc. dans `MOB_DROPS`. SAND et GUNPOWDER restent absents (anti-farm TNT).

@@ -67,6 +67,28 @@ public class TradeSessionUI extends BaseUI {
     /** Re-rend le contenu (les deux zones + boutons) sans réouvrir l'inventaire. */
     public void refresh() {
         init();
+        var bridge = plugin.getClientUiBridge();
+        if (bridge != null) bridge.pushMenu(player, this);
+    }
+
+    @Override
+    protected void handleClientClick(int slot, boolean right, boolean shift) {
+        int offer = localOfferIndex(slot);
+        ItemStack hand = player.getInventory().getItemInMainHand();
+        boolean handFilled = hand != null && !hand.getType().isAir();
+        boolean free = offer >= 0 && !session.getItems(player.getUniqueId()).containsKey(offer);
+        if (free && handFilled) {
+            ItemStack moved = hand.clone();
+            int amount = (right && !shift) ? 1 : hand.getAmount();
+            amount = Math.min(amount, moved.getMaxStackSize());
+            moved.setAmount(amount);
+            if (plugin.getTradeManager().depositItem(player, offer, moved)) {
+                hand.setAmount(hand.getAmount() - amount);
+                if (hand.getAmount() <= 0) player.getInventory().setItemInMainHand(null);
+            }
+            return;
+        }
+        handleClick(slot);
     }
 
     @Override

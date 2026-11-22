@@ -77,9 +77,21 @@ public class FactionWarpsUI extends BaseUI {
         addNavigationBar(true, true);
     }
 
+    private boolean clientDelete;
+
     @Override
     protected void handleClick(int slot) {
         handleClick(slot, null);
+    }
+
+    @Override
+    protected void handleClientClick(int slot, boolean right, boolean shift) {
+        clientDelete = right || shift;
+        try {
+            handleClick(slot, null);
+        } finally {
+            clientDelete = false;
+        }
     }
 
     @Override
@@ -111,7 +123,7 @@ public class FactionWarpsUI extends BaseUI {
         int index = slot - 9;
         if (index < 0 || index >= warps.size()) return;
         FactionWarp warp = warps.get(index);
-        boolean deleteClick = event != null && (event.isRightClick() || event.isShiftClick());
+        boolean deleteClick = clientDelete || (event != null && (event.isRightClick() || event.isShiftClick()));
         if (deleteClick) {
             if (!canManage) {
                 player.sendMessage(FactionWarpManager.PREFIX + "§cSeuls les officiers et le chef peuvent supprimer un FW.");

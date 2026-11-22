@@ -35,15 +35,15 @@ public final class MapScreen extends Screen {
 	private static final int LIST_ROW_H = 16;
 	private static final int HINT_H = 28;
 
-	private static final int COL_BG = 0xFF0E0E16;
-	private static final int COL_TOP = 0xF214141C;
-	private static final int COL_PANEL = 0xF2101018;
-	private static final int COL_PANEL_EDGE = 0xFF3A3A52;
-	private static final int COL_ROW_HOVER = 0x28FFFFFF;
-	private static final int COL_TEXT = 0xFFE8E8F0;
-	private static final int COL_MUTED = 0xFF9A9AAC;
-	private static final int COL_BOX = 0xFF181822;
-	private static final int COL_BOX_EDGE = 0xFF3A3A52;
+	private static final int COL_BG = 0xFFEEF1EE;
+	private static final int COL_TOP = 0xF2EEF1EE;
+	private static final int COL_PANEL = 0xF7F4EEE8;
+	private static final int COL_PANEL_EDGE = 0xFF2B2F4A;
+	private static final int COL_ROW_HOVER = 0x22C2455A;
+	private static final int COL_TEXT = 0xFF2B2F4A;
+	private static final int COL_MUTED = 0xFF5C6178;
+	private static final int COL_BOX = 0xFFEEF1EE;
+	private static final int COL_BOX_EDGE = 0xFF2B2F4A;
 
 	private static final int CTX_W = 172;
 	private static final int CTX_ITEM_H = 18;
@@ -832,7 +832,7 @@ public final class MapScreen extends Screen {
 		if (rightX < textRenderer.getWidth(left) + 16) {
 			rightX = width - rw - 8;
 		}
-		context.drawTextWithShadow(textRenderer, right, rightX, 7, 0xFFA0A0B0);
+		context.drawTextWithShadow(textRenderer, right, rightX, 7, 0xFF5C6178);
 	}
 
 	private void paintLegend(DrawContext context) {
@@ -845,12 +845,12 @@ public final class MapScreen extends Screen {
 		int boxW = 72;
 		int x = 6;
 		int y = height - boxH - 6;
-		context.fill(x, y, x + boxW, y + boxH, 0xCC101018);
+		context.fill(x, y, x + boxW, y + boxH, 0xEEEFF1EE);
 		int ly = y + 5;
 		for (String[] entry : entries) {
 			int rgb = Integer.parseInt(entry[1], 16);
 			context.fill(x + 5, ly + 1, x + 13, ly + 9, 0xFF000000 | rgb);
-			drawLabel(context, entry[0], x + 16, ly, 0xFFD8D8E0);
+			drawLabel(context, entry[0], x + 16, ly, 0xFF2B2F4A);
 			ly += 12;
 		}
 	}
@@ -908,7 +908,7 @@ public final class MapScreen extends Screen {
 			for (PanelRow row : rows) {
 				if (row.header()) {
 					if (y + 14 > listTop && y < listBottom) {
-						drawLabel(context, row.label(), px + 8, y + 2, 0xFFB0B0C8);
+						drawLabel(context, row.label(), px + 8, y + 2, 0xFF5C6178);
 					}
 					y += 14;
 					continue;
@@ -923,10 +923,10 @@ public final class MapScreen extends Screen {
 					String name = ellipsize(row.label(), PANEL_W - 70);
 					context.drawTextWithShadow(textRenderer, name, px + 22, y + 4, nameColor);
 					if (row.delete()) {
-						context.fill(width - 22, y + 2, width - 8, y + 13, 0xFF5A1A1A);
+						context.fill(width - 22, y + 2, width - 8, y + 13, 0xFFC2455A);
 						context.drawTextWithShadow(textRenderer, "×", width - 19, y + 3, 0xFFFFFFFF);
 					} else if (row.command() != null) {
-						context.fill(width - 32, y + 2, width - 8, y + 13, 0xFF1A3A4A);
+						context.fill(width - 32, y + 2, width - 8, y + 13, 0xFF2B2F4A);
 						context.drawTextWithShadow(textRenderer, Text.translatable("screen.cantale.map.tp").getString(),
 								width - 28, y + 3, 0xFFFFFFFF);
 					}
@@ -1005,7 +1005,7 @@ public final class MapScreen extends Screen {
 		int ty = mouseY + 14;
 		if (tx + boxW > mapX() + mapWidth() - 4) tx = mouseX - boxW - 8;
 		if (ty + boxH > height - 4) ty = mouseY - boxH - 8;
-		context.fill(tx, ty, tx + boxW, ty + boxH, 0xF0101018);
+		context.fill(tx, ty, tx + boxW, ty + boxH, 0xF0EEF1EE);
 		context.fill(tx, ty, tx + 2, ty + boxH, 0xFF000000 | hover.rgb());
 		int ly = ty + 4;
 		for (int i = 0; i < lines.size(); i++) {
@@ -1017,7 +1017,7 @@ public final class MapScreen extends Screen {
 
 	private void drawLabel(DrawContext context, String text, int x, int y, int color) {
 		int w = textRenderer.getWidth(text);
-		context.fill(x - 2, y - 1, x + w + 2, y + 10, 0xCC101018);
+		context.fill(x - 2, y - 1, x + w + 2, y + 10, 0xEEEFF1EE);
 		context.drawTextWithShadow(textRenderer, text, x, y, color);
 	}
 

@@ -2,6 +2,7 @@ package fr.cantale.client;
 
 import fr.cantale.client.data.ServerDataStore;
 import fr.cantale.client.net.CantaleNetworkHandler;
+import fr.cantale.client.net.CantaleUiNetwork;
 import fr.cantale.client.render.CosmeticRenderer;
 import fr.cantale.client.render.TerrainSampler;
 import fr.cantale.client.render.WaypointWorldRenderer;
@@ -55,7 +56,8 @@ public final class CantaleMod implements ClientModInitializer {
 				GLFW.GLFW_KEY_N,
 				KEY_CATEGORY));
 
-		CantaleNetworkHandler.register();
+        CantaleNetworkHandler.register();
+        CantaleUiNetwork.register();
 		MinimapHud.init();
 		WaypointWorldRenderer.init();
 		StatusHud.init();
@@ -68,7 +70,8 @@ public final class CantaleMod implements ClientModInitializer {
 
 	private void onClientTick(MinecraftClient client) {
 		// Consomme les messages réseau reçus + retry du handshake (thread client uniquement)
-		CantaleNetworkHandler.tick(client);
+        CantaleNetworkHandler.tick(client);
+        CantaleUiNetwork.tick(client);
 		CosmeticRenderer.tick(client);
 		// Rafraîchissement doux du cache terrain autour du joueur
 		TerrainSampler.INSTANCE.tick(client);

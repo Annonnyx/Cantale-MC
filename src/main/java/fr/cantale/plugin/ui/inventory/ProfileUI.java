@@ -1,8 +1,11 @@
 package fr.cantale.plugin.ui.inventory;
 
+import com.google.gson.JsonObject;
 import fr.cantale.plugin.CantalePlugin;
+import fr.cantale.plugin.cosmetics.SeasonPassService;
 import fr.cantale.plugin.factions.Faction;
 import fr.cantale.plugin.rank.PlayerRank;
+import org.bukkit.ChatColor;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
@@ -99,11 +102,6 @@ public class ProfileUI extends BaseUI {
                 if (plugin.getRotatingBossBarManager() != null) {
                     plugin.getRotatingBossBarManager().setPlayerEnabled(player, next);
                 }
-                if (next) {
-                    player.sendMessage("§8[§6Cantale§8] §aBossBar infos activée.");
-                } else {
-                    player.sendMessage("§8[§6Cantale§8] §cBossBar infos désactivée.");
-                }
                 init();
             }
             case 29 -> player.performCommand("home");
@@ -111,6 +109,45 @@ public class ProfileUI extends BaseUI {
             case 33 -> player.performCommand("wanted");
             case 35 -> nav.openUI(player, new TagCustomizationUI(plugin, player));
         }
+    }
+
+    @Override
+    public void writeClientDetail(JsonObject screen) {
+        boolean self = player.getUniqueId().equals(target.getUniqueId());
+        PlayerRank rank = plugin.getRankManager().getRank(target.getUniqueId());
+        if (rank == null) rank = PlayerRank.NONE;
+        Faction faction = plugin.getFactionManager().getPlayerFaction(target.getUniqueId());
+        SeasonPassService pass = plugin.getSeasonPass();
+        SeasonPassService.Look look = pass == null
+                ? SeasonPassService.Look.NONE
+                : pass.look(target.getUniqueId());
+        JsonObject detail = new JsonObject();
+        detail.addProperty("self", self);
+        detail.addProperty("uuid", target.getUniqueId().toString());
+        detail.addProperty("name", target.getName() != null ? target.getName() : "Inconnu");
+        detail.addProperty("rank", rank.getDisplayName());
+        detail.addProperty("rankId", rank.name());
+        detail.addProperty("faction", faction != null ? faction.getName() : "Aucune");
+        detail.addProperty("lives", plugin.getLifeManager().getLives(target.getUniqueId()));
+        detail.addProperty("cantox", (int) plugin.getPlayerDAO().getBalance(target.getUniqueId()));
+        detail.addProperty("bossbar", self && plugin.getPlayerDAO().isBossBarEnabled(player.getUniqueId()));
+        detail.addProperty("title", cosmeticName(look.titleId()));
+        detail.addProperty("aura", cosmeticName(look.aura()));
+        detail.addProperty("cape", cosmeticName(look.cape()));
+        screen.add("detail", detail);
+    }
+
+    private String cosmeticName(String id) {
+        if (id == null || id.isBlank()) return "";
+        String key = "cosmetic." + id;
+        String raw = plugin.messages().raw(player, key);
+        if (raw != null && !raw.isBlank() && !raw.equals(key)) {
+            return ChatColor.stripColor(ChatColor.translateAlternateColorCodes('&', raw));
+        }
+        int cut = id.indexOf('_');
+        String rest = cut >= 0 && cut < id.length() - 1 ? id.substring(cut + 1) : id;
+        if (rest.isBlank()) return "";
+        return Character.toUpperCase(rest.charAt(0)) + rest.substring(1);
     }
 
     private String formatRank(PlayerRank rank) {

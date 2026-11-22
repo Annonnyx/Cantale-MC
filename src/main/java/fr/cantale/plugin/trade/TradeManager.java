@@ -281,6 +281,8 @@ public class TradeManager {
         }
         moneyInputs.put(player.getUniqueId(), System.currentTimeMillis());
         player.closeInventory();
+        var bridge = plugin.getClientUiBridge();
+        if (bridge != null) bridge.dismissOpen(player);
         plugin.messages().send(player, "trade.money-prompt");
         plugin.messages().send(player, "trade.money-balance", formatMoney(economyManager.getBalance(player)));
     }
@@ -709,6 +711,13 @@ public class TradeManager {
 
     private void closeGuiIfOpen(Player player) {
         if (player == null) return;
+        var bridge = plugin.getClientUiBridge();
+        if (bridge != null) bridge.dismissOpen(player);
+        String title = org.bukkit.ChatColor.stripColor(player.getOpenInventory().getTitle());
+        if (title != null && title.startsWith("Échange")) {
+            player.closeInventory();
+            return;
+        }
         TradeSessionUI gui = openGuis.get(player.getUniqueId());
         if (gui != null && player.getOpenInventory().getTopInventory() == gui.getInventory()) {
             player.closeInventory();

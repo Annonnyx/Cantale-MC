@@ -37,10 +37,10 @@ public final class StatusHud {
 
 	private static final String[] FACING = {"N", "NE", "E", "SE", "S", "SW", "W", "NW"};
 
-	private static final int HEART_FULL = 0xFFE23B4A;
-	private static final int HEART_EMPTY = 0xFF4A2A32;
-	private static final int HEART_UNLIMITED = 0xFFFFD24A;
-	private static final int PANEL = 0xCC14141C;
+	private static final int HEART_FULL = 0xFFC2455A;
+	private static final int HEART_EMPTY = 0xFFD9C8CB;
+	private static final int HEART_UNLIMITED = 0xFFF2E2A0;
+	private static final int PANEL = 0xEEEFF1EE;
 
 	private static Text livesLine = Text.empty();
 	private static int livesKey = Integer.MIN_VALUE;
@@ -116,16 +116,16 @@ public final class StatusHud {
 			drawLives(context, left, cursor, hud);
 			int heartSlots = hud.unlimited() ? 1 : Math.max(1, Math.min(10, hud.maxLives()));
 			context.drawTextWithShadow(text, livesLine, left + heartSlots * HEART_STEP + 4,
-					cursor, 0xFFF2F2F6);
+					cursor, 0xFF2B2F4A);
 			cursor += 10;
 		}
 		if (showCombat && hud != null) {
-			context.drawTextWithShadow(text, combatLine, left, cursor, 0xFFFFC2A8);
+			context.drawTextWithShadow(text, combatLine, left, cursor, 0xFFC2455A);
 			int barY = cursor + 9;
 			int fill = (int) ((long) combatShownMs * 108 / hud.combatMaxMs());
 			if (fill < 1) fill = 1;
 			if (fill > 108) fill = 108;
-			context.fill(left, barY, left + 108, barY + 3, 0xFF2A1A1A);
+			context.fill(left, barY, left + 108, barY + 3, 0xFFE4D6D8);
 			context.fill(left, barY, left + fill, barY + 3, combatColor(combatShownMs, hud.combatMaxMs()));
 			cursor += 16;
 		}
@@ -133,9 +133,9 @@ public final class StatusHud {
 		int compassX = left;
 		int compassY = cursor;
 		context.fill(compassX, compassY, compassX + 16, compassY + 11, 0xFF000000 | territoryRgb);
-		context.fill(compassX + 1, compassY + 1, compassX + 15, compassY + 10, 0xFF16161E);
+		context.fill(compassX + 1, compassY + 1, compassX + 15, compassY + 10, 0xFFEEF1EE);
 		int facingWidth = text.getWidth(facingLabel);
-		context.drawTextWithShadow(text, facingLabel, compassX + 8 - facingWidth / 2, compassY + 2, 0xFFFFFFFF);
+		context.drawTextWithShadow(text, facingLabel, compassX + 8 - facingWidth / 2, compassY + 2, 0xFF2B2F4A);
 		context.drawTextWithShadow(text, territoryLine, compassX + 20, compassY + 2, 0xFF000000 | territoryRgb);
 	}
 

@@ -45,6 +45,11 @@ public class HarvestDepositUI implements Listener {
     public void open() {
         Material target = factionEventManager.getActiveTarget();
         String label = target != null ? EventMaterialLabels.french(target) : "récolte";
+        var bridge = plugin.getClientUiBridge();
+        if (bridge != null && bridge.presentHarvest(player, label)) {
+            return;
+        }
+
         Material icon = target != null ? target : Material.WHEAT;
 
         for (int i = 27; i < 36; i++) {

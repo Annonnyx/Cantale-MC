@@ -1,12 +1,17 @@
 package fr.cantale.plugin.ui.inventory;
 
+import com.google.gson.JsonObject;
 import fr.cantale.plugin.CantalePlugin;
 import fr.cantale.plugin.factions.Faction;
+import fr.cantale.plugin.factions.FactionCreateRules;
 import fr.cantale.plugin.factions.FactionManager;
+import org.bukkit.ChatColor;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 
 public class FactionMainUI extends BaseUI {
+
+    private String notice = "";
 
     public FactionMainUI(CantalePlugin plugin, Player player) {
         super(plugin, player, "§8[§6Cantale§8] §7Faction", 6);
@@ -20,8 +25,15 @@ public class FactionMainUI extends BaseUI {
 
         if (faction == null) {
             setItem(4, Material.SHIELD, "§6§lPas de Faction", "§7Vous n'êtes dans aucune faction.");
-            setItem(20, Material.LIME_WOOL, "§aCréer une Faction", "§7Coût: §61000 §7Cantox", "§7Cliquez pour créer");
-            setItem(24, Material.BOOK, "§eRejoindre une Faction", "§7Voir les invitations");
+            setItem(20, Material.LIME_WOOL, "§aCréer une Faction",
+                    "§7Le nom se choisit dans le menu",
+                    "§7Fondateurs sans faction autour de toi",
+                    "§7Ce chunk devient le premier claim");
+            if (notice.isBlank()) {
+                setItem(24, Material.BOOK, "§eRejoindre une Faction", "§7Les invitations reçues");
+            } else {
+                setItem(24, Material.BOOK, "§eRejoindre une Faction", "§7" + notice);
+            }
         } else {
             setItem(4, Material.SHIELD, "§6§l" + faction.getName(),
                 "§7Membres: §e" + faction.getMemberCount(),
@@ -73,8 +85,18 @@ public class FactionMainUI extends BaseUI {
 
         if (faction == null) {
             switch (slot) {
-                case 20 -> { close(); player.sendMessage("§8[§6Cantale§8] §7Utilisez §e/f create <nom>§7 pour créer votre faction."); }
-                case 24 -> { close(); player.sendMessage("§eVérifiez vos invitations avec §e/f accept§7."); }
+                case 20 -> {
+                    close();
+                    int need = Math.max(1, plugin.getConfigManager().getMinMembersCreate());
+                    int radius = (int) FactionCreateRules.FOUNDING_RADIUS;
+                    player.sendMessage("§8[§6Cantale§8] §7Utilise §e/f create <nom>§7. Il faut §e" + need
+                            + "§7 joueurs sans faction dans §e" + radius
+                            + "§7 blocs. Le chunk actuel devient le premier claim.");
+                }
+                case 24 -> {
+                    notice = "Pas d'invitation dans ce menu. Quand une faction t'invite, confirme avec /f accept.";
+                    init();
+                }
             }
         } else {
             switch (slot) {
@@ -99,5 +121,47 @@ public class FactionMainUI extends BaseUI {
                 case 24 -> nav.openUI(player, new QuestFactionUI(plugin, player));
             }
         }
+    }
+
+    @Override
+    public void writeClientDetail(JsonObject screen) {
+        Faction faction = plugin.getFactionManager().getPlayerFaction(player.getUniqueId());
+        JsonObject detail = new JsonObject();
+        detail.addProperty("has", faction != null);
+        detail.addProperty("notice", notice);
+        detail.addProperty("founders", Math.max(1, plugin.getConfigManager().getMinMembersCreate()));
+        detail.addProperty("radius", (int) FactionCreateRules.FOUNDING_RADIUS);
+        if (faction != null) {
+            detail.addProperty("name", faction.getName());
+            detail.addProperty("members", faction.getMemberCount());
+            detail.addProperty("claims", faction.getClaimCount());
+            detail.addProperty("bank", (int) faction.getBalance());
+            detail.addProperty("power", faction.getPower());
+        }
+        screen.add("detail", detail);
+    }
+
+    @Override
+    public void clientAction(String id, String text) {
+        if (!"create".equals(id)) return;
+        FactionManager fm = plugin.getFactionManager();
+        if (fm.getPlayerFaction(player.getUniqueId()) != null) return;
+        String name = text == null ? "" : text.trim();
+        String error = fm.validateFactionName(name);
+        if (error != null) {
+            notice = plain(error);
+            return;
+        }
+        notice = "";
+        player.performCommand("f create " + name);
+        init();
+    }
+
+    private String plain(String encoded) {
+        String[] parts = encoded.split("\u001f", -1);
+        Object[] args = new Object[Math.max(0, parts.length - 1)];
+        System.arraycopy(parts, 1, args, 0, args.length);
+        String raw = plugin.messages().raw(player, parts[0], args);
+        return ChatColor.stripColor(ChatColor.translateAlternateColorCodes('&', raw));
     }
 }

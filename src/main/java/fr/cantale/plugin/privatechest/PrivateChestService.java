@@ -239,6 +239,11 @@ public class PrivateChestService {
         openOwnedChest(viewer, ownerUuid, type, ownerRank, true, ownerName);
     }
 
+    private boolean openWithMod(Player viewer, Inventory inventory, String title, boolean hasNavigation) {
+        fr.cantale.plugin.ui.net.ClientUiBridge bridge = plugin.getClientUiBridge();
+        return bridge != null && bridge.presentStorage(viewer, inventory, title, hasNavigation);
+    }
+
     private void openOwnedChest(Player viewer, UUID ownerUuid, ChestType type, PlayerRank sizeRank,
                                 boolean foreignInspect, String ownerName) {
         int size = getPrivateChestSize(sizeRank);
@@ -253,7 +258,9 @@ public class PrivateChestService {
         ItemStack[] cached = getCached(ownerUuid, type);
         if (cached != null) {
             applyContents(viewer, inventory, cached, size, hasNavigation, sizeRank, type, foreignInspect);
-            viewer.openInventory(inventory);
+            if (!openWithMod(viewer, inventory, title, hasNavigation)) {
+                viewer.openInventory(inventory);
+            }
             return;
         }
 
@@ -264,7 +271,9 @@ public class PrivateChestService {
                 if (!viewer.isOnline()) return;
                 applyContents(viewer, inventory, contents, size, hasNavigation, sizeRank, type, foreignInspect);
                 updateCache(ownerUuid, type, extractStorage(inventory));
-                viewer.openInventory(inventory);
+                if (!openWithMod(viewer, inventory, title, hasNavigation)) {
+                    viewer.openInventory(inventory);
+                }
             });
         });
     }

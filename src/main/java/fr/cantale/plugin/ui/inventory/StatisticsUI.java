@@ -1,5 +1,6 @@
 package fr.cantale.plugin.ui.inventory;
 
+import com.google.gson.JsonObject;
 import fr.cantale.plugin.CantalePlugin;
 import fr.cantale.plugin.database.PlayerDAO;
 import fr.cantale.plugin.factions.Faction;
@@ -14,6 +15,13 @@ import java.util.concurrent.TimeUnit;
 public class StatisticsUI extends BaseUI {
 
     private final PlayerDAO playerDAO;
+    private int kills;
+    private int deaths;
+    private int streak;
+    private String ratio = "0";
+    private String playtime = "0s";
+    private String rankName = "";
+    private String rankId = "NONE";
 
     public StatisticsUI(CantalePlugin plugin, Player player) {
         super(plugin, player, "§8[§6Cantale§8] §7Statistiques de " + player.getName(), 5);
@@ -30,6 +38,9 @@ public class StatisticsUI extends BaseUI {
             meta.setOwningPlayer(player);
             meta.setDisplayName("§6§l" + player.getName());
             PlayerRank rank = plugin.getRankManager().getRank(player);
+            if (rank == null) rank = PlayerRank.NONE;
+            rankName = rank.getDisplayName();
+            rankId = rank.name();
             Faction faction = plugin.getFactionManager().getPlayerFaction(player.getUniqueId());
             int lives = plugin.getLifeManager().getLives(player.getUniqueId());
             double balance = plugin.getEconomyManager().getBalance(player);
@@ -43,10 +54,12 @@ public class StatisticsUI extends BaseUI {
         }
         setItem(4, head);
 
-        int kills = playerDAO.getKills(player.getUniqueId());
-        int deaths = playerDAO.getDeaths(player.getUniqueId());
-        int killStreak = playerDAO.getKillStreak(player.getUniqueId());
+        kills = playerDAO.getKills(player.getUniqueId());
+        deaths = playerDAO.getDeaths(player.getUniqueId());
+        streak = playerDAO.getKillStreak(player.getUniqueId());
+        int killStreak = streak;
         double kdr = deaths == 0 ? kills : (double) kills / deaths;
+        ratio = String.format("%.2f", kdr);
 
         setItem(19, Material.DIAMOND_SWORD, "§c§lKills",
                 "§7Nombre de kills: §e" + kills,
@@ -69,7 +82,7 @@ public class StatisticsUI extends BaseUI {
                 "§7Kills / Morts");
 
         long playtimeSeconds = fr.cantale.plugin.tasks.PlaytimeSyncTask.playtimeSeconds(player);
-        String playtime = formatDuration(playtimeSeconds);
+        playtime = formatDuration(playtimeSeconds);
 
         setItem(31, Material.CLOCK, "§b§lTemps de jeu",
                 "§7Playtime: §e" + playtime,
@@ -77,6 +90,22 @@ public class StatisticsUI extends BaseUI {
                 "§7Temps total passé sur Cantale");
 
         addNavigationBar(true, false);
+    }
+
+    @Override
+    public void writeClientDetail(JsonObject screen) {
+        JsonObject detail = new JsonObject();
+        detail.addProperty("self", true);
+        detail.addProperty("uuid", player.getUniqueId().toString());
+        detail.addProperty("name", player.getName());
+        detail.addProperty("rank", rankName);
+        detail.addProperty("rankId", rankId);
+        detail.addProperty("kills", kills);
+        detail.addProperty("deaths", deaths);
+        detail.addProperty("streak", streak);
+        detail.addProperty("kdr", ratio);
+        detail.addProperty("playtime", playtime);
+        screen.add("detail", detail);
     }
 
     @Override

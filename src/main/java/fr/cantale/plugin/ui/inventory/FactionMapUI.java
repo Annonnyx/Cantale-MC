@@ -278,6 +278,11 @@ public class FactionMapUI extends BaseUI {
     }
 
     @Override
+    protected boolean preferChest() {
+        return true;
+    }
+
+    @Override
     protected void handleClick(int slot) {
         // Remplacé par onClick (gauche / droit).
     }
